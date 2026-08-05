@@ -5,6 +5,7 @@ from django.urls import include, path
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
+from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.views import MeView
 from apps.assessments.views import (
     AssessmentViewSet,
@@ -16,6 +17,7 @@ from apps.assessments.views import (
     ScoreViewSet,
 )
 from apps.attendance.views import AttendanceBulkView, AttendanceViewSet
+from apps.common.audit_views import AuditEntryViewSet, AuditSummaryView
 from apps.communication.parent_messages import (
     LearnerContactsView,
     ParentMessageViewSet,
@@ -107,6 +109,7 @@ from apps.timetable.views import (
 
 router = DefaultRouter()
 router.register("schools", SchoolViewSet)
+router.register("audit", AuditEntryViewSet, basename="audit")
 router.register("pathways", PathwayViewSet)
 router.register("learners", LearnerViewSet)
 router.register("guardians", GuardianViewSet)
@@ -152,6 +155,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/token/", obtain_auth_token),
     path("api/me/", MeView.as_view()),
+    path("api/me/password/", ChangePasswordView.as_view()),
+    path(
+        "api/school/staff/<int:user_id>/reset-password/",
+        AdminResetPasswordView.as_view(),
+    ),
+    path("api/audit/summary/", AuditSummaryView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),

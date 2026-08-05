@@ -218,6 +218,21 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
         scheme.reviewed_at = timezone.now()
         scheme.review_comment = params.validated_data["comment"]
         scheme.save()
+
+        from apps.common.audit import record as audit
+
+        audit(
+            actor=user,
+            school=scheme.school,
+            action="SCHEME_REVIEWED",
+            target=scheme,
+            label=str(scheme),
+            detail={
+                "decision": params.validated_data["decision"],
+                "teacher": str(scheme.teacher),
+                "comment": scheme.review_comment,
+            },
+        )
         return Response(SchemeOfWorkSerializer(scheme, context={"request": request}).data)
 
     @action(detail=False, methods=["post"], url_path="submit/(?P<scheme_pk>[^/.]+)")

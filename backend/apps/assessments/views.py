@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from django.db import transaction
 
 from apps.common.models import IdempotentRequest
+from apps.common.audit import record as audit
 from apps.common.views import IDEMPOTENCY_HEADER, IdempotencyMixin, SchoolScopedViewSet
 from apps.students.models import Learner
 
@@ -91,11 +92,30 @@ class ScoreBulkView(APIView):
                 if marks < 0 or marks > assessment.max_marks:
                     skipped.append(learner_id)
                     continue
+                previous = Score.objects.filter(
+                    assessment=assessment, learner_id=learner_id
+                ).values_list("marks", "competency_level").first()
                 score, _ = Score.objects.update_or_create(
                     assessment=assessment,
                     learner_id=learner_id,
                     defaults={"marks": marks, "school": school},
                 )
+                # Only a *change* is worth recording. Entering a mark for the
+                # first time is the normal path and would bury the corrections.
+                if previous and float(previous[0]) != marks:
+                    audit(
+                        actor=request.user,
+                        school=school,
+                        action="SCORE_CHANGED",
+                        target=score,
+                        label=f"{score.learner} — {assessment}",
+                        detail={
+                            "from": float(previous[0]),
+                            "to": marks,
+                            "from_level": previous[1],
+                            "to_level": score.competency_level,
+                        },
+                    )
                 saved.append(
                     {
                         "learner": learner_id,

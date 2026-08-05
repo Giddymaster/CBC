@@ -13,6 +13,7 @@ import {
 } from './api.js'
 import Admission from './Admission.jsx'
 import Analysis from './Analysis.jsx'
+import Audit from './Audit.jsx'
 import Attendance from './Attendance.jsx'
 import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
@@ -20,6 +21,7 @@ import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
+import { ForcedPasswordChange } from './Password.jsx'
 import Promotions from './Promotions.jsx'
 import SchemesReview from './SchemesReview.jsx'
 import StaffRollCall from './StaffRollCall.jsx'
@@ -462,6 +464,10 @@ const NAV_SECTIONS = [
     ],
   },
   { title: 'Finance', items: [{ name: 'Fees', ...GRADE_NAV }] },
+  {
+    title: 'Administration',
+    items: [{ name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true }],
+  },
 ]
 
 const ALL_ITEMS = NAV_SECTIONS.flatMap((s) => s.items)
@@ -480,6 +486,7 @@ const TABS = {
   'Schemes Review': SchemesReview,
   Curriculum: Curriculum,
   'Teaching Outcomes': Analysis,
+  'Audit Log': Audit,
   Facilities: Facilities,
 }
 
@@ -578,6 +585,16 @@ export default function App() {
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />
   if (!me) return <p className="muted" style={{ padding: '2rem' }}>Loading…</p>
+  // An admin-issued password is a handover credential. Nothing else in
+  // the app is reachable until it has been replaced.
+  if (me.must_change_password) {
+    return (
+      <ForcedPasswordChange
+        name={me.full_name}
+        onDone={() => setMe({ ...me, must_change_password: false })}
+      />
+    )
+  }
 
   const isParent = me.role === 'PARENT'
   const isTeacher = me.role === 'TEACHER'

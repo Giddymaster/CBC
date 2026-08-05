@@ -47,4 +47,20 @@ def record_transaction(
     except IntegrityError:
         # Duplicate receipt => replayed callback. Idempotent no-op.
         return None
+
+    from apps.common.audit import record as audit
+
+    audit(
+        actor=None,  # a webhook has no signed-in user
+        school=school,
+        action="PAYMENT_RECORDED",
+        target=txn,
+        label=f"{receipt} - KES {amount}",
+        detail={
+            "source": source,
+            "reference": account_reference,
+            "invoice": invoice.id if invoice else None,
+            "matched": bool(invoice),
+        },
+    )
     return txn

@@ -717,3 +717,6 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
   cursor: pointer;
 }
 .roll-btn.on { background: #417690; color: #fff; border-color: #417690; }
+
+/* Forced password change — nothing else in the app until it is done */
+.forced-gate { min-height: 100vh; background: #f7fafc; padding: 1rem; }

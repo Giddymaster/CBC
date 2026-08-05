@@ -269,6 +269,21 @@ export default function Staff({ view }) {
     setPanel({ mode: 'edit', kind: 'NON_TEACHING', id: s.id, name: s.full_name, userId: s.user })
   }
 
+  async function resetPassword(userId, name) {
+    if (!userId) {
+      setMessage(`${name} has no portal login to reset.`)
+      return
+    }
+    const res = await apiWrite(`/api/school/staff/${userId}/reset-password/`, {})
+    setMessage(
+      res.ok
+        ? `New password for ${res.data.name}: ${res.data.generated_password}` +
+          ' — hand it over now, it is not shown again. They will be asked to' +
+          ' choose their own when they sign in.'
+        : res.data?.detail || 'Could not reset that password.',
+    )
+  }
+
   async function setActive(kind, id, active, name) {
     const path =
       kind === 'TEACHING' ? `/api/school/staff/teachers/${id}/` : `/api/support-staff/${id}/`
@@ -566,6 +581,9 @@ export default function Staff({ view }) {
                   <td><PresenceBadge status={t.present_today} /></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button onClick={() => openEditTeacher(t)}>Edit</button>{' '}
+                    <button onClick={() => resetPassword(t.user_id, t.name)}>
+                      Reset password
+                    </button>{' '}
                     <button
                       onClick={() => setActive('TEACHING', t.id, t.active === false, t.name)}
                     >
@@ -627,6 +645,9 @@ export default function Staff({ view }) {
                   ))}
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button onClick={() => openEditSupport(s)}>Edit</button>{' '}
+                    <button onClick={() => resetPassword(s.user, s.full_name)}>
+                      Reset password
+                    </button>{' '}
                     <button
                       onClick={() => setActive('NON_TEACHING', s.id, !s.active, s.full_name)}
                     >

@@ -19,6 +19,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.audit import record as audit
 from apps.common.images import downscale_photo
 from apps.common.views import SchoolScopedViewSet
 
@@ -142,6 +143,14 @@ class AdmissionView(APIView):
                     guardian = Guardian.objects.create(school=school, **row)
                 learner.guardians.add(guardian)
 
+        audit(
+            actor=user,
+            school=school,
+            action="LEARNER_ADMITTED",
+            target=learner,
+            label=f"{learner.full_name} ({learner.admission_number})",
+            detail={"grade": learner.grade, "stream": learner.stream},
+        )
         return Response(
             LearnerSerializer(learner, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
@@ -229,7 +238,17 @@ class AdmissionRightViewSet(SchoolScopedViewSet):
     def perform_create(self, serializer):
         self._require_admin()
         self._check_staff(serializer)
-        serializer.save(school=self.request.user.school, granted_by=self.request.user)
+        right = serializer.save(
+            school=self.request.user.school, granted_by=self.request.user
+        )
+        audit(
+            actor=self.request.user,
+            school=right.school,
+            action="RIGHTS_GRANTED",
+            target=right,
+            label=right.user.get_full_name() or right.user.username,
+            detail={"note": right.note, "expires_on": str(right.expires_on or "")},
+        )
 
     def perform_update(self, serializer):
         self._require_admin()
@@ -241,6 +260,13 @@ class AdmissionRightViewSet(SchoolScopedViewSet):
         self._require_admin()
         instance.active = False
         instance.save(update_fields=["active", "updated_at"])
+        audit(
+            actor=self.request.user,
+            school=instance.school,
+            action="RIGHTS_WITHDRAWN",
+            target=instance,
+            label=instance.user.get_full_name() or instance.user.username,
+        )
 
 
 class MyAdmissionAccessView(APIView):
@@ -334,6 +360,13 @@ class BulkImportView(APIView):
                 status=400,
             )
         created = commit(rows, school=user.school, user=user)
+        audit(
+            actor=user,
+            school=user.school,
+            action="LEARNERS_IMPORTED",
+            label=f"{len(created)} learners imported from a spreadsheet",
+            detail={"created": len(created), "rows_skipped": len(errors)},
+        )
         body["committed"] = True
         body["created"] = len(created)
         return Response(body, status=status.HTTP_201_CREATED)

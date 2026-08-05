@@ -11,6 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 from apps.timetable.models import LessonRequirement
 
@@ -139,6 +140,9 @@ class SupportStaffViewSet(SchoolScopedViewSet):
             username=username, password=password, first_name=first, last_name=last,
             role="SUPPORT", school=request.user.school, phone=staff.phone,
         )
+        if not request.data.get("password"):
+            account.must_change_password = True
+            account.save(update_fields=["must_change_password"])
         staff.user = account
         staff.save(update_fields=["user", "updated_at"])
         return Response(
@@ -159,6 +163,13 @@ class SupportStaffViewSet(SchoolScopedViewSet):
         require_admin(self.request.user)
         instance.active = False
         instance.save(update_fields=["active", "updated_at"])
+        audit(
+            actor=self.request.user,
+            school=instance.school,
+            action="STAFF_DEACTIVATED",
+            target=instance,
+            label=instance.full_name,
+        )
 
 
 class AddTeacherSerializer(serializers.Serializer):
@@ -237,6 +248,17 @@ class AddTeacherView(APIView):
         }
         if not data["password"]:
             body["generated_password"] = password  # shown once, then only hashes exist
+            # An admin-picked password is a handover credential, not theirs.
+            account.must_change_password = True
+            account.save(update_fields=["must_change_password"])
+        audit(
+            actor=user,
+            school=user.school,
+            action="STAFF_ADDED",
+            target=teacher,
+            label=f"{account.get_full_name()} ({teacher.tsc_number})",
+            detail={"employment_type": teacher.employment_type, "rank": teacher.rank},
+        )
         return Response(body, status=status.HTTP_201_CREATED)
 
 

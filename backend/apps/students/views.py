@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 
 from .models import ClassGroup, Guardian, Learner, LearnerField, Pathway
@@ -95,13 +96,29 @@ class LearnerViewSet(SchoolScopedViewSet):
 
     def perform_update(self, serializer):
         self._require_admin()
-        serializer.save()
+        was_active = serializer.instance.active
+        learner = serializer.save()
+        if was_active != learner.active:
+            audit(
+                actor=self.request.user,
+                school=learner.school,
+                action=("LEARNER_REACTIVATED" if learner.active else "LEARNER_DEACTIVATED"),
+                target=learner,
+                label=f"{learner.full_name} ({learner.admission_number})",
+            )
 
     def perform_destroy(self, instance):
         # Learner records are kept for history — deactivate instead of deleting.
         self._require_admin()
         instance.active = False
         instance.save(update_fields=["active", "updated_at"])
+        audit(
+            actor=self.request.user,
+            school=instance.school,
+            action="LEARNER_DEACTIVATED",
+            target=instance,
+            label=f"{instance.full_name} ({instance.admission_number})",
+        )
 
     @action(detail=True)
     def profile(self, request, pk=None):

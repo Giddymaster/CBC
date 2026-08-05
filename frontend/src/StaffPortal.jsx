@@ -3,6 +3,7 @@ import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
 import Admission from './Admission.jsx'
 import MyTeam from './MyTeam.jsx'
+import { ChangePasswordForm } from './Password.jsx'
 
 const STATUS_BADGE = {
   DRAFT: 'queued', SUBMITTED: 'queued', APPROVED: 'online', RETURNED: 'offline',
@@ -163,6 +164,14 @@ export function MyRolePanel({ data, onRefresh }) {
           </table>
         </div>
       )}
+
+      <div className="card">
+        <h3>My password</h3>
+        <p className="muted">
+          Change it whenever you like. Other devices will need to sign in again.
+        </p>
+        <ChangePasswordForm />
+      </div>
 
       <div className="card">
         <h3>My responsibilities</h3>

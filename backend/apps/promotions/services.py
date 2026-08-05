@@ -176,6 +176,17 @@ def apply_run(run, *, user=None):
         AcademicYear.objects.update_or_create(
             school=run.school, year=run.to_year, defaults={"is_current": True}
         )
+
+    from apps.common.audit import record as audit
+
+    audit(
+        actor=user,
+        school=run.school,
+        action="PROMOTION_APPLIED",
+        target=run,
+        label=f"{run.from_year} to {run.to_year}",
+        detail={"learners": len(outcomes)},
+    )
     return run
 
 
@@ -218,6 +229,16 @@ def revert_run(run, *, user=None):
         AcademicYear.objects.update_or_create(
             school=run.school, year=run.from_year, defaults={"is_current": True}
         )
+
+    from apps.common.audit import record as audit
+
+    audit(
+        actor=user,
+        school=run.school,
+        action="PROMOTION_REVERSED",
+        target=run,
+        label=f"{run.from_year} to {run.to_year}",
+    )
     return run
 
 

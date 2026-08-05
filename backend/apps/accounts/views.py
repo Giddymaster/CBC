@@ -15,5 +15,8 @@ class MeView(APIView):
                 "role": user.role,
                 "school": user.school.name if user.school else None,
                 "is_guardian": hasattr(user, "guardian_profile"),
+                # The client blocks on this: an admin-issued password is a
+                # handover credential, not the holder's own.
+                "must_change_password": user.must_change_password,
             }
         )

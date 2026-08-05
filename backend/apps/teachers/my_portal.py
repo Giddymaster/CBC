@@ -155,6 +155,17 @@ class StaffReportViewSet(SchoolScopedViewSet):
         report.reviewed_at = timezone.now()
         report.review_comment = request.data.get("comment", "")
         report.save()
+
+        from apps.common.audit import record as audit
+
+        audit(
+            actor=user,
+            school=report.school,
+            action="REPORT_REVIEWED",
+            target=report,
+            label=f"{report.title} — {report.author.get_full_name() or report.author.username}",
+            detail={"decision": decision, "comment": report.review_comment},
+        )
         return Response(StaffReportSerializer(report, context={"request": request}).data)
 
 
