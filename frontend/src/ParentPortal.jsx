@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ParentThreads } from './ParentMessages.jsx'
 import { apiGet } from './api.js'
 import { gradeLabel } from './format.js'
 
@@ -46,6 +47,7 @@ function ChildCard({ child }) {
 export default function ParentPortal() {
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState('')
+  const [tab, setTab] = useState('My Children')
 
   useEffect(() => {
     apiGet('/api/parent/summary/').then(setSummary).catch((e) => setError(e.message))
@@ -59,6 +61,17 @@ export default function ParentPortal() {
       <p className="muted">
         {summary.guardian.name} — {summary.school} — {summary.year}
       </p>
+      <nav className="tabs">
+        {['My Children', 'Messages'].map((name) => (
+          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+            {name}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'Messages' && <ParentThreads />}
+
+      {tab === 'My Children' && <>
       {summary.children.map((child) => (
         <ChildCard key={child.report_card.learner.id} child={child} />
       ))}
@@ -76,6 +89,7 @@ export default function ParentPortal() {
           </p>
         ))}
       </div>
+      </>}
     </div>
   )
 }

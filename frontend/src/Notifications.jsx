@@ -3,12 +3,14 @@ import { apiGet, apiWrite } from './api.js'
 
 const KIND_LABEL = {
   MESSAGE: 'Message',
+  PARENT: 'From a parent',
   TASK: 'Assigned work',
   REVIEW: 'Awaiting your approval',
   RETURNED: 'Returned for changes',
 }
 const KIND_BADGE = {
   MESSAGE: 'queued',
+  PARENT: 'queued',
   TASK: 'queued',
   REVIEW: 'queued',
   RETURNED: 'offline',

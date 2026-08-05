@@ -16,6 +16,12 @@ from apps.assessments.views import (
     ScoreViewSet,
 )
 from apps.attendance.views import AttendanceBulkView, AttendanceViewSet
+from apps.communication.parent_messages import (
+    LearnerContactsView,
+    ParentMessageViewSet,
+    ParentThreadsView,
+    StaffThreadsView,
+)
 from apps.communication.views import AnnouncementViewSet, SmsMessageViewSet
 from apps.facilities.views import (
     FacilityAssignmentViewSet,
@@ -136,6 +142,7 @@ router.register("timetable/lessons", LessonViewSet)
 router.register("timetable/requirements", LessonRequirementViewSet)
 router.register("communication/sms", SmsMessageViewSet)
 router.register("communication/announcements", AnnouncementViewSet)
+router.register("communication/parent-messages", ParentMessageViewSet)
 router.register("payments/fee-structures", FeeStructureViewSet)
 router.register("payments/invoices", InvoiceViewSet)
 
@@ -159,6 +166,9 @@ urlpatterns = [
     path("api/moe/structure/", MoeStructureView.as_view()),
     path("api/promotions/transitions/", TransitionInfoView.as_view()),
     path("api/parent/summary/", ParentSummaryView.as_view()),
+    path("api/parent/threads/", ParentThreadsView.as_view()),
+    path("api/staff/parent-threads/", StaffThreadsView.as_view()),
+    path("api/learners/<int:learner_id>/contacts/", LearnerContactsView.as_view()),
     path("api/teacher/summary/", TeacherSummaryView.as_view()),
     path("api/my-portal/", MyPortalView.as_view()),
     path("api/my-portal/photo/", MyPhotoView.as_view()),

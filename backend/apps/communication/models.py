@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.common.models import SchoolScopedModel
@@ -42,3 +43,35 @@ class Announcement(SchoolScopedModel):
 
     def __str__(self):
         return self.title
+
+
+class ParentMessage(SchoolScopedModel):
+    """One note on a parent–staff thread about one learner."""
+
+    learner = models.ForeignKey(
+        "students.Learner", on_delete=models.CASCADE, related_name="parent_messages"
+    )
+    guardian = models.ForeignKey(
+        "students.Guardian", on_delete=models.CASCADE, related_name="messages"
+    )
+    staff = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="parent_messages",
+        help_text="The staff side of this thread",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_parent_messages"
+    )
+    body = models.TextField()
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    @property
+    def from_parent(self):
+        return self.sender_id == self.guardian.user_id
+
+    def __str__(self):
+        return f"{self.learner} — {self.sender}"

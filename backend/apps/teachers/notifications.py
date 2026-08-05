@@ -85,6 +85,32 @@ class NotificationsView(APIView):
                 }
             )
 
+        # A parent writing about their child lands in the same bell as everything
+        # else — a teacher should not have to remember to check a second inbox.
+        from apps.communication.models import ParentMessage
+
+        from_parents = (
+            ParentMessage.objects.filter(staff=user, read_at__isnull=True)
+            .exclude(sender=user)
+            .select_related("sender", "learner")
+            .order_by("-created_at")[:20]
+        )
+        for message in from_parents:
+            sender = message.sender
+            items.append(
+                {
+                    "id": f"parent-{message.id}",
+                    "kind": "PARENT",
+                    "title": (
+                        f"{sender.get_full_name() or sender.username} "
+                        f"about {message.learner.full_name}"
+                    ),
+                    "body": message.body,
+                    "learner_id": message.learner_id,
+                    "at": _when(message.created_at),
+                }
+            )
+
         returned = StaffReport.objects.filter(
             author=user, status=StaffReport.Status.RETURNED
         ).order_by("-reviewed_at")[:20]
@@ -103,7 +129,7 @@ class NotificationsView(APIView):
         return Response(
             {
                 "count": len(items),
-                "unread_messages": len(messages),
+                "unread_messages": len(messages) + len(from_parents),
                 "items": items,
             }
         )
