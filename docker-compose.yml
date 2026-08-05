@@ -1,0 +1,74 @@
+# Local stack that matches production: PostgreSQL, Redis, Celery.
+#
+#   docker compose up --build
+#   docker compose run --rm web python manage.py migrate
+#   docker compose run --rm web python manage.py seed_demo
+#
+# The dev default (SQLite, eager Celery, no Redis) still works without any of
+# this — see the README. This exists so the Postgres-only differences can be
+# found before they are found in production.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: cbc
+      POSTGRES_USER: cbc
+      POSTGRES_PASSWORD: cbc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cbc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: ./backend
+    environment: &backend_env
+      DEBUG: "false"
+      # Local only. A real deployment supplies this from its secret store, and
+      # the app refuses to start with the placeholder.
+      SECRET_KEY: local-compose-key-change-for-any-real-deployment
+      ALLOWED_HOSTS: localhost,127.0.0.1,web
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      SECURE_SSL_REDIRECT: "false"   # no TLS terminator in front of compose
+      POSTGRES_DB: cbc
+      POSTGRES_USER: cbc
+      POSTGRES_PASSWORD: cbc
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - media:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    command: celery -A config worker --loglevel=info
+    environment: *backend_env
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  media:

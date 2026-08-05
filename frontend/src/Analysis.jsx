@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
 
@@ -275,8 +275,101 @@ function PeerReview() {
   )
 }
 
-/** Admin view: every teacher, then drill into one. */
+
+/** Every subject across the school, weakest first. */
+function Subjects() {
+  const [data, setData] = useState(null)
+  const [open, setOpen] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiGet('/api/school/subject-analysis/')
+      .then(setData)
+      .catch((e) => setError(e.message))
+  }, [])
+
+  if (error) return <div className="error">{error}</div>
+  if (!data) return <p className="muted">Loading…</p>
+
+  return (
+    <div className="card">
+      <h3>Subjects across the school</h3>
+      <p className="muted">{data.note}</p>
+      {data.subjects.length === 0 ? (
+        <p className="muted">Nothing marked yet.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th><th>Learners</th><th>Mean</th>
+              <th>Competency spread</th><th>Since last term</th><th>Taught by</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.subjects.map((s) => (
+              <Fragment key={s.learning_area}>
+                <tr>
+                  <td><b>{s.name}</b></td>
+                  <td>{s.learners}</td>
+                  <td>
+                    {s.withheld ? (
+                      <span className="muted" title={s.withheld_reason}>withheld</span>
+                    ) : (
+                      <b>{s.mean}%</b>
+                    )}
+                  </td>
+                  <td style={{ minWidth: '12rem' }}>
+                    <CompetencyBar competency={s.competency} />
+                  </td>
+                  <td><Movement value={s.movement} /></td>
+                  <td className="muted">{s.teachers.join(', ') || '—'}</td>
+                  <td>
+                    <button
+                      onClick={() => setOpen(open === s.learning_area ? null : s.learning_area)}
+                    >
+                      {open === s.learning_area ? 'Hide' : 'By grade'}
+                    </button>
+                  </td>
+                </tr>
+                {open === s.learning_area && (
+                  <tr>
+                    <td colSpan="7" style={{ background: '#f7fafc' }}>
+                      <table>
+                        <thead>
+                          <tr><th>Grade</th><th>Learners</th><th>Mean</th><th>Competency spread</th></tr>
+                        </thead>
+                        <tbody>
+                          {s.grades.map((g) => (
+                            <tr key={g.grade}>
+                              <td>{g.grade_label}</td>
+                              <td>{g.learners}</td>
+                              <td>
+                                {g.withheld
+                                  ? <span className="muted">withheld</span>
+                                  : <b>{g.mean}%</b>}
+                              </td>
+                              <td style={{ minWidth: '12rem' }}>
+                                <CompetencyBar competency={g.competency} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+/** Admin view: teachers and subjects. */
 export default function Analysis() {
+  const [view, setView] = useState('Teachers')
   const [overview, setOverview] = useState(null)
   const [selected, setSelected] = useState(null)
   const [error, setError] = useState('')
@@ -295,6 +388,16 @@ export default function Analysis() {
 
   return (
     <div>
+      <nav className="tabs">
+        {['Teachers', 'Subjects'].map((name) => (
+          <button key={name} className={view === name ? 'active' : ''}
+            onClick={() => setView(name)}>{name}</button>
+        ))}
+      </nav>
+
+      {view === 'Subjects' && <Subjects />}
+
+      {view === 'Teachers' && <>
       <div className="card">
         <h3>Teaching outcomes</h3>
         <p className="muted">{overview.note}</p>
@@ -332,6 +435,7 @@ export default function Analysis() {
         )}
       </div>
       <PdRecords />
+      </>}
     </div>
   )
 }

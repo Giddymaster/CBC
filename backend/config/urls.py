@@ -16,6 +16,7 @@ from apps.assessments.views import (
     ScoreBulkView,
     ScoreViewSet,
 )
+from apps.assessments.subject_analysis import SubjectAnalysisView
 from apps.attendance.views import AttendanceBulkView, AttendanceViewSet
 from apps.common.audit_views import AuditEntryViewSet, AuditSummaryView
 from apps.communication.parent_messages import (
@@ -164,6 +165,7 @@ urlpatterns = [
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
+    path("api/school/subject-analysis/", SubjectAnalysisView.as_view()),
     path("api/staff/roll-call/", StaffRollCallView.as_view()),
     path(
         "api/schemes-of-work/<int:scheme_id>/lesson-plans/",

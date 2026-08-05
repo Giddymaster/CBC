@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **299 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **363 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -82,15 +82,22 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
 | Parent↔teacher messaging, with parent messages in the staff bell | ✅ |
 | CSV bulk learner import, dry-run then commit | ✅ |
 | Staff roll-call UI, lesson-plan UI, photo downscaling | ✅ |
+| Password change, admin reset, forced change on an issued password | ✅ |
+| Append-only audit trail across the decisions that matter | ✅ |
+| Subject outcomes across the school, weakest first, per grade | ✅ |
+| CI on SQLite **and PostgreSQL**, deploy checks, Docker + compose | ✅ |
 
 ---
 
 ## 5. Open gaps — ranked
 
 ### Blocking a real deployment
-1. **No CI and no deployment pipeline.** The suite exists but nothing runs it automatically. ⬜
-2. **Never run on PostgreSQL.** SQLite hides case-sensitivity, transaction and constraint
-   differences. At minimum, run the suite against Postgres once before go-live. ⬜
+1. ~~No CI and no deployment pipeline~~ — **done**: GitHub Actions runs the suite on
+   SQLite and PostgreSQL, `check --deploy`, a missing-migration check and the frontend
+   build. Docker image and compose stack added. **Still not actually deployed
+   anywhere.** 🟡
+2. ~~Never run on PostgreSQL~~ — **CI now runs the whole suite against PostgreSQL 16**
+   on every push. 🟡 *(green in CI; not yet run against a production-sized dataset)*
 3. ~~Production settings are unguarded~~ — **done**: with `DEBUG=false` the app refuses to
    start without a real `SECRET_KEY`, and enables HSTS, secure cookies, SSL redirect and
    `X-Frame-Options: DENY`. Still never deployed, so still unproven in practice. ✅
@@ -98,23 +105,22 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
    task. Now more pressing: the admission form holds medical records on minors. ⬜
 
 ### Correctness / safety
-5. **No audit trail.** Who changed a mark, deactivated a learner, or approved a report is not
-   recorded beyond `updated_at`. For a system holding minors' records this is the largest
-   remaining integrity gap. ⬜
+5. ~~No audit trail~~ — **done**: append-only log across marks, learners, reviews,
+   promotions, rights, staff, payments and password resets. ✅
 6. **`IdempotentRequest` grows without bound** — needs a TTL prune job. ⬜
 7. **Bulk endpoints are not rate-limited.** ⬜
 
 ### Product gaps a school would hit in term one
 8. ~~Supervisor cannot be set from the admin UI~~ — **done**: dropdown on both staff forms,
    Supervisor column on both tables, self-supervision rejected server-side. ✅
-9. **No password reset / change-password flow.** Admin-generated passwords are shown once and
-   cannot be rotated by the staff member. ⬜ *(now the largest product gap)*
+9. ~~No password reset / change-password flow~~ — **done**: self-service change, admin
+   reset, forced replacement of any issued password, token invalidation. ✅
 10. ~~No promotion / end-of-year rollover~~ — **done**: preview, adjust, apply, reverse. ✅
 11. ~~No transfer-out or alumni state~~ — **done**: Learner.status records why a learner
     left, with an exit date. ✅
 12. **No fee statement or receipt PDF** for parents. ⬜
-13. ~~No exam analytics~~ — **done** for teaching outcomes (class mean, competency spread,
-    term-on-term movement). Subject *ranking* across the school is still absent. 🟡
+13. ~~No exam analytics~~ — **done**: teaching outcomes *and* subject outcomes across the
+    school, weakest first, broken down by grade. ✅
 14. ~~No bulk learner import~~ — **done**: CSV with flexible headers, dry-run then commit. ✅
 15. ~~Teacher attendance has no UI~~ — **done**: staff roll-call, head/deputy/admin only. ✅
 
@@ -373,3 +379,54 @@ messaging, and the half-built backlog. 139 new tests — 160 to 299.
   is why it proposes rather than decides. ➖ by design.
 - **Promotion has no audit trail beyond the run itself** — who changed an individual
   outcome before applying is not recorded. ⬜
+
+
+---
+
+## 13. Passwords, audit, subject outcomes, CI (2026-08-05)
+
+The four gaps named at the end of §12. 64 new tests — 299 to 363.
+
+| Gap | Status |
+|---|---|
+| No password reset | ✅ self-service change, admin reset, forced replacement, token invalidation |
+| No audit trail | ✅ append-only across 14 kinds of decision |
+| No subject ranking | ✅ weakest first, per grade, with who teaches it |
+| No CI, never on PostgreSQL | 🟡 CI runs both engines; still never deployed |
+
+### Design decisions worth keeping
+
+- **A forced password change is what makes an admin reset safe.** Without it the admin
+  keeps a working credential indefinitely. The flag is set on any system-generated
+  password, and the whole app is gated behind replacing it.
+- **Changing a password kills the old token.** Otherwise the change is cosmetic against
+  the exact threat it responds to.
+- **The audit log is explicit, not signal-driven**, and only logs a mark that *changed* —
+  first entry is the normal path and would bury the corrections.
+- **The log cannot be written through the API at all.** Asserted, not just unimplemented.
+- **An audit failure never fails the action it describes.** A school that cannot save a
+  mark because logging broke is worse off than one with a gap in its log.
+- **Both analyses withhold a mean below five learners** rather than showing a number that
+  says more about the sample than the teaching.
+
+### Two test-harness traps hit here
+
+- `importlib.reload` re-runs a module *into its existing namespace*, so a name the new run
+  does not reassign survives. A DEBUG=true reload was inheriting the DEBUG=false security
+  settings and asserting nothing. Fixed by executing `settings.py` in a fresh namespace.
+- `call_command("check", "--deploy")` reads Django's already-configured settings object, so
+  in-suite it could only ever check the *test* settings. That check belongs in CI as a real
+  process, and that is where it now lives.
+
+### Still open
+
+- **Never actually deployed.** CI is green; no infrastructure exists. AWS `af-south-1` +
+  Cloudflare remains a plan. ⬜
+- **Daraja sandbox never exercised** — payments are logic-complete and stub-mode only. ⬜
+- **No log retention or export.** The audit table grows without bound and cannot be handed
+  to an auditor as a file. ⬜
+- **`IdempotentRequest` still grows without bound** — needs a TTL prune job. ⬜
+- **No rate limiting** on bulk endpoints or the login endpoint. ⬜
+- **Password reset needs an admin.** There is no self-service "forgot password" by SMS or
+  email, which for a rural school means waiting for the office. ⬜
+- **Kenya DPA 2019 registration** — a legal precondition, unchanged. ⬜

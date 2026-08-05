@@ -42,7 +42,7 @@ cd backend
 ../backend-venv/Scripts/python manage.py test tests --settings=config.settings_test
 ```
 
-160 tests, under two seconds. `config/settings_test.py` swaps in an in-memory database and
+363 tests, under four seconds. `config/settings_test.py` swaps in an in-memory database and
 a fast password hasher — without it the suite takes minutes on real hashing.
 
 Coverage is deliberately weighted toward the things that would be worst to get wrong:
@@ -59,6 +59,12 @@ Coverage is deliberately weighted toward the things that would be worst to get w
 - **Knowledge base** (`tests/test_knowledge.py`) — chunking, BM25 retrieval, cross-tenant
   isolation of school documents, authority ordering, and the MoE canon including the
   pathway conflict.
+- **Promotions** (`tests/test_promotions.py`) — preview, adjust, apply, reverse, and a
+  whole-school round trip asserted to leave no trace.
+- **Passwords and audit** (`tests/test_passwords_audit.py`) — token invalidation, forced
+  change, and an append-only log that cannot be written or deleted through the API.
+- **Deployment** (`tests/test_deployment.py`) — the production settings nobody runs
+  locally: startup refusal without a real key, HSTS, secure cookies, Postgres selection.
 
 Two older narrative scripts remain for manual walkthroughs:
 `scripts/smoke_test.py` (payments, offline attendance) and `scripts/smoke_test2.py`
@@ -198,10 +204,48 @@ frontend/          React + Vite: login, learners, offline attendance register,
                    report cards, fees + STK push; offline queue in src/api.js
 ```
 
+## Accounts and passwords
+
+- A staff member changes their own password at any time (`POST /api/me/password/`), which
+  **invalidates the existing token** — a password change is usually a response to it being
+  known by someone else, and leaving old tokens alive would make it cosmetic. A fresh token
+  comes back so the current session continues.
+- The admin resets a forgotten one (`POST /api/school/staff/<user_id>/reset-password/`). The
+  new password is shown once and the account is flagged: **the app is unreachable until the
+  holder replaces it**. That is what stops the admin's copy remaining a working credential.
+- The same flag is set on any password the system generates when creating a staff account.
+
+## Audit trail
+
+`GET /api/audit/` records the decisions a school would be asked about later — a mark
+corrected (with both values and both competency levels), a learner admitted or deactivated,
+a report or scheme reviewed, a promotion applied or reversed, rights granted, a password
+reset, a payment received.
+
+Deliberately explicit rather than signal-driven: a `post_save` hook on every model would log
+migrations and seed data, and the useful entries would drown. **Append-only** — there is no
+create, update or delete endpoint, because a log an admin can edit is not evidence of
+anything. An audit write can never fail the action it describes.
+
+## Running the production stack locally
+
+The dev default needs none of this — SQLite, eager Celery, no Redis. Use compose when you
+want the engine production actually uses:
+
+```bash
+docker compose up --build
+docker compose run --rm web python manage.py migrate
+docker compose run --rm web python manage.py seed_demo
+```
+
+CI (`.github/workflows/ci.yml`) runs the suite twice — once on SQLite, once on **PostgreSQL
+16** — plus `manage.py check --deploy` with `DEBUG=false`, a check that the app refuses to
+start without a real `SECRET_KEY`, a missing-migration check, and the frontend build.
+
 ## Production notes
 
 - Set `POSTGRES_DB` etc. to switch to PostgreSQL; set `DEBUG=false` (Celery then requires a real Redis at `REDIS_URL`).
 - With `DEBUG=false` the app **refuses to start** without a real `SECRET_KEY`, and turns on HSTS, secure cookies, SSL redirect and `X-Frame-Options: DENY`. Set `CORS_ALLOWED_ORIGINS` to your real frontend origin.
 - Registers of learner data fall under the Kenya Data Protection Act 2019 — register as a data controller before going live. The KEMIS exports are admin-only for this reason.
 - Daraja callbacks must be HTTPS-reachable (`DARAJA_CALLBACK_URL`); register the C2B confirmation URL on the paybill.
-- **The app has never been run against PostgreSQL or the real Daraja sandbox.** Do both before go-live — see [ROADMAP.md](ROADMAP.md) for the full pre-deployment gap list.
+- **The app has never been run against the real Daraja sandbox.** Do that before go-live — see [ROADMAP.md](ROADMAP.md) for the full pre-deployment gap list. PostgreSQL is now covered by CI.
