@@ -25,6 +25,12 @@ from apps.facilities.views import (
     SupplyViewSet,
 )
 from apps.interop.views import kemis_enrollment, kemis_learners_csv
+from apps.knowledge.views import (
+    CurriculumSearchView,
+    DocumentViewSet,
+    MoeStructureView,
+    SourceViewSet,
+)
 from apps.payments.views import (
     C2BConfirmationView,
     FeeStructureViewSet,
@@ -86,6 +92,8 @@ router.register("guardians", GuardianViewSet)
 router.register("class-groups", ClassGroupViewSet)
 router.register("learner-fields", LearnerFieldViewSet)
 router.register("admission-rights", AdmissionRightViewSet)
+router.register("curriculum/sources", SourceViewSet)
+router.register("curriculum/documents", DocumentViewSet, basename="document")
 router.register("nav-sections", NavSectionViewSet)
 router.register("facility-categories", FacilityCategoryViewSet)
 router.register("facilities", FacilityViewSet)
@@ -126,6 +134,8 @@ urlpatterns = [
     path("api/admissions/access/", MyAdmissionAccessView.as_view()),
     path("api/learners/<int:learner_id>/photo/", LearnerPhotoView.as_view()),
     path("api/notifications/", NotificationsView.as_view()),
+    path("api/curriculum/search/", CurriculumSearchView.as_view()),
+    path("api/moe/structure/", MoeStructureView.as_view()),
     path("api/parent/summary/", ParentSummaryView.as_view()),
     path("api/teacher/summary/", TeacherSummaryView.as_view()),
     path("api/my-portal/", MyPortalView.as_view()),

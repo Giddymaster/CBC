@@ -13,6 +13,7 @@ import {
 } from './api.js'
 import Admission from './Admission.jsx'
 import Attendance from './Attendance.jsx'
+import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
@@ -436,6 +437,7 @@ const NAV_SECTIONS = [
     items: [
       { name: 'Timetable', ...GRADE_NAV },
       { name: 'Schemes Review', ...GRADE_NAV },
+      { name: 'Curriculum', label: 'Curriculum Library (RAG)', ownHeading: true },
     ],
   },
   {
@@ -468,6 +470,7 @@ const TABS = {
   Fees: Fees,
   Timetable: Timetable,
   'Schemes Review': SchemesReview,
+  Curriculum: Curriculum,
   Facilities: Facilities,
 }
 

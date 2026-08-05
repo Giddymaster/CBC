@@ -165,6 +165,8 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
         try:
             content = generate_scheme(
                 learning_area=learning_area.name,
+                learning_area_id=learning_area.id,
+                school=teacher.school,
                 grade=data["grade"],
                 term=data["term"],
                 year=data["year"],

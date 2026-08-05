@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **111 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **160 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -70,6 +70,9 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
 | Learner profile photos on register, class list and profile | ✅ |
 | Delegated admission rights (admin → head teacher / class teacher, with expiry) | ✅ |
 | Notification bell: supervisor messages, assigned work, reviews, returned reports | ✅ |
+| Curriculum knowledge base (RAG): documents → chunks → BM25 retrieval with citations | ✅ |
+| MoE canon as the single authority, with source precedence for conflicts | ✅ |
+| Grounded scheme generation with provenance shown to the reviewer | ✅ |
 
 ---
 
@@ -178,13 +181,23 @@ Nothing exists. No model, no endpoint, no screen.
 
 | Item | Status |
 |---|---|
-| MoE-approved CBC textbooks (Grade 7–12) | ⬜ |
-| Digital libraries (Kenya Education Cloud, KICD e-books) | ⬜ |
-| Teacher guides (scheme/lesson-plan templates) | ⬜ |
-| Assessment banks (CBC-aligned question pools) | ⬜ |
+| MoE-approved CBC textbooks (Grade 7–12) | 🟡 |
+| Digital libraries (Kenya Education Cloud, KICD e-books) | 🟡 |
+| Teacher guides (scheme/lesson-plan templates) | 🟡 |
+| Assessment banks (CBC-aligned question pools) | 🟡 |
 
-The AI scheme generator writes a KICD-shaped plan from a prompt, which is
-adjacent — but there is no library, no content store and no question bank.
+**Updated 2026-08-05.** The **curriculum knowledge base** now provides the store: a
+school uploads designs, circulars, course books, guides and question banks; they are
+chunked, indexed and retrievable with citations, and they ground generated schemes.
+
+What is still missing is the *content itself* and the reader:
+
+- No actual KICD designs are bundled — a school must obtain and upload them. The seed
+  command loads short illustrative extracts, clearly labelled as demo.
+- No Kenya Education Cloud / KICD e-book integration; ingestion is manual upload.
+- Question banks can be stored and searched but there is no item model, no paper
+  assembly and no delivery to learners.
+- PDF text extraction needs `pypdf`; without it a PDF stores but does not index.
 
 ### 3. Communication & Collaboration — 1 of 3
 
@@ -247,10 +260,67 @@ falling behind.
 3. **Parent↔teacher messaging and parent notifications** — closes the
    Communication Hub. The `StaffMessage` and notification machinery already
    exists; it needs a parent-facing channel.
-4. **Resources and question banks** (brief §2) — the other section at zero, and
-   the gateway to the LMS half of the brief.
+4. **Resources and question banks** (brief §2) — the *store* now exists (see §11).
+   What remains is real content, an ingestion path better than manual upload, and a
+   question-item model that can assemble a paper.
 5. **Learner-facing surface** — the Moodle/Classroom half. The largest piece and
    the right one to do last, since it depends on 1, 2 and 4.
 
 Cheap items worth folding in along the way: lesson-plan UI, teacher-attendance
 UI, CSV bulk import, photo downscaling on upload.
+
+
+---
+
+## 11. Curriculum RAG and the MoE conflict rule (2026-08-05)
+
+Built on request: retrieval-augmented generation grounded in authoritative documents,
+with MoE structure governing conflicts.
+
+**`apps/schools/moe.py`** is now the single definition of Kenyan basic-education
+structure — levels, the three Senior School pathways and their tracks, competency
+levels, transition points — and of source precedence:
+
+`MOE › KICD › KNEC › TSC › COUNTY › SCHOOL › OTHER`
+
+Conflicts resolved and recorded in that module:
+
+| Conflict | Resolution |
+|---|---|
+| Brief named **four** pathways (incl. Humanities) | MoE defines **three**. Humanities is a *track* inside Social Sciences. `pathway_for_track("Humanities")` → `SOCIAL`, so the brief's intent survives under the MoE structure. |
+| Brief's "Primary / JSS / Senior" | Replaced by the fuller MoE breakdown: Pre-Primary, Lower Primary, Upper Primary, Junior School, Senior School. |
+
+**`apps/knowledge/`** holds the library: `Source` (carries the authority),
+`Document` (national when `school` is null, otherwise tenant-private), `Chunk`.
+Retrieval is lexical BM25 with authority weighting — no API key, no vector database,
+no network, because a school on intermittent connectivity still needs it to work.
+Documents chunk on their own headings so citations name the sub-strand.
+
+Scheme generation now retrieves before drafting, passes cited context, states the
+precedence to the model, and attaches a `grounding` block the reviewer can read: how
+many passages, from which sources, and which authority governs. With an empty library
+it says so rather than pretending.
+
+### Bug found by these tests
+
+**Negative IDF silently emptied results.** Document frequency was accumulated over the
+query's term *list* rather than its distinct terms, so a query repeating a word
+("strand sub-strand") counted that word twice per chunk. With `n` above the corpus size,
+`log(1 + (total − n + 0.5)/(n + 0.5))` went negative, dragged the passage score below
+zero, and the `score <= 0` guard discarded everything. Fixed by iterating distinct terms
+and flooring IDF at zero; both are covered by regression tests.
+
+Also fixed while here: chunk **headings were not indexed**, so "Sub-strand 2.1 Mixtures"
+— exactly what a teacher searches for — was unfindable. Headings now index with the body.
+
+### Still open in this area
+
+- **Retrieval is lexical, not semantic.** "How do learners separate salt from sand?"
+  will not match a passage phrased differently. An embedding backend is stubbed for but
+  not implemented. ⬜
+- **No re-ranking.** Top-k goes straight to the prompt. ⬜
+- **Authority weighting is a heuristic, not contradiction detection.** It reports that
+  sources of differing standing matched and names the governing one; it does not read
+  them and decide they disagree. Named honestly in the code and the UI. ⬜
+- **No document versioning** — re-uploading a design replaces it, losing what a scheme
+  approved last term was grounded in. Worth having before an audit trail matters. ⬜

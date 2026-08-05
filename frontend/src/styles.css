@@ -632,3 +632,42 @@ select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-
   font-size: 1.6rem;
   font-weight: 700;
 }
+
+/* ---- Curriculum library / RAG ---- */
+.passage {
+  border-left: 3px solid #417690;
+  background: #fbfcfd;
+  padding: 0.6rem 0.9rem;
+  margin: 0.6rem 0;
+  border-radius: 0 6px 6px 0;
+}
+.passage-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+.passage-text {
+  margin: 0 0 0.35rem;
+  white-space: pre-wrap;
+  font-size: 0.88rem;
+  color: #2d3748;
+}
+.sync-note {
+  background: #fffaf0;
+  border-left: 4px solid #dd6b20;
+  padding: 0.5rem 0.8rem;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+.grade-chip {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #cbd5e0;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.grade-chip.on { background: #417690; color: #fff; border-color: #417690; }

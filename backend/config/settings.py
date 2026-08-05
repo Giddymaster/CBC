@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "apps.payments",
     "apps.interop",
     "apps.facilities",
+    "apps.knowledge",
 ]
 
 MIDDLEWARE = [

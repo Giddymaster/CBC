@@ -16,7 +16,8 @@ cd backend
 python -m venv ../backend-venv
 ../backend-venv/Scripts/pip install -r requirements.txt
 ../backend-venv/Scripts/python manage.py migrate
-../backend-venv/Scripts/python manage.py seed_demo   # demo school + admin/admin login
+../backend-venv/Scripts/python manage.py seed_demo         # demo school + admin/admin login
+../backend-venv/Scripts/python manage.py seed_curriculum   # illustrative curriculum documents
 ../backend-venv/Scripts/python manage.py runserver
 ```
 
@@ -41,7 +42,7 @@ cd backend
 ../backend-venv/Scripts/python manage.py test tests --settings=config.settings_test
 ```
 
-80 tests, under a second. `config/settings_test.py` swaps in an in-memory database and
+160 tests, under two seconds. `config/settings_test.py` swaps in an in-memory database and
 a fast password hasher — without it the suite takes minutes on real hashing.
 
 Coverage is deliberately weighted toward the things that would be worst to get wrong:
@@ -55,6 +56,9 @@ Coverage is deliberately weighted toward the things that would be worst to get w
 - **Domain** (`tests/test_domain.py`) — competency derivation, bulk marks, attendance
   idempotency, M-Pesa double-credit protection, timetable clash rules, PG→G12 structure.
 - **Schemes & facilities** (`tests/test_schemes_and_facilities.py`).
+- **Knowledge base** (`tests/test_knowledge.py`) — chunking, BM25 retrieval, cross-tenant
+  isolation of school documents, authority ordering, and the MoE canon including the
+  pathway conflict.
 
 Two older narrative scripts remain for manual walkthroughs:
 `scripts/smoke_test.py` (payments, offline attendance) and `scripts/smoke_test2.py`
@@ -69,6 +73,46 @@ Two older narrative scripts remain for manual walkthroughs:
 - **Schemes of work — upload, AI generation, and head review:** teachers can upload a scheme document (`POST /api/schemes-of-work/` multipart with `document`) or have one AI-drafted (`POST /api/schemes-of-work/generate/` with learning area, grade, term, weeks). Either path lands the scheme in **Pending review**; the admin/head sees a "Schemes Review" queue in the staff UI where they open the uploaded file or the structured weekly plan and approve/reject with a comment (`POST /api/schemes-of-work/<id>/review/`, admin-only). Generation uses the Claude API (`claude-opus-5` with a JSON-schema-constrained response) when `ANTHROPIC_API_KEY` is set in `backend/.env`; without a key it falls back to a deterministic KICD-style template so the workflow works offline.
 - **Teacher portal:** `TEACHER` logins get their own UI. `GET /api/teacher/summary/` returns the teacher's personal timetable, the assessments they can mark (derived from their lesson requirements/lessons; stream-blank assessments cover the whole grade), their schemes of work, and teacher-audience announcements. `POST /api/scores/bulk/` enters a whole class's marks in one offline-tolerant request (Idempotency-Key replay-safe, upserted on assessment+learner, invalid rows skipped and reported) and returns the derived EE/ME/AE/BE level per learner. Portal tabs: My Timetable, Score Entry, Attendance, Schemes of Work.
 - **Timetable generation:** define weekly needs in `/api/timetable/requirements/` (teacher, learning area, class, lessons/week, needs_lab), then `POST /api/timetable/generate/` places lessons greedily — most-constrained first, spread across days, honoring teacher/class/lab availability — and reports anything it could not place. The Timetable tab shows the grid with a regenerate button.
+
+## Curriculum knowledge base (RAG)
+
+Generated schemes of work are **retrieval-augmented**: before drafting, the relevant
+passages are pulled from the school's curriculum library and passed as context, and the
+model is required to work from them and cite them by number.
+
+- **Library** (`/api/curriculum/documents/`) — KICD curriculum designs, MoE circulars,
+  approved course books, teacher guides, question banks. Documents are chunked on their
+  own headings, so a citation reads *"Grade 7 Integrated Science — Sub-strand 2.1
+  Mixtures"* rather than "page 4".
+- **Retrieval** is lexical BM25 — no API key, no vector database, no network. That matters
+  for a school on intermittent connectivity. Search: `/api/curriculum/search/?q=`.
+- **National vs school documents:** a document with no school is national and readable by
+  every tenant; only a platform superuser can publish one. A school admin adds their own
+  school's documents, which never leave that tenant.
+- **Provenance:** every generated scheme carries a `grounding` block — how many passages,
+  which sources with full citations, and the governing authority. If the library has
+  nothing for that subject and grade, the scheme says so plainly so the head teacher
+  reviewing it knows it was written without the curriculum design.
+
+### Conflict rule: MoE governs
+
+`apps/schools/moe.py` is the single definition of Kenyan basic-education structure —
+levels, pathways, competency levels, transitions — and the authority precedence:
+
+**MoE › KICD › KNEC › TSC › County › School › Other**
+
+Retrieval weights passages by that order and reports when sources of differing standing
+both matched, naming the one that governs. The generator is told the precedence explicitly.
+Two conflicts already resolved this way are recorded in that module:
+
+- The founding brief named **four** Senior School pathways. MoE defines **three** —
+  "Humanities" is a *track* inside Social Sciences, not a pathway. `pathway_for_track()`
+  resolves the brief's term to the MoE structure, so the intent survives and the structure
+  follows MoE.
+- The brief's "Primary / JSS / Senior" is replaced by the fuller MoE breakdown
+  (Pre-Primary, Lower Primary, Upper Primary, Junior School, Senior School).
+
+`GET /api/moe/structure/` publishes the canon; the Curriculum Library page shows it.
 
 ## Admissions
 
@@ -148,6 +192,7 @@ backend/
     payments/      FeeStructure, Invoice, M-Pesa Daraja + reconciliation
     interop/       KEMIS/NEMIS exports
     facilities/    NavSection, FacilityCategory, Facility, assignments, supplies
+    knowledge/     curriculum library: Source (authority), Document, Chunk, BM25 retrieval
   tests/           test suite (tenancy, supervision, permissions, domain)
 frontend/          React + Vite: login, learners, offline attendance register,
                    report cards, fees + STK push; offline queue in src/api.js
