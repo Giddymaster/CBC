@@ -145,3 +145,108 @@ Still open in this area:
   Worth a Pillow downscale before a school with 300 learners fills the disk. ⬜
 - **No sibling linkage** beyond the shared guardian record — the form reuses the parent, but
   there is no "these two learners are siblings" view. ⬜
+
+---
+
+## 8. The original brief, section by section
+
+The six-part brief, audited against the code on 2026-08-05. This is the master
+scorecard; sections 1–7 above track how we got here.
+
+**Roughly 55% delivered.** The split is not even: the *administrative spine* is
+essentially done, and the *teaching-and-learning half* is barely started.
+
+### 1. Core Modules — 3 complete, 3 partial, 1 absent
+
+| Module | Status | Reality |
+|---|---|---|
+| Student Information System | 🟡 | Learner profiles ✅ (full admission record), competency tracking EE/ME/AE/BE ✅. **Pathway assignment is a manual dropdown — no automation, no Grade 9→10 rule.** |
+| Teacher Management | 🟡 | Schemes of work ✅. **Lesson plans: model + API, zero UI. Teacher attendance: model + API, no UI, nothing writes to it but seeds. Performance analysis: nothing. PD records: model only — not even exposed over REST.** |
+| Assessment Engine | ✅ | CAT1/CAT2/End-term/formative, CBC rubrics with per-assessment override, automated report cards (JSON + PDF + Celery batch). The most complete module. |
+| Timetable Generator | ✅ | Auto-scheduling across teachers, rooms and labs with clash avoidance and unplaced reporting. Delivered as specified. |
+| Communication Hub | 🟡 | SMS ✅, announcements ✅, staff notifications ✅. **No parent↔teacher messaging at all. No parent notifications. Teams/Zoom is a deep link on an announcement, not an interface.** |
+| Attendance Register | 🟡 | Learner roll-call ✅ offline-tolerant. Teacher roll-call has no UI. **Biometric: not started.** |
+| Smart Board Integration | ⬜ | Nothing. No interactive lessons, no multimedia, no annotation. |
+
+### 2. Resources & Books — 0 of 4
+
+Nothing exists. No model, no endpoint, no screen.
+
+| Item | Status |
+|---|---|
+| MoE-approved CBC textbooks (Grade 7–12) | ⬜ |
+| Digital libraries (Kenya Education Cloud, KICD e-books) | ⬜ |
+| Teacher guides (scheme/lesson-plan templates) | ⬜ |
+| Assessment banks (CBC-aligned question pools) | ⬜ |
+
+The AI scheme generator writes a KICD-shaped plan from a prompt, which is
+adjacent — but there is no library, no content store and no question bank.
+
+### 3. Communication & Collaboration — 1 of 3
+
+| Item | Status | Reality |
+|---|---|---|
+| Teams/Zoom for remote classes | ⬜ | A `meeting_link` URL field on announcements. Deliberate ("deep-links, not embedded SDKs") but it is not the integration the brief asked for. |
+| Parent portal | ✅ | Progress reports, fee balances and announcements — all three named items, as an installable PWA. |
+| Admin dashboards for boards + MoE compliance | 🟡 | KEMIS learner register and enrollment returns export cleanly. There is no dashboard, and nothing built for a school board. |
+
+### 4. Teacher Analysis & Support — the weakest section, ~0.5 of 3
+
+| Item | Status | Reality |
+|---|---|---|
+| Performance dashboards (learner outcomes per teacher) | ⬜ | No aggregate query exists anywhere in the codebase. |
+| PD logs linked to TSC training records | ⬜ | `ProfessionalDevelopmentRecord` exists as a model and is reachable only through Django admin. No API, no UI, no TSC link. |
+| Feedback loops — peer review of schemes and lesson plans | 🟡 | Head/admin review of schemes ✅. **Peer** review does not exist, and lesson plans are not reviewable at all. |
+
+### 5. MoE Compliance — ~0.5 of 3
+
+| Item | Status | Reality |
+|---|---|---|
+| Governance (JSS BoM, Parents Association) | 🟡 | BOM/PTA exist as staff *employment types*. The governance bodies themselves are not modelled: no BoM member register, no terms of office, no meeting records. |
+| CBC pathways: automated assignment and grading | 🟡 | Grading ✅. **Assignment is manual.** |
+| Transition rules 6→7, 9→10, 12→tertiary | ⬜ | Nothing. There is no promotion or end-of-year rollover of any kind. |
+
+### 6. Software inspirations
+
+| Inspiration | How we compare |
+|---|---|
+| Edupath SMS | Continuous assessment ✅ and report cards ✅ match. Automated pathway assignment does not. |
+| KEMIS | Closest match — national data exports ✅, resource tracking ✅ (facilities, staff posts, supplies), teacher attendance partial. |
+| Moodle / Google Classroom | **No overlap.** No content delivery, no assignments, no submissions, no learner-facing surface at all. Learners have no login. |
+
+---
+
+## 9. What we have actually been building
+
+Every feature added since the brief — facilities, staff portals, supervision,
+admissions, notifications — deepened **school administration**. None of it
+touched **teaching and learning**.
+
+The system today runs a school's office very well: who is enrolled, who works
+here, who reports to whom, who paid, who is present, what the timetable is.
+
+It does not yet serve a lesson. There is no learner login, no content, no
+assignment, no submission, and no way to tell a head teacher which classes are
+falling behind.
+
+## 10. Recommended order from here
+
+1. **Transitions and end-of-year rollover** (brief §5) — *the blocker*. Without
+   promotion, the system cannot survive into a second academic year: Grade 6
+   never becomes Grade 7. Bundle the Grade 9→10 **automated pathway assignment**
+   into the same work, since that is the transition that needs it. Also unlocks
+   alumni/transfer-out state (gap 11).
+2. **Teacher analysis** (brief §4) — an entire numbered section at zero. Class
+   mean per teacher, competency distribution, term-on-term movement, PD records
+   over the API, peer review of schemes. Mostly aggregate queries over data we
+   already hold, so the cost is low relative to the value.
+3. **Parent↔teacher messaging and parent notifications** — closes the
+   Communication Hub. The `StaffMessage` and notification machinery already
+   exists; it needs a parent-facing channel.
+4. **Resources and question banks** (brief §2) — the other section at zero, and
+   the gateway to the LMS half of the brief.
+5. **Learner-facing surface** — the Moodle/Classroom half. The largest piece and
+   the right one to do last, since it depends on 1, 2 and 4.
+
+Cheap items worth folding in along the way: lesson-plan UI, teacher-attendance
+UI, CSV bulk import, photo downscaling on upload.
