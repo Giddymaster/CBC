@@ -1,0 +1,163 @@
+from django.db.models import Count
+from django.utils import timezone
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+
+from apps.common.views import SchoolScopedViewSet
+
+from .models import ClassGroup, Guardian, Learner, LearnerField, Pathway
+from .serializers import (
+    ClassGroupSerializer,
+    GuardianContactSerializer,
+    GuardianSerializer,
+    LearnerFieldSerializer,
+    LearnerSerializer,
+    PathwaySerializer,
+)
+
+
+class LearnerFieldViewSet(SchoolScopedViewSet):
+    """Admin-defined extra columns on the learner register."""
+
+    queryset = LearnerField.objects.all()
+    serializer_class = LearnerFieldSerializer
+
+    def _require_admin(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school admin can change learner columns.")
+
+    def perform_create(self, serializer):
+        self._require_admin()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_admin()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_admin()
+        instance.delete()
+
+
+class ClassGroupViewSet(SchoolScopedViewSet):
+    """Classes (grade + stream) and their class teacher. Admin-only to change."""
+
+    queryset = ClassGroup.objects.select_related("class_teacher__user").all()
+    serializer_class = ClassGroupSerializer
+    filterset_fields = ["grade", "stream", "class_teacher"]
+
+    def _require_admin(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school admin can assign class teachers.")
+
+    def perform_create(self, serializer):
+        self._require_admin()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_admin()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_admin()
+        instance.delete()
+
+
+class PathwayViewSet(viewsets.ModelViewSet):
+    queryset = Pathway.objects.all()
+    serializer_class = PathwaySerializer
+
+
+class GuardianViewSet(SchoolScopedViewSet):
+    queryset = Guardian.objects.all()
+    serializer_class = GuardianSerializer
+    search_fields = ["full_name", "phone"]
+
+
+class LearnerViewSet(SchoolScopedViewSet):
+    queryset = Learner.objects.select_related("pathway").prefetch_related("guardians").all()
+    serializer_class = LearnerSerializer
+    filterset_fields = ["grade", "stream", "pathway", "gender", "active"]
+    search_fields = ["first_name", "middle_name", "last_name", "admission_number", "upi"]
+
+    def _require_admin(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school admin can change learner records.")
+
+    def perform_create(self, serializer):
+        self._require_admin()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_admin()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # Learner records are kept for history — deactivate instead of deleting.
+        self._require_admin()
+        instance.active = False
+        instance.save(update_fields=["active", "updated_at"])
+
+    @action(detail=True)
+    def profile(self, request, pk=None):
+        """Full student profile: scores, guardians, fees, attendance."""
+        learner = self.get_object()
+        user = request.user
+        if getattr(user, "role", None) == "PARENT":
+            guardian = getattr(user, "guardian_profile", None)
+            if guardian is None or not guardian.learners.filter(pk=learner.pk).exists():
+                raise PermissionDenied("You can only view your own children.")
+
+        from apps.assessments.reports import build_report_card
+        from apps.attendance.models import AttendanceRecord
+        from apps.payments.models import Invoice
+
+        year = int(request.query_params.get("year", timezone.now().year))
+        report = build_report_card(learner, year=year)
+
+        invoices = list(Invoice.objects.filter(learner=learner).select_related("fee_structure"))
+        balance = sum((inv.balance for inv in invoices), start=0)
+
+        counts = {
+            row["status"]: row["n"]
+            for row in AttendanceRecord.objects.filter(learner=learner)
+            .values("status")
+            .annotate(n=Count("id"))
+        }
+        recent = [
+            {"date": a.date.isoformat(), "status": a.status}
+            for a in AttendanceRecord.objects.filter(learner=learner).order_by("-date")[:10]
+        ]
+
+        return Response(
+            {
+                "report_card": report,
+                "guardians": GuardianContactSerializer(learner.guardians.all(), many=True).data,
+                "fees": {
+                    "total_balance": str(balance),
+                    "invoices": [
+                        {
+                            "id": inv.id,
+                            "description": str(inv.fee_structure),
+                            "due": str(inv.amount_due),
+                            "paid": str(inv.amount_paid),
+                            "balance": str(inv.balance),
+                            "status": inv.status,
+                        }
+                        for inv in invoices
+                    ],
+                },
+                "attendance": {
+                    "present": counts.get("P", 0),
+                    "absent": counts.get("A", 0),
+                    "late": counts.get("L", 0),
+                    "excused": counts.get("E", 0),
+                    "recent": recent,
+                },
+            }
+        )

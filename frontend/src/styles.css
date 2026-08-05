@@ -1,0 +1,417 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1a202c;
+  background: #f7fafc;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app { max-width: 960px; margin: 0 auto; padding: 1rem; }
+
+/* Django-admin-style shell */
+.admin-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+header.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1.5rem;
+  background: #417690;
+  color: #fff;
+}
+header.topbar h1 {
+  font-size: 1.35rem;
+  margin: 0;
+  color: #f5dd5d;
+  font-weight: 500;
+}
+header.topbar .userlinks {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+header.topbar .userlinks button {
+  background: none;
+  border: none;
+  color: #cfe4ec;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0;
+}
+header.topbar .userlinks button:hover { color: #fff; }
+
+.breadcrumbs {
+  background: #264b5d;
+  color: #cfe4ec;
+  padding: 0.45rem 1.5rem;
+  font-size: 0.82rem;
+}
+
+.admin-body { display: flex; flex: 1; align-items: stretch; }
+
+aside.sidenav {
+  width: 235px;
+  flex-shrink: 0;
+  background: #0f1c26;
+  padding: 0.9rem 0.7rem 2rem;
+  /* Stays put while the register scrolls. align-self stops the flex row from
+     stretching it, which would leave sticky nothing to travel in. */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+aside.sidenav .navfilter {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.9rem;
+  background: #1d2b36;
+  border: 1px solid #3a4c59;
+  border-radius: 4px;
+  color: #e6edf2;
+  font-size: 0.85rem;
+}
+aside.sidenav .navfilter::placeholder { color: #7b8d99; }
+
+.nav-section { margin-bottom: 1rem; border-radius: 4px; overflow: hidden; }
+.nav-section-title {
+  background: #2b5b77;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+}
+.nav-item-row {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid #0f1c26;
+}
+.nav-section button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #14293a;
+  color: #9ed5f2;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.nav-section button:hover { background: #1b3345; color: #fff; }
+.nav-section button.active {
+  background: #205067;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* "+" toggle on the right of grade-aware nav items */
+.nav-plus {
+  flex: 0 0 auto;
+  width: 2rem;
+  text-align: center !important;
+  font-size: 1.05rem !important;
+  line-height: 1;
+  color: #7fc46f !important;
+  border-left: 1px solid #0f1c26 !important;
+  padding: 0.5rem 0 !important;
+}
+.nav-plus:hover { background: #1b3345; color: #a8e39a !important; }
+
+/* Grade list revealed under a nav item */
+.nav-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0.4rem 0.5rem 0.55rem;
+  background: #0b1721;
+}
+.nav-grades button {
+  width: auto !important;
+  flex: 0 0 auto;
+  min-width: 2.9rem;
+  text-align: center !important;
+  background: #16303f !important;
+  color: #b9dff0 !important;
+  border-radius: 3px;
+  padding: 0.3rem 0.45rem !important;
+  font-size: 0.78rem !important;
+}
+.nav-grades button:hover { background: #23485c !important; color: #fff !important; }
+.nav-grades button.active {
+  background: #4a8f3c !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+/* ---- Staff profile card ---- */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #2b6cb0;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.avatar-lg { width: 96px; height: 96px; font-size: 2rem; }
+.avatar-md { width: 48px; height: 48px; font-size: 1.05rem; }
+.avatar-sm { width: 34px; height: 34px; font-size: 0.8rem; }
+
+.profile-card { padding: 0; overflow: hidden; }
+.profile-head {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(180deg, #f2f6fa 0%, #ffffff 100%);
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+.profile-photo { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.photo-upload {
+  font-size: 0.72rem;
+  color: #2b6cb0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.profile-headline h3 { margin: 0 0 0.15rem; font-size: 1.35rem; }
+.profile-title {
+  margin: 0 0 0.15rem;
+  font-weight: 600;
+  color: #2b6cb0;
+}
+.profile-headline p { margin: 0; }
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem 1.5rem;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.profile-field { display: flex; flex-direction: column; gap: 0.15rem; }
+.profile-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #718096;
+  font-weight: 600;
+}
+.profile-value { font-size: 0.95rem; }
+
+.profile-line {
+  display: flex;
+  gap: 2.5rem;
+  padding: 1.1rem 1.5rem;
+  flex-wrap: wrap;
+}
+.profile-line-block { display: flex; flex-direction: column; gap: 0.5rem; min-width: 15rem; }
+.person-row { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.person-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+/* "+ Add section" at the foot of the sidebar */
+.nav-add-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.45rem;
+  background: transparent;
+  color: #7fc46f;
+  border: 1px dashed #3a4c59;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.nav-add-btn:hover { background: #14293a; color: #a8e39a; border-color: #5a7386; }
+.nav-add-section { margin-top: 0.5rem; }
+.nav-add-section button {
+  flex: 1;
+  padding: 0.35rem;
+  border-radius: 4px;
+  border: 1px solid #3a4c59;
+  background: #14293a;
+  color: #cfe4ec;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.nav-add-section button.primary { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+
+/* Excel-style column headers: click a header to rename/delete, "+" to add */
+th.col-head { position: relative; padding: 0; }
+.col-head-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+.col-head-btn:hover { background: #dce6f0; }
+.col-head-btn .caret { color: #718096; font-size: 0.7em; }
+.col-head-btn.plus {
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #2b6cb0;
+}
+th.add-col { width: 2.4rem; }
+
+.col-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  min-width: 14rem;
+  background: #fff;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-transform: none;
+  font-weight: 400;
+}
+.col-menu input, .col-menu select { width: 100%; box-sizing: border-box; }
+.col-menu-danger {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  color: #c53030;
+  border-radius: 4px;
+  padding: 0.3rem;
+  cursor: pointer;
+}
+.col-menu-danger:hover { background: #fed7d7; }
+
+/* Page title with its action button on the right */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+.page-header h2 { margin: 0; }
+
+button.clear-grade {
+  font-size: 0.75rem;
+  font-weight: 400;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #cbd5e0;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+main.admin-content { flex: 1; padding: 1.25rem 1.75rem; min-width: 0; }
+main.admin-content.narrow { max-width: 1100px; }
+
+@media (max-width: 760px) {
+  .admin-body { flex-direction: column; }
+  aside.sidenav {
+    width: auto;
+    position: static;   /* stacked layout — nothing to stick to */
+    max-height: none;
+  }
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.badge.online { background: #c6f6d5; color: #22543d; }
+.badge.offline { background: #fed7d7; color: #822727; }
+.badge.queued { background: #feebc8; color: #7b341e; }
+
+nav.tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+nav.tabs button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #cbd5e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+nav.tabs button.active { background: #2b6cb0; color: white; border-color: #2b6cb0; }
+
+table { width: 100%; border-collapse: collapse; background: white; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
+th { background: #edf2f7; font-size: 0.85rem; text-transform: uppercase; }
+
+.level { font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+.level.EE { background: #c6f6d5; color: #22543d; }
+.level.ME { background: #bee3f8; color: #2a4365; }
+.level.AE { background: #feebc8; color: #7b341e; }
+.level.BE { background: #fed7d7; color: #822727; }
+
+.card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+form.login { display: flex; flex-direction: column; gap: 0.75rem; max-width: 320px; margin: 3rem auto; }
+form.login input { padding: 0.6rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+button.primary {
+  padding: 0.6rem 1.2rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+button.primary:disabled { opacity: 0.5; }
+select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-radius: 6px; }
+.error { color: #c53030; }
+.muted { color: #718096; font-size: 0.9rem; }
+
+/* Writes the server refused after an offline queue replay. Loud on purpose:
+   a rejected register is work the teacher must re-enter. */
+.sync-failures {
+  background: #fff5f5;
+  border-left: 4px solid #c53030;
+  padding: 0.75rem 1rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+.sync-failures ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+.sync-failures button {
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #c53030;
+  background: white;
+  color: #c53030;
+  border-radius: 4px;
+  cursor: pointer;
+}
