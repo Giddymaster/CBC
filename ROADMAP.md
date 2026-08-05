@@ -24,14 +24,18 @@ Last reviewed: **2026-08-05** · Backend suite: **111 tests, all passing**
 
 ## 2. Core modules
 
+Graded against the **DESIGN.md** module list, which is narrower than the founding brief.
+**§8 below grades the same modules against the original brief and is the stricter, truer
+scorecard** — several rows here read ✅ only because DESIGN.md asked for less.
+
 | # | Module | Status | Evidence / gap |
 |---|---|---|---|
-| 1 | Student Information System | ✅ | Learner (UPI, admission no), pathways, guardians, PG→G12 grades, custom columns. |
-| 2 | Teacher Management | ✅ | TSC/payroll no, employment type, rank, subjects, schemes, PD records. |
+| 1 | Student Information System | 🟡 | Learner (UPI, admission no), guardians, PG→G12, custom columns ✅. Pathway is stored but **assigned by hand** — see §8.1. |
+| 2 | Teacher Management | 🟡 | TSC/payroll no, employment type, rank, subjects, schemes ✅. **PD records are a model only — no API, no UI. Lesson plans have no UI.** |
 | 3 | Assessment Engine | ✅ | CAT1/CAT2/End-term/formative, auto EE/ME/AE/BE, per-assessment rubric override, report cards. |
 | 4 | Timetable | ✅ | Clash detection at write time + greedy auto-generation with unplaced reporting. |
-| 5 | Communication Hub | 🟡 | SMS + announcements + meeting links. WhatsApp deferred. |
-| 6 | Attendance Register | ✅ | Learner + teacher roll-call, offline-tolerant bulk sync. |
+| 5 | Communication Hub | 🟡 | SMS + announcements + meeting links + staff notifications. **No parent↔teacher messaging.** WhatsApp deferred. |
+| 6 | Attendance Register | 🟡 | Learner roll-call ✅ offline-tolerant. **Teacher roll-call has no UI and nothing writes to it but seeds.** |
 | 7 | Payments / Fees | ✅ | Fee structures, invoices, STK Push, C2B webhook, receipt-idempotent reconciliation. |
 | 8 | Interoperability | ✅ | KEMIS learner CSV + enrollment returns, admin-only. |
 
