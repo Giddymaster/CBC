@@ -66,6 +66,13 @@ from apps.teachers.my_portal import (
     MyPortalView,
     StaffReportViewSet,
 )
+from apps.teachers.development import (
+    PdRecordViewSet,
+    PeerReviewQueueView,
+    PeerReviewViewSet,
+    SchoolAnalysisView,
+    TeacherAnalysisView,
+)
 from apps.teachers.notifications import NotificationsView
 from apps.teachers.portal import TeacherSummaryView
 from apps.teachers.team import (
@@ -115,6 +122,8 @@ router.register("duties", DutyViewSet)
 router.register("staff-tasks", StaffTaskViewSet)
 router.register("staff-messages", StaffMessageViewSet)
 router.register("staff-fields", StaffFieldViewSet)
+router.register("pd-records", PdRecordViewSet)
+router.register("peer-reviews", PeerReviewViewSet, basename="peerreview")
 router.register("schemes-of-work", SchemeOfWorkViewSet)
 router.register("lesson-plans", LessonPlanViewSet)
 router.register("learning-areas", LearningAreaViewSet)
@@ -136,6 +145,9 @@ urlpatterns = [
     path("api/me/", MeView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
+    path("api/school/analysis/", SchoolAnalysisView.as_view()),
+    path("api/teachers/<int:teacher_id>/analysis/", TeacherAnalysisView.as_view()),
+    path("api/peer-review/queue/", PeerReviewQueueView.as_view()),
     path("api/school/staff/add-teacher/", AddTeacherView.as_view()),
     path("api/school/staff/teachers/<int:teacher_id>/", EditTeacherView.as_view()),
     path("api/school/grades/<grade>/", GradeDetailView.as_view()),

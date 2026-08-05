@@ -108,6 +108,7 @@ class TeacherSummaryView(APIView):
         return Response(
             {
                 "teacher": {
+                    "id": teacher.id,
                     "name": request.user.get_full_name() or request.user.username,
                     "tsc_number": teacher.tsc_number,
                     "school": teacher.school.name,

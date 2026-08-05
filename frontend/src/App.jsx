@@ -12,6 +12,7 @@ import {
   startQueueFlusher,
 } from './api.js'
 import Admission from './Admission.jsx'
+import Analysis from './Analysis.jsx'
 import Attendance from './Attendance.jsx'
 import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
@@ -439,6 +440,7 @@ const NAV_SECTIONS = [
     items: [
       { name: 'Timetable', ...GRADE_NAV },
       { name: 'Schemes Review', ...GRADE_NAV },
+      { name: 'Teaching Outcomes', label: 'Teaching Outcomes (Analysis)', ownHeading: true },
       { name: 'Curriculum', label: 'Curriculum Library (RAG)', ownHeading: true },
     ],
   },
@@ -474,6 +476,7 @@ const TABS = {
   Timetable: Timetable,
   'Schemes Review': SchemesReview,
   Curriculum: Curriculum,
+  'Teaching Outcomes': Analysis,
   Facilities: Facilities,
 }
 

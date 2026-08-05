@@ -301,6 +301,42 @@ class SchemeOfWork(SchoolScopedModel):
         return f"SoW {self.learning_area} G{self.grade} T{self.term} {self.year}"
 
 
+class PeerReview(SchoolScopedModel):
+    """A colleague's comment on a scheme of work.
+
+    Deliberately separate from the head's approve/reject. Peer review is advice
+    between teachers of the same subject and carries no authority over whether
+    the scheme is adopted — collapsing the two would turn a professional
+    conversation into a second approval gate.
+    """
+
+    class Verdict(models.TextChoices):
+        ENDORSE = "ENDORSE", "Looks good"
+        SUGGEST = "SUGGEST", "Suggestions offered"
+
+    scheme = models.ForeignKey(
+        SchemeOfWork, on_delete=models.CASCADE, related_name="peer_reviews"
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="peer_reviews"
+    )
+    verdict = models.CharField(
+        max_length=8, choices=Verdict.choices, default=Verdict.SUGGEST
+    )
+    comment = models.TextField()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["scheme", "reviewer"], name="one_peer_review_per_reviewer"
+            )
+        ]
+
+    def __str__(self):
+        return f"Peer review of {self.scheme} by {self.reviewer}"
+
+
 class LessonPlan(SchoolScopedModel):
     scheme = models.ForeignKey(SchemeOfWork, on_delete=models.CASCADE, related_name="lesson_plans")
     week = models.PositiveSmallIntegerField()

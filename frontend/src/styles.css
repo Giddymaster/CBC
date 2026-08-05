@@ -674,3 +674,14 @@ select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-
 
 /* A required choice the user has not made yet */
 select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
+
+/* Competency spread — the shape reads faster than four numbers */
+.spread-bar {
+  display: flex;
+  height: 0.85rem;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #edf2f7;
+  margin-bottom: 0.2rem;
+}
+.spread-bar > span { display: block; }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Admission from './Admission.jsx'
+import { PdRecords, PeerReview, TeacherDetail } from './Analysis.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
 import { gradeLabel } from './format.js'
@@ -194,6 +195,7 @@ export default function TeacherPortal({ onQueueChange }) {
     'My Role',
     ...(teamSize ? [`My Team (${teamSize})`] : []),
     'My Timetable', 'Score Entry', 'Attendance', 'Schemes of Work',
+    'My Outcomes', 'Peer Review',
     ...(access?.can_admit ? ['Admissions'] : []),
     `Reports${pending ? ` (${pending})` : ''}`,
   ]
@@ -219,6 +221,13 @@ export default function TeacherPortal({ onQueueChange }) {
       )}
       {tab === 'My Team' && <MyTeam />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
+      {tab === 'My Outcomes' && (
+        <>
+          <TeacherDetail teacherId={summary.teacher.id} />
+          <PdRecords />
+        </>
+      )}
+      {tab === 'Peer Review' && <PeerReview />}
       {tab === 'Reports' && (
         portal ? <ReportsPanel data={portal} onRefresh={load} /> : <p className="muted">Loading…</p>
       )}
