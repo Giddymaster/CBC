@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet, apiUpload, apiWrite } from './api.js'
+import BulkImport from './BulkImport.jsx'
 import { ALL_GRADES, gradeLabel, todayLocal } from './format.js'
 
 const RESIDENCE = [
@@ -253,6 +254,8 @@ export default function Admission({ scope, onAdmitted }) {
           {access.expires_on ? ` · rights expire ${access.expires_on}` : ''}
         </p>
       </div>
+
+      <BulkImport onDone={() => onAdmitted?.()} />
 
       <form onSubmit={submit}>
         <Section

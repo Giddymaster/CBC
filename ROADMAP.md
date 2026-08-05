@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **160 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **299 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -73,6 +73,15 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
 | Curriculum knowledge base (RAG): documents → chunks → BM25 retrieval with citations | ✅ |
 | MoE canon as the single authority, with source precedence for conflicts | ✅ |
 | Grounded scheme generation with provenance shown to the reviewer | ✅ |
+| Transitions: academic years, promotion runs with preview/apply/revert | ✅ |
+| Grade 9→10 pathway proposal from marks, confirmed by the head | ✅ |
+| Learner exit states: transferred out, graduated, withdrawn | ✅ |
+| Teacher analysis: class mean, competency spread, term-on-term movement | ✅ |
+| Professional development records on the API, TPD points per teacher | ✅ |
+| Peer review of schemes, separate from the head's approval | ✅ |
+| Parent↔teacher messaging, with parent messages in the staff bell | ✅ |
+| CSV bulk learner import, dry-run then commit | ✅ |
+| Staff roll-call UI, lesson-plan UI, photo downscaling | ✅ |
 
 ---
 
@@ -99,14 +108,15 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
 8. ~~Supervisor cannot be set from the admin UI~~ — **done**: dropdown on both staff forms,
    Supervisor column on both tables, self-supervision rejected server-side. ✅
 9. **No password reset / change-password flow.** Admin-generated passwords are shown once and
-   cannot be rotated by the staff member. ⬜
-10. **No promotion / end-of-year rollover** — moving a whole grade up a year. ⬜
-11. **No transfer-out or alumni state** — a learner can only be deactivated. ⬜
+   cannot be rotated by the staff member. ⬜ *(now the largest product gap)*
+10. ~~No promotion / end-of-year rollover~~ — **done**: preview, adjust, apply, reverse. ✅
+11. ~~No transfer-out or alumni state~~ — **done**: Learner.status records why a learner
+    left, with an exit date. ✅
 12. **No fee statement or receipt PDF** for parents. ⬜
-13. **No exam analytics** (class mean, subject ranking, term-on-term movement). ⬜
-14. **No bulk learner import** (CSV) — learners are admitted one at a time through the
-    admission form; a January intake of 200 would want a spreadsheet upload. ⬜
-15. **Teacher attendance has no UI** — the model and API exist; nothing writes to it except seeds. 🟡
+13. ~~No exam analytics~~ — **done** for teaching outcomes (class mean, competency spread,
+    term-on-term movement). Subject *ranking* across the school is still absent. 🟡
+14. ~~No bulk learner import~~ — **done**: CSV with flexible headers, dry-run then commit. ✅
+15. ~~Teacher attendance has no UI~~ — **done**: staff roll-call, head/deputy/admin only. ✅
 
 ### Deferred on purpose
 - Flutter native apps — the PWA covers the parent case. ➖
@@ -324,3 +334,42 @@ Also fixed while here: chunk **headings were not indexed**, so "Sub-strand 2.1 M
   them and decide they disagree. Named honestly in the code and the UI. ⬜
 - **No document versioning** — re-uploading a design replaces it, losing what a scheme
   approved last term was grounded in. Worth having before an audit trail matters. ⬜
+
+
+---
+
+## 12. Four features in one sitting (2026-08-05)
+
+Built end to end at the user's request: transitions, teacher analysis, parent
+messaging, and the half-built backlog. 139 new tests — 160 to 299.
+
+| Brief section | Before | After |
+|---|---|---|
+| §1 Teacher Management | 🟡 no analysis, PD unreachable, no lesson-plan UI | ✅ |
+| §1 Communication Hub | 🟡 no parent channel | ✅ |
+| §1 Attendance Register | 🟡 staff roll-call had no UI | ✅ (biometric still ⬜) |
+| §4 Teacher Analysis & Support | ⬜ ~0.5 of 3 | ✅ 3 of 3 |
+| §5 Transition rules | ⬜ nothing | ✅ |
+| §5 Automated pathway assignment | ⬜ manual | ✅ proposed, head confirms |
+
+### Bugs these tests and the browser found
+
+| Bug | How it surfaced |
+|---|---|
+| Reverting a promotion left the school with **no current academic year** when the closing year had never been recorded — `update` where `update_or_create` was needed. | Browser verification against the demo school. The unit test passed because its setUp created the year. |
+| Two tests compared against the **OS date** while the app correctly uses Africa/Nairobi — they failed for three hours every night. | Running the suite after midnight Nairobi time. |
+| A duplicate **peer review 500'd** on the database constraint: the reviewer is set server-side, so DRF could not derive the uniqueness check. | Test written before the code. |
+| Parent thread sort used one `reverse=True` over `(last_at is None, last_at)`, which flips **both** keys and floated empty threads above the conversation just had. | Browser: the message sent successfully but appeared to vanish. |
+| Photo downscaling guarded on **file size**, so a flat 2400×1600 PNG at 14 KB was stored untouched — still 3.8 megapixels to decode, still the wrong shape for a circular frame. | Test assertion failed on an image that was "small" by bytes. |
+
+### Still open here
+
+- **Subject ranking across the school** — outcomes are per teacher, not per subject. ⬜
+- **Biometric attendance** — digital roll-call only, for learners and staff. ⬜
+- **Analysis attributes marks through `LessonRequirement`.** A school that has not
+  filled in its timetable requirements gets an empty analysis with an explanatory
+  note, but no marks are attributed. 🟡
+- **Pathway proposal reads school marks only** — it cannot see KJSEA results, which
+  is why it proposes rather than decides. ➖ by design.
+- **Promotion has no audit trail beyond the run itself** — who changed an individual
+  outcome before applying is not recorded. ⬜

@@ -706,3 +706,14 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 }
 .bubble-row.mine .bubble { background: #dbeafe; }
 .bubble-who { font-size: 0.72rem; font-weight: 600; margin-bottom: 0.15rem; }
+
+/* Roll-call toggle buttons */
+.roll-btn {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid #cbd5e0;
+  background: #fff;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.roll-btn.on { background: #417690; color: #fff; border-color: #417690; }

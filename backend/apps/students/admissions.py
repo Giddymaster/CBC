@@ -19,6 +19,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.images import downscale_photo
 from apps.common.views import SchoolScopedViewSet
 
 from .models import AdmissionRight, Guardian, Learner, can_admit
@@ -167,7 +168,7 @@ class LearnerPhotoView(APIView):
         photo = request.FILES.get("photo")
         if photo is None:
             return Response({"detail": "Attach a photo."}, status=status.HTTP_400_BAD_REQUEST)
-        learner.photo = photo
+        learner.photo = downscale_photo(photo)
         learner.save(update_fields=["photo", "updated_at"])
         return Response({"photo": request.build_absolute_uri(learner.photo.url)})
 
@@ -266,3 +267,73 @@ class MyAdmissionAccessView(APIView):
                 ),
             }
         )
+
+
+class BulkImportView(APIView):
+    """POST /api/admissions/bulk/ — a spreadsheet of learners.
+
+    Two-step by design: without `commit=true` the file is parsed, validated and
+    reported back, writing nothing. The caller sends it again with `commit=true`
+    once the school has looked at what it is about to create.
+    """
+
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        """A template with the headers we accept."""
+        from django.http import HttpResponse
+
+        from .bulk_import import template_csv
+
+        response = HttpResponse(template_csv(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="learner_import_template.csv"'
+        return response
+
+    def post(self, request):
+        user = request.user
+        if not can_admit(user):
+            raise PermissionDenied(
+                "You do not have admission rights. Ask the school admin to delegate them."
+            )
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"detail": "Attach a CSV file."}, status=400)
+
+        from .bulk_import import check_against_register, commit, parse
+
+        rows, errors, mapping = parse(upload)
+        rows, clashes = check_against_register(rows, user.school)
+        errors = errors + clashes
+
+        wants_commit = str(request.data.get("commit", "")).lower() in ("true", "1", "yes")
+        body = {
+            "recognised_columns": sorted(set(mapping.values())),
+            "ready": len(rows),
+            "problems": errors,
+            "preview": [
+                {
+                    "row": r["_row"],
+                    "name": " ".join(
+                        filter(None, [r["first_name"], r.get("middle_name"), r["last_name"]])
+                    ),
+                    "admission_number": r.get("admission_number") or "(next in sequence)",
+                    "grade": r["grade"],
+                    "stream": r.get("stream", ""),
+                    "guardian": r.get("guardian_name", ""),
+                }
+                for r in rows[:50]
+            ],
+            "committed": False,
+        }
+        if not wants_commit:
+            return Response(body)
+
+        if not rows:
+            return Response(
+                {**body, "detail": "Nothing to import — every row has a problem."},
+                status=400,
+            )
+        created = commit(rows, school=user.school, user=user)
+        body["committed"] = True
+        body["created"] = len(created)
+        return Response(body, status=status.HTTP_201_CREATED)

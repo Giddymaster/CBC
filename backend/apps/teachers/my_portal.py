@@ -13,6 +13,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.images import downscale_photo
 from apps.common.views import SchoolScopedViewSet
 
 from .models import Duty, StaffReport, SupportStaff, Teacher
@@ -201,7 +202,7 @@ class MyPhotoView(APIView):
         photo = request.FILES.get("photo")
         if photo is None:
             return Response({"detail": "Attach a photo."}, status=status.HTTP_400_BAD_REQUEST)
-        profile.photo = photo
+        profile.photo = downscale_photo(photo)
         profile.save(update_fields=["photo", "updated_at"])
         return Response({"photo": request.build_absolute_uri(profile.photo.url)})
 

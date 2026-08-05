@@ -54,6 +54,7 @@ from apps.schools.structure import GradeDetailView, SchoolStructureView
 from apps.schools.views import SchoolViewSet
 from apps.students.admissions import (
     AdmissionRightViewSet,
+    BulkImportView,
     AdmissionView,
     LearnerPhotoView,
     MyAdmissionAccessView,
@@ -79,6 +80,7 @@ from apps.teachers.development import (
     SchoolAnalysisView,
     TeacherAnalysisView,
 )
+from apps.teachers.daily import SchemeLessonPlansView, StaffRollCallView
 from apps.teachers.notifications import NotificationsView
 from apps.teachers.portal import TeacherSummaryView
 from apps.teachers.team import (
@@ -153,6 +155,11 @@ urlpatterns = [
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
+    path("api/staff/roll-call/", StaffRollCallView.as_view()),
+    path(
+        "api/schemes-of-work/<int:scheme_id>/lesson-plans/",
+        SchemeLessonPlansView.as_view(),
+    ),
     path("api/teachers/<int:teacher_id>/analysis/", TeacherAnalysisView.as_view()),
     path("api/peer-review/queue/", PeerReviewQueueView.as_view()),
     path("api/school/staff/add-teacher/", AddTeacherView.as_view()),
@@ -160,6 +167,7 @@ urlpatterns = [
     path("api/school/grades/<grade>/", GradeDetailView.as_view()),
     path("api/admissions/", AdmissionView.as_view()),
     path("api/admissions/access/", MyAdmissionAccessView.as_view()),
+    path("api/admissions/bulk/", BulkImportView.as_view()),
     path("api/learners/<int:learner_id>/photo/", LearnerPhotoView.as_view()),
     path("api/notifications/", NotificationsView.as_view()),
     path("api/curriculum/search/", CurriculumSearchView.as_view()),

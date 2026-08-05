@@ -22,6 +22,7 @@ import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
 import Promotions from './Promotions.jsx'
 import SchemesReview from './SchemesReview.jsx'
+import StaffRollCall from './StaffRollCall.jsx'
 import SchoolStructure, { LearnerPhoto } from './SchoolStructure.jsx'
 import Staff from './Staff.jsx'
 import SupportPortal from './StaffPortal.jsx'
@@ -421,6 +422,7 @@ const NAV_SECTIONS = [
       // Staff draws its own heading + "Add staff" button, so the shell skips
       // the generic one.
       { name: 'Staff', label: 'Staff (Teaching / Non-teaching)', ownHeading: true, ...STAFF_NAV },
+      { name: 'Staff Register', label: 'Staff Register (Roll-call)', ownHeading: true },
     ],
   },
   {
@@ -467,6 +469,7 @@ const ALL_ITEMS = NAV_SECTIONS.flatMap((s) => s.items)
 const TABS = {
   School: SchoolStructure,
   Staff: Staff,
+  'Staff Register': StaffRollCall,
   Learners: Learners,
   Admissions: Admission,
   Promotions: Promotions,
