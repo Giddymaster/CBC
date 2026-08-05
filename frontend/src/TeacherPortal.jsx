@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Admission from './Admission.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
 import { gradeLabel } from './format.js'
@@ -174,11 +175,13 @@ export default function TeacherPortal({ onQueueChange }) {
   const [summary, setSummary] = useState(null)
   const [portal, setPortal] = useState(null)
   const [error, setError] = useState('')
+  const [access, setAccess] = useState(null)
   const [tab, setTab] = useState('My Timetable')
 
   const load = useCallback(() => {
     apiGet('/api/teacher/summary/').then(setSummary).catch((e) => setError(e.message))
     apiGet('/api/my-portal/').then(setPortal).catch(() => setPortal(null))
+    apiGet('/api/admissions/access/').then(setAccess).catch(() => setAccess(null))
   }, [])
   useEffect(load, [load])
 
@@ -191,6 +194,7 @@ export default function TeacherPortal({ onQueueChange }) {
     'My Role',
     ...(teamSize ? [`My Team (${teamSize})`] : []),
     'My Timetable', 'Score Entry', 'Attendance', 'Schemes of Work',
+    ...(access?.can_admit ? ['Admissions'] : []),
     `Reports${pending ? ` (${pending})` : ''}`,
   ]
 
@@ -214,6 +218,7 @@ export default function TeacherPortal({ onQueueChange }) {
         portal ? <MyRolePanel data={portal} onRefresh={load} /> : <p className="muted">Loading…</p>
       )}
       {tab === 'My Team' && <MyTeam />}
+      {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'Reports' && (
         portal ? <ReportsPanel data={portal} onRefresh={load} /> : <p className="muted">Loading…</p>
       )}

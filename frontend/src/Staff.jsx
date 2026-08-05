@@ -36,6 +36,142 @@ function SupervisorSelect({ value, onChange, choices, excludeUserId }) {
   )
 }
 
+// Admitting a learner creates a permanent record with medical and next-of-kin
+// detail, so it stays with the admin unless deliberately handed out.
+function AdmissionRights({ supervisorChoices, onMessage }) {
+  const [rights, setRights] = useState([])
+  const [form, setForm] = useState({ user: '', note: '', expires_on: '' })
+  const [open, setOpen] = useState(false)
+
+  const load = useCallback(() => {
+    apiGet('/api/admission-rights/?page_size=100')
+      .then((d) => setRights(d.results || d))
+      .catch(() => setRights([]))
+  }, [])
+  useEffect(load, [load])
+
+  async function grant(e) {
+    e.preventDefault()
+    if (!form.user) {
+      onMessage('Choose a staff member.')
+      return
+    }
+    const body = { user: Number(form.user), note: form.note }
+    if (form.expires_on) body.expires_on = form.expires_on
+    const res = await apiWrite('/api/admission-rights/', body)
+    onMessage(
+      res.ok
+        ? 'Admission rights granted.'
+        : `Failed: ${JSON.stringify(res.data)}`,
+    )
+    if (res.ok) {
+      setForm({ user: '', note: '', expires_on: '' })
+      load()
+    }
+  }
+
+  async function revoke(right) {
+    const res = await apiWrite(`/api/admission-rights/${right.id}/`, {}, { method: 'DELETE' })
+    onMessage(res.ok ? `Rights withdrawn from ${right.staff_name}.` : 'Could not withdraw.')
+    load()
+  }
+
+  async function restore(right) {
+    const res = await apiWrite(
+      `/api/admission-rights/${right.id}/`, { active: true }, { method: 'PATCH' },
+    )
+    onMessage(res.ok ? `Rights restored to ${right.staff_name}.` : 'Could not restore.')
+    load()
+  }
+
+  const active = rights.filter((r) => r.current)
+
+  return (
+    <div className="card">
+      <div className="page-header" style={{ marginBottom: '0.4rem' }}>
+        <h3 style={{ margin: 0 }}>
+          Admission rights{active.length ? ` (${active.length} delegated)` : ''}
+        </h3>
+        <button onClick={() => setOpen((o) => !o)}>{open ? 'Close' : 'Manage'}</button>
+      </div>
+      <p className="muted">
+        The admin can always admit learners. Delegate it to a head teacher, deputy or class
+        teacher so they can open the admission form without the rest of the admin portal.
+      </p>
+
+      {open && (
+        <>
+          <form
+            onSubmit={grant}
+            style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center',
+                     margin: '0.6rem 0' }}
+          >
+            <select
+              value={form.user}
+              onChange={(e) => setForm({ ...form, user: e.target.value })}
+            >
+              <option value="">Choose staff member…</option>
+              {(supervisorChoices || []).map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>
+              ))}
+            </select>
+            <input
+              placeholder="What for? e.g. Grade 1 intake 2027"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              style={{ padding: '0.4rem', minWidth: '16rem' }}
+            />
+            <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              Expires
+              <input
+                type="date"
+                value={form.expires_on}
+                onChange={(e) => setForm({ ...form, expires_on: e.target.value })}
+              />
+            </label>
+            <button className="primary" type="submit">Grant</button>
+          </form>
+
+          {rights.length === 0 ? (
+            <p className="muted">Nobody else can admit learners yet.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Staff</th><th>For</th><th>Expires</th><th>Status</th>
+                  <th>Granted by</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rights.map((r) => (
+                  <tr key={r.id} style={r.current ? undefined : { opacity: 0.55 }}>
+                    <td>{r.staff_name || r.username}</td>
+                    <td className="muted">{r.note || '—'}</td>
+                    <td className="muted">{r.expires_on || 'No expiry'}</td>
+                    <td>
+                      {r.current
+                        ? <span className="badge online">Active</span>
+                        : <span className="badge offline">
+                            {r.active ? 'Expired' : 'Withdrawn'}
+                          </span>}
+                    </td>
+                    <td className="muted">{r.granted_by_name || '—'}</td>
+                    <td>
+                      {r.active
+                        ? <button onClick={() => revoke(r)}>Withdraw</button>
+                        : <button onClick={() => restore(r)}>Restore</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 const STAFF_COLUMN_SCOPES = [
   { value: 'TEACHING', label: 'Teaching staff only' },
   { value: 'NON_TEACHING', label: 'Non-teaching staff only' },
@@ -376,6 +512,11 @@ export default function Staff({ view }) {
           )}
         </div>
       )}
+
+      <AdmissionRights
+        supervisorChoices={data.supervisor_choices}
+        onMessage={setMessage}
+      />
 
       {showTeaching && (
         <div className="card">

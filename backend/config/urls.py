@@ -34,6 +34,12 @@ from apps.payments.views import (
 )
 from apps.schools.structure import GradeDetailView, SchoolStructureView
 from apps.schools.views import SchoolViewSet
+from apps.students.admissions import (
+    AdmissionRightViewSet,
+    AdmissionView,
+    LearnerPhotoView,
+    MyAdmissionAccessView,
+)
 from apps.students.portal import ParentSummaryView
 from apps.students.views import (
     ClassGroupViewSet,
@@ -48,6 +54,7 @@ from apps.teachers.my_portal import (
     MyPortalView,
     StaffReportViewSet,
 )
+from apps.teachers.notifications import NotificationsView
 from apps.teachers.portal import TeacherSummaryView
 from apps.teachers.team import (
     MyTeamView,
@@ -78,6 +85,7 @@ router.register("learners", LearnerViewSet)
 router.register("guardians", GuardianViewSet)
 router.register("class-groups", ClassGroupViewSet)
 router.register("learner-fields", LearnerFieldViewSet)
+router.register("admission-rights", AdmissionRightViewSet)
 router.register("nav-sections", NavSectionViewSet)
 router.register("facility-categories", FacilityCategoryViewSet)
 router.register("facilities", FacilityViewSet)
@@ -114,6 +122,10 @@ urlpatterns = [
     path("api/school/staff/add-teacher/", AddTeacherView.as_view()),
     path("api/school/staff/teachers/<int:teacher_id>/", EditTeacherView.as_view()),
     path("api/school/grades/<grade>/", GradeDetailView.as_view()),
+    path("api/admissions/", AdmissionView.as_view()),
+    path("api/admissions/access/", MyAdmissionAccessView.as_view()),
+    path("api/learners/<int:learner_id>/photo/", LearnerPhotoView.as_view()),
+    path("api/notifications/", NotificationsView.as_view()),
     path("api/parent/summary/", ParentSummaryView.as_view()),
     path("api/teacher/summary/", TeacherSummaryView.as_view()),
     path("api/my-portal/", MyPortalView.as_view()),

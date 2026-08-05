@@ -70,6 +70,38 @@ Two older narrative scripts remain for manual walkthroughs:
 - **Teacher portal:** `TEACHER` logins get their own UI. `GET /api/teacher/summary/` returns the teacher's personal timetable, the assessments they can mark (derived from their lesson requirements/lessons; stream-blank assessments cover the whole grade), their schemes of work, and teacher-audience announcements. `POST /api/scores/bulk/` enters a whole class's marks in one offline-tolerant request (Idempotency-Key replay-safe, upserted on assessment+learner, invalid rows skipped and reported) and returns the derived EE/ME/AE/BE level per learner. Portal tabs: My Timetable, Score Entry, Attendance, Schemes of Work.
 - **Timetable generation:** define weekly needs in `/api/timetable/requirements/` (teacher, learning area, class, lessons/week, needs_lab), then `POST /api/timetable/generate/` places lessons greedily — most-constrained first, spread across days, honoring teacher/class/lab availability — and reports anything it could not place. The Timetable tab shows the grid with a regenerate button.
 
+## Admissions
+
+- **The form** (`POST /api/admissions/`) takes the whole admission in one transaction —
+  the child, up to four guardians, and the emergency contact. It captures identity
+  (birth certificate, UPI, nationality, religion), home (county/sub-county/ward, address,
+  day or boarder, how they travel and on which bus route), **health** (blood group,
+  allergies, chronic conditions, regular medication, NHIF, immunisation, special needs),
+  next of kin, and the previous school. Only name, date of birth and grade are required —
+  a family arriving without paperwork should not be a reason a child cannot be enrolled.
+- **Admission numbers** continue the school's own sequence: `ADM0281 → ADM0282`. Leave the
+  field blank and the next number is assigned; supply one and a duplicate is rejected.
+- **Siblings** reuse the existing guardian record rather than creating a second copy of the
+  same parent.
+- **Profile photos:** `POST /api/learners/<id>/photo/` (multipart). Photos show on the
+  learner register, the class register and the student profile; initials stand in until one
+  is uploaded.
+- **Delegation:** admitting is an admin power by default. From **Staff → Admission rights**
+  the admin grants it to a named staff member — head teacher, deputy, or the class teacher
+  running the Grade 1 intake — with a note and an optional expiry date. The delegate then
+  gets an **Admissions** tab in their own portal, without any other admin access. Rights can
+  be withdrawn or restored, and the record of who granted what is kept.
+- **Privacy:** medical detail, home address and next-of-kin data are staff-only. Parents
+  reading the learner API never receive them, and they are not part of the KEMIS export.
+
+## Notifications
+
+The bell in the topbar (`GET /api/notifications/`) is on every staff login. It shows four
+things that arrive unannounced: a **message from a supervisor**, **work assigned** to you
+(flagged when overdue), a **report awaiting your approval**, and a **report of yours
+returned** for changes. Messages can be marked read; tasks and pending reviews stay listed
+until the work itself is done, which is the honest signal.
+
 ## Facilities and staff portals
 
 - **Facilities (admin):** the sidebar is school-definable — **sections** (Academics, Facilities,

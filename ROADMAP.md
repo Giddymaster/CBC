@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **80 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **111 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -62,6 +62,10 @@ Last reviewed: **2026-08-05** · Backend suite: **80 tests, all passing**
 | Supervisor team view: staff by category, assign work, review reports, message thread | ✅ |
 | Rank-based visibility (head → whole school, section head → subtree, staff → direct) | ✅ |
 | Play Group (PG) grade | ✅ |
+| Full admission form (identity, home, health, next of kin, previous school) | ✅ |
+| Learner profile photos on register, class list and profile | ✅ |
+| Delegated admission rights (admin → head teacher / class teacher, with expiry) | ✅ |
+| Notification bell: supervisor messages, assigned work, reviews, returned reports | ✅ |
 
 ---
 
@@ -71,9 +75,11 @@ Last reviewed: **2026-08-05** · Backend suite: **80 tests, all passing**
 1. **No CI and no deployment pipeline.** The suite exists but nothing runs it automatically. ⬜
 2. **Never run on PostgreSQL.** SQLite hides case-sensitivity, transaction and constraint
    differences. At minimum, run the suite against Postgres once before go-live. ⬜
-3. **Production settings are unguarded.** `DEBUG` defaults to true, `SECRET_KEY` has an insecure
-   fallback, and there are no `SECURE_*`/HSTS settings. A misconfigured deploy fails open. ⬜
-4. **Kenya DPA 2019 registration** as a data controller — a legal precondition, not a code task. ⬜
+3. ~~Production settings are unguarded~~ — **done**: with `DEBUG=false` the app refuses to
+   start without a real `SECRET_KEY`, and enables HSTS, secure cookies, SSL redirect and
+   `X-Frame-Options: DENY`. Still never deployed, so still unproven in practice. ✅
+4. **Kenya DPA 2019 registration** as a data controller — a legal precondition, not a code
+   task. Now more pressing: the admission form holds medical records on minors. ⬜
 
 ### Correctness / safety
 5. **No audit trail.** Who changed a mark, deactivated a learner, or approved a report is not
@@ -83,16 +89,16 @@ Last reviewed: **2026-08-05** · Backend suite: **80 tests, all passing**
 7. **Bulk endpoints are not rate-limited.** ⬜
 
 ### Product gaps a school would hit in term one
-8. **Supervisor cannot be set from the admin UI** — the field exists and the API accepts it, but
-   the Staff page has no dropdown, so the whole reporting hierarchy must be entered via the API
-   or Django admin. 🟡
+8. ~~Supervisor cannot be set from the admin UI~~ — **done**: dropdown on both staff forms,
+   Supervisor column on both tables, self-supervision rejected server-side. ✅
 9. **No password reset / change-password flow.** Admin-generated passwords are shown once and
    cannot be rotated by the staff member. ⬜
 10. **No promotion / end-of-year rollover** — moving a whole grade up a year. ⬜
 11. **No transfer-out or alumni state** — a learner can only be deactivated. ⬜
 12. **No fee statement or receipt PDF** for parents. ⬜
 13. **No exam analytics** (class mean, subject ranking, term-on-term movement). ⬜
-14. **No bulk learner import** (CSV) — 300 learners were seeded by script, not uploaded. ⬜
+14. **No bulk learner import** (CSV) — learners are admitted one at a time through the
+    admission form; a January intake of 200 would want a spreadsheet upload. ⬜
 15. **Teacher attendance has no UI** — the model and API exist; nothing writes to it except seeds. 🟡
 
 ### Deferred on purpose
@@ -122,3 +128,20 @@ Each of these was found by writing the test first; all are now covered by regres
 | 11 | Low | Unauthenticated API calls returned 403, so the client could not tell "logged out" from "not allowed"; an expired token left every panel broken. | Token auth first (401), and the client now drops to the login screen. |
 | 12 | Low | Parent portal children had no `id`/`name` at the top level. | Added, so the PWA can key and link on them. |
 | 13 | Low | `MyTeamView` ran ~5 queries per staff member. | Grouped counts + `select_related` on both profile types. |
+
+## 7. Admissions, photos, delegation and notifications (2026-08-05)
+
+31 further tests, all passing. Two things worth recording:
+
+- The dev server had been started with `--noreload`, so new URL routes 404'd until it was
+  restarted. Worth knowing before diagnosing a "missing endpoint".
+- The notification panel inherited the topbar's `text-transform: uppercase`, which SHOUTED
+  every message body. Reset on the panel.
+
+Still open in this area:
+
+- **No CSV bulk import** for a whole intake (see gap 14).
+- **Photos are not resized or size-limited on upload** — a 12 MP phone photo is stored as-is.
+  Worth a Pillow downscale before a school with 300 learners fills the disk. ⬜
+- **No sibling linkage** beyond the shared guardian record — the form reuses the parent, but
+  there is no "these two learners are siblings" view. ⬜

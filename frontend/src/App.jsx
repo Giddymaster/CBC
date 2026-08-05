@@ -11,13 +11,15 @@ import {
   setUnauthorizedHandler,
   startQueueFlusher,
 } from './api.js'
+import Admission from './Admission.jsx'
 import Attendance from './Attendance.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
+import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
 import SchemesReview from './SchemesReview.jsx'
-import SchoolStructure from './SchoolStructure.jsx'
+import SchoolStructure, { LearnerPhoto } from './SchoolStructure.jsx'
 import Staff from './Staff.jsx'
 import SupportPortal from './StaffPortal.jsx'
 import TeacherPortal from './TeacherPortal.jsx'
@@ -226,8 +228,11 @@ function Learners({ grade }) {
               <tr key={l.id} style={!l.active ? { opacity: 0.55 } : undefined}>
                 <td>{l.admission_number}</td>
                 <td>
-                  {l.full_name}
-                  {!l.active && <> <span className="badge offline">Deactivated</span></>}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <LearnerPhoto photo={l.photo} name={l.full_name} />
+                    {l.full_name}
+                    {!l.active && <span className="badge offline">Deactivated</span>}
+                  </span>
                 </td>
                 <td>{gradeLabel(l.grade)}</td>
                 <td>{l.stream}</td>
@@ -419,6 +424,9 @@ const NAV_SECTIONS = [
     title: 'Learners',
     items: [
       { name: 'Learners', label: 'Learners (Students)', ...GRADE_NAV },
+      // The admission form draws its own heading; the "+" per grade opens it
+      // pre-set to that grade.
+      { name: 'Admissions', label: 'Admissions (Admit a learner)', ownHeading: true, ...GRADE_NAV },
       { name: 'Attendance', ...GRADE_NAV },
       { name: 'Report Card', ...GRADE_NAV },
     ],
@@ -454,6 +462,7 @@ const TABS = {
   School: SchoolStructure,
   Staff: Staff,
   Learners: Learners,
+  Admissions: Admission,
   Attendance: Attendance,
   'Report Card': ReportCard,
   Fees: Fees,
@@ -603,6 +612,9 @@ export default function App() {
       <header className="topbar">
         <h1>{title}</h1>
         <div className="userlinks">
+          {/* Every staff login gets the bell — a supervisor's message lands in
+              the teacher and support portals, not just the admin shell. */}
+          {!isParent && <Notifications />}
           <span className={`badge ${online ? 'online' : 'offline'}`}>
             {online ? 'Online' : 'Offline'}
           </span>

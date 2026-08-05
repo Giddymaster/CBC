@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
+import Admission from './Admission.jsx'
 import MyTeam from './MyTeam.jsx'
 
 const STATUS_BADGE = {
@@ -382,11 +383,13 @@ export function ReportsPanel({ data, onRefresh }) {
 // Portal for non-teaching staff — cooks, drivers, matrons, bursar, security.
 export default function SupportPortal() {
   const [data, setData] = useState(null)
+  const [access, setAccess] = useState(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('My Role')
 
   const load = useCallback(() => {
     apiGet('/api/my-portal/').then(setData).catch((e) => setError(e.message))
+    apiGet('/api/admissions/access/').then(setAccess).catch(() => setAccess(null))
   }, [])
   useEffect(load, [load])
 
@@ -399,6 +402,7 @@ export default function SupportPortal() {
     'My Role',
     ...(teamSize ? [`My Team (${teamSize})`] : []),
     `Reports${pending ? ` (${pending})` : ''}`,
+    ...(access?.can_admit ? ['Admissions'] : []),
   ]
 
   return (
@@ -419,6 +423,7 @@ export default function SupportPortal() {
       </nav>
       {tab === 'My Role' && <MyRolePanel data={data} onRefresh={load} />}
       {tab === 'My Team' && <MyTeam />}
+      {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'Reports' && <ReportsPanel data={data} onRefresh={load} />}
     </div>
   )

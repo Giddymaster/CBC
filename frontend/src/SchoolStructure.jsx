@@ -55,6 +55,87 @@ function TimetableGrid({ lessons, showTeacher }) {
   )
 }
 
+export function LearnerPhoto({ photo, name, large }) {
+  const initials = (name || '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('')
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={name}
+        className={large ? 'learner-photo-lg' : 'learner-photo'}
+      />
+    )
+  }
+  return (
+    <span className={large ? 'learner-photo-lg-empty' : 'learner-photo-empty'}>
+      {initials || '?'}
+    </span>
+  )
+}
+
+// The admission record, minus anything empty — a mostly-blank grid of dashes
+// tells the reader nothing.
+function AdmissionDetails({ admission }) {
+  if (!admission) return null
+  const rows = [
+    ['Date of birth', admission.date_of_birth],
+    ['Admitted', admission.admission_date],
+    ['Admitted by', admission.admitted_by],
+    ['Birth cert no', admission.birth_certificate_no],
+    ['Nationality', admission.nationality],
+    ['Religion', admission.religion],
+    ['Home', [admission.home_address, admission.ward, admission.subcounty, admission.county]
+      .filter(Boolean).join(', ')],
+    ['Boarding', admission.residence],
+    ['Travels by', [admission.transport, admission.bus_route].filter(Boolean).join(' · ')],
+    ['Previous school', admission.previous_school],
+    ['Blood group', admission.blood_group],
+    ['NHIF', admission.nhif_number],
+    ['Allergies', admission.allergies],
+    ['Chronic conditions', admission.chronic_conditions],
+    ['Medication', admission.medication],
+    ['Special needs', admission.special_needs],
+    [
+      'Emergency contact',
+      [
+        admission.emergency_contact_name,
+        admission.emergency_contact_phone,
+        admission.emergency_contact_relationship
+          ? `(${admission.emergency_contact_relationship})`
+          : '',
+      ].filter(Boolean).join(' '),
+    ],
+    ['Notes', admission.admission_notes],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '')
+
+  if (!rows.length) return null
+
+  const medical = new Set([
+    'Blood group', 'Allergies', 'Chronic conditions', 'Medication', 'Special needs',
+  ])
+
+  return (
+    <div className="profile-grid" style={{ marginTop: '0.6rem' }}>
+      {rows.map(([label, value]) => (
+        <div className="profile-field" key={label}>
+          <span className="profile-label">{label}</span>
+          <span
+            className="profile-value"
+            style={medical.has(label) ? { color: '#9b2c2c' } : undefined}
+          >
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function StudentProfile({ learnerId, onBack }) {
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState('')
@@ -74,11 +155,17 @@ function StudentProfile({ learnerId, onBack }) {
     <div>
       <p><button onClick={onBack}>← Back to grade</button></p>
       <div className="card">
-        <h3>{learner.name} — {learner.admission_number}</h3>
-        <p className="muted">
-          {gradeLabel(learner.grade)} {learner.stream} · UPI {learner.upi || '—'}
-          {learner.pathway ? ` · ${learner.pathway}` : ''}
-        </p>
+        <div style={{ display: 'flex', gap: '1.2rem', alignItems: 'flex-start' }}>
+          <LearnerPhoto photo={profile.photo} name={learner.name} large />
+          <div style={{ flex: 1 }}>
+            <h3 style={{ marginTop: 0 }}>{learner.name} — {learner.admission_number}</h3>
+            <p className="muted">
+              {gradeLabel(learner.grade)} {learner.stream} · UPI {learner.upi || '—'}
+              {learner.pathway ? ` · ${learner.pathway}` : ''}
+            </p>
+            <AdmissionDetails admission={profile.admission} />
+          </div>
+        </div>
         <p>
           <b>Guardians:</b>{' '}
           {profile.guardians.length === 0 && <span className="muted">none on record</span>}
@@ -283,7 +370,12 @@ function GradeDetail({ grade, label, onBack }) {
             {students.map((s) => (
               <tr key={s.id}>
                 <td>{s.admission_number}</td>
-                <td>{s.name}</td>
+                <td>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <LearnerPhoto photo={s.photo} name={s.name} />
+                    {s.name}
+                  </span>
+                </td>
                 <td>{s.gender}</td>
                 <td>{s.stream}</td>
                 <td><TodayBadge status={s.today} /></td>

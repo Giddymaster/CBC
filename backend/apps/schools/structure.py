@@ -172,6 +172,7 @@ class GradeDetailView(APIView):
                 "gender": l.gender,
                 "stream": l.stream,
                 "upi": l.upi,
+                "photo": request.build_absolute_uri(l.photo.url) if l.photo else None,
                 "today": attendance_today.get(l.id),  # P/A/L/E or null (not marked)
             }
             for l in learners

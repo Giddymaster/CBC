@@ -6,6 +6,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:8000',
+      // Learner and staff photos are served by Django in dev.
+      '/media': 'http://127.0.0.1:8000',
     },
   },
 })

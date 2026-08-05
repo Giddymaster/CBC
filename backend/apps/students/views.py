@@ -134,9 +134,56 @@ class LearnerViewSet(SchoolScopedViewSet):
             for a in AttendanceRecord.objects.filter(learner=learner).order_by("-date")[:10]
         ]
 
+        is_staff = user.is_superuser or getattr(user, "role", None) in ("ADMIN", "TEACHER", "SUPPORT")
         return Response(
             {
                 "report_card": report,
+                "photo": (
+                    request.build_absolute_uri(learner.photo.url) if learner.photo else None
+                ),
+                # The admission record: identity, home, health and next of kin.
+                # Health and address detail is the school's duty-of-care data,
+                # so it is staff-only — a parent gets the rest.
+                "admission": {
+                    "admission_number": learner.admission_number,
+                    "upi": learner.upi,
+                    "date_of_birth": learner.date_of_birth,
+                    "gender": learner.get_gender_display(),
+                    "admission_date": learner.admission_date,
+                    "admitted_by": (
+                        learner.admitted_by.get_full_name() if learner.admitted_by else None
+                    ),
+                    "nationality": learner.nationality,
+                    "religion": learner.religion,
+                    "residence": learner.get_residence_display(),
+                    "transport": learner.get_transport_display(),
+                    "bus_route": learner.bus_route,
+                    "previous_school": learner.previous_school,
+                    **(
+                        {
+                            "birth_certificate_no": learner.birth_certificate_no,
+                            "county": learner.county,
+                            "subcounty": learner.subcounty,
+                            "ward": learner.ward,
+                            "home_address": learner.home_address,
+                            "blood_group": learner.blood_group,
+                            "allergies": learner.allergies,
+                            "chronic_conditions": learner.chronic_conditions,
+                            "medication": learner.medication,
+                            "nhif_number": learner.nhif_number,
+                            "immunisation_up_to_date": learner.immunisation_up_to_date,
+                            "special_needs": learner.special_needs,
+                            "emergency_contact_name": learner.emergency_contact_name,
+                            "emergency_contact_phone": learner.emergency_contact_phone,
+                            "emergency_contact_relationship": (
+                                learner.emergency_contact_relationship
+                            ),
+                            "admission_notes": learner.admission_notes,
+                        }
+                        if is_staff
+                        else {}
+                    ),
+                },
                 "guardians": GuardianContactSerializer(learner.guardians.all(), many=True).data,
                 "fees": {
                     "total_balance": str(balance),

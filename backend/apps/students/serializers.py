@@ -51,24 +51,40 @@ class GuardianSerializer(serializers.ModelSerializer):
 class GuardianContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Guardian
-        fields = ["id", "full_name", "phone", "email", "relationship"]
+        fields = [
+            "id", "full_name", "phone", "alt_phone", "email", "relationship",
+            "national_id", "occupation", "address", "is_primary_contact",
+        ]
 
 
 class LearnerSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     pathway_display = serializers.CharField(source="pathway.get_code_display", read_only=True, default=None)
     guardians_detail = GuardianContactSerializer(source="guardians", many=True, read_only=True)
+    admitted_by_name = serializers.CharField(
+        source="admitted_by.get_full_name", read_only=True, default=None
+    )
+    residence_label = serializers.CharField(source="get_residence_display", read_only=True)
+    transport_label = serializers.CharField(source="get_transport_display", read_only=True)
 
     class Meta:
         model = Learner
         fields = "__all__"
-        read_only_fields = ["school"]
+        read_only_fields = ["school", "photo", "admitted_by"]
+
+    # Medical and next-of-kin detail is held for the school's duty of care, not
+    # for general circulation. Only staff see it.
+    SENSITIVE = [
+        "guardians_detail", "blood_group", "allergies", "chronic_conditions",
+        "medication", "nhif_number", "special_needs", "birth_certificate_no",
+        "home_address", "emergency_contact_name", "emergency_contact_phone",
+        "emergency_contact_relationship", "admission_notes", "transfer_reason",
+    ]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Guardian contacts are staff-only: parents don't get other
-        # families' names and phone numbers.
         request = self.context.get("request")
         if request is not None and getattr(request.user, "role", None) == "PARENT":
-            data.pop("guardians_detail", None)
+            for field in self.SENSITIVE:
+                data.pop(field, None)
         return data
