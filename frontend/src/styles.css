@@ -671,3 +671,6 @@ select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-
   cursor: pointer;
 }
 .grade-chip.on { background: #417690; color: #fff; border-color: #417690; }
+
+/* A required choice the user has not made yet */
+select.needs-attention { border-color: #dd6b20; background: #fffaf0; }

@@ -7,6 +7,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.assessments.models import Score, derive_competency_level
@@ -104,7 +105,7 @@ class AttendanceAndIdempotencyTests(APITestCase):
         self.teacher = make_teacher(self.school)
         self.learners = [make_learner(self.school, grade=5) for _ in range(3)]
         self.client.force_authenticate(self.teacher.user)
-        self.today = date.today()
+        self.today = timezone.localdate()
 
     def _payload(self, statuses):
         return {

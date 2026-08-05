@@ -172,6 +172,41 @@ def transition_from(grade):
     return next((t for t in TRANSITIONS if t["from_grade"] == grade), None)
 
 
+# Default subject-to-pathway affinity, used only to *propose* a Senior School
+# pathway from a learner's Junior School record.
+#
+# This is a planning aid, not the national placement rule. MoE placement weighs
+# KJSEA performance, the learner's own choice, and the capacity of the receiving
+# school — none of which this system can decide. Every proposal it makes is
+# advisory and must be confirmed by the head teacher before it takes effect.
+#
+# Matching is by substring against the learning area name, so a school that
+# names a subject differently still matches.
+PATHWAY_INDICATORS = {
+    "STEM": [
+        "mathematic", "integrated science", "science", "pre-technical",
+        "pre technical", "computer", "agriculture", "health education",
+    ],
+    "SOCIAL": [
+        "social studies", "business", "english", "kiswahili", "religious",
+        "history", "geography", "language", "literature",
+    ],
+    "ARTS_SPORTS": [
+        "creative art", "performing art", "sport", "music", "art and craft",
+        "physical education", "drama",
+    ],
+}
+
+
+def pathway_affinity(learning_area_name):
+    """Which pathway a subject speaks to, or None if it says nothing useful."""
+    needle = (learning_area_name or "").lower()
+    for code, indicators in PATHWAY_INDICATORS.items():
+        if any(indicator in needle for indicator in indicators):
+            return code
+    return None
+
+
 def next_grade(grade):
     """The grade a learner moves to at the end of the year, or None at exit."""
     if grade >= 12:

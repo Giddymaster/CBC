@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "apps.interop",
     "apps.facilities",
     "apps.knowledge",
+    "apps.promotions",
 ]
 
 MIDDLEWARE = [

@@ -19,6 +19,7 @@ import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
+import Promotions from './Promotions.jsx'
 import SchemesReview from './SchemesReview.jsx'
 import SchoolStructure, { LearnerPhoto } from './SchoolStructure.jsx'
 import Staff from './Staff.jsx'
@@ -430,6 +431,7 @@ const NAV_SECTIONS = [
       { name: 'Admissions', label: 'Admissions (Admit a learner)', ownHeading: true, ...GRADE_NAV },
       { name: 'Attendance', ...GRADE_NAV },
       { name: 'Report Card', ...GRADE_NAV },
+      { name: 'Promotions', label: 'Promotions (End of year)', ownHeading: true },
     ],
   },
   {
@@ -465,6 +467,7 @@ const TABS = {
   Staff: Staff,
   Learners: Learners,
   Admissions: Admission,
+  Promotions: Promotions,
   Attendance: Attendance,
   'Report Card': ReportCard,
   Fees: Fees,

@@ -146,6 +146,20 @@ class Learner(SchoolScopedModel):
         help_text="Assigned at Grade 9 -> 10 transition",
     )
     guardians = models.ManyToManyField(Guardian, related_name="learners", blank=True)
+
+    class Status(models.TextChoices):
+        ENROLLED = "ENROLLED", "Enrolled"
+        TRANSFERRED = "TRANSFERRED", "Transferred out"
+        GRADUATED = "GRADUATED", "Completed Grade 12"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+
+    # `active` stays the flag every register and report filters on; `status`
+    # says *why* a learner left, which "deactivated" could never distinguish.
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.ENROLLED
+    )
+    exit_date = models.DateField(null=True, blank=True)
+    exit_note = models.CharField(max_length=200, blank=True)
     active = models.BooleanField(default=True)
     extra = models.JSONField(
         default=dict, blank=True, help_text="Values for admin-defined learner columns"

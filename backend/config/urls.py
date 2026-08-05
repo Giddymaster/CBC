@@ -38,6 +38,12 @@ from apps.payments.views import (
     StkCallbackView,
     StkPushView,
 )
+from apps.promotions.views import (
+    AcademicYearViewSet,
+    PromotionOutcomeViewSet,
+    PromotionRunViewSet,
+    TransitionInfoView,
+)
 from apps.schools.structure import GradeDetailView, SchoolStructureView
 from apps.schools.views import SchoolViewSet
 from apps.students.admissions import (
@@ -92,6 +98,9 @@ router.register("guardians", GuardianViewSet)
 router.register("class-groups", ClassGroupViewSet)
 router.register("learner-fields", LearnerFieldViewSet)
 router.register("admission-rights", AdmissionRightViewSet)
+router.register("academic-years", AcademicYearViewSet)
+router.register("promotions/runs", PromotionRunViewSet)
+router.register("promotions/outcomes", PromotionOutcomeViewSet)
 router.register("curriculum/sources", SourceViewSet)
 router.register("curriculum/documents", DocumentViewSet, basename="document")
 router.register("nav-sections", NavSectionViewSet)
@@ -136,6 +145,7 @@ urlpatterns = [
     path("api/notifications/", NotificationsView.as_view()),
     path("api/curriculum/search/", CurriculumSearchView.as_view()),
     path("api/moe/structure/", MoeStructureView.as_view()),
+    path("api/promotions/transitions/", TransitionInfoView.as_view()),
     path("api/parent/summary/", ParentSummaryView.as_view()),
     path("api/teacher/summary/", TeacherSummaryView.as_view()),
     path("api/my-portal/", MyPortalView.as_view()),

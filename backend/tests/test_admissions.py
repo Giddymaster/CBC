@@ -4,6 +4,7 @@ notification feed behind the topbar bell."""
 from datetime import date, timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.students.models import AdmissionRight, Guardian, Learner, can_admit
@@ -86,7 +87,7 @@ class AdmissionTests(APITestCase):
         self.assertEqual(learner.bus_route, "Route 3 — Membley")
         self.assertEqual(learner.emergency_contact_phone, "254711000111")
         self.assertEqual(learner.admitted_by_id, self.admin.id)
-        self.assertEqual(learner.admission_date, date.today())
+        self.assertEqual(learner.admission_date, timezone.localdate())
         self.assertEqual(learner.guardians.count(), 2)
         self.assertTrue(learner.guardians.filter(is_primary_contact=True).exists())
 
@@ -189,12 +190,12 @@ class DelegationTests(APITestCase):
     def test_an_expired_grant_stops_admissions(self):
         self._delegate_to(
             self.class_teacher.user,
-            expires_on=(date.today() - timedelta(days=1)).isoformat(),
+            expires_on=(timezone.localdate() - timedelta(days=1)).isoformat(),
         )
         self.assertFalse(can_admit(self.class_teacher.user))
 
     def test_a_grant_expiring_today_still_works(self):
-        self._delegate_to(self.class_teacher.user, expires_on=date.today().isoformat())
+        self._delegate_to(self.class_teacher.user, expires_on=timezone.localdate().isoformat())
         self.assertTrue(can_admit(self.class_teacher.user))
 
     def test_non_teaching_staff_can_be_delegated(self):
@@ -327,7 +328,7 @@ class NotificationTests(APITestCase):
     def test_assigned_work_appears(self):
         StaffTask.objects.create(
             school=self.school, assigned_to=self.cook.user, assigned_by=self.head.user,
-            title="Deep clean the store", due_date=date.today() - timedelta(days=2),
+            title="Deep clean the store", due_date=timezone.localdate() - timedelta(days=2),
         )
         self.client.force_authenticate(self.cook.user)
         res = self.client.get("/api/notifications/")
