@@ -246,8 +246,8 @@ class AuditTrailTests(APITestCase):
 
     def test_a_promotion_is_recorded_and_so_is_its_reversal(self):
         from apps.promotions.services import apply_run, build_run, revert_run
-        from apps.students.models import Pathway
         from apps.schools import moe
+        from apps.students.models import Pathway
 
         for p in moe.PATHWAYS:
             Pathway.objects.get_or_create(code=p["code"])

@@ -1,0 +1,32 @@
+# Lint configuration. The selection is deliberately small: rules that catch
+# real defects (unused code, blind excepts, naive datetimes) without arguing
+# about style. RUF012 is excluded because it flags Django's idiomatic
+# `class Meta: ordering = [...]` on every model.
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9",   # pycodestyle errors
+    "F",                # pyflakes: unused imports/variables, undefined names
+    "I",                # import order
+    "DTZ",              # naive datetimes — this app runs in Africa/Nairobi
+    "PIE",
+    "ISC",
+    "PLW1508",          # os.getenv defaults must be strings
+]
+ignore = [
+    "ISC001",  # conflicts with the formatter
+    "E741",    # `for l in learners` reads fine in this codebase
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Settings modules compose by star-import; that is their job.
+"config/settings_*.py" = ["F403", "F405"]
+# Fixture dates in tests are naive on purpose — they are school-calendar days.
+"tests/*" = ["DTZ"]
+# strptime here parses a spreadsheet's date-of-birth column into a date().
+"apps/students/bulk_import.py" = ["DTZ007"]
+"apps/*/migrations/*" = ["I"]

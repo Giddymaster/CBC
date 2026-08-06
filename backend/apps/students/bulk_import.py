@@ -117,8 +117,10 @@ def parse(file_obj):
             {
                 "row": 0,
                 "errors": [
-                    "the file needs at least a first name, last name and grade column "
-                    f"(missing: {', '.join(sorted(missing))})"
+                    (
+                        "the file needs at least a first name, last name and grade "
+                        f"column (missing: {', '.join(sorted(missing))})"
+                    )
                 ],
             }
         ], mapping

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiGet, apiUpload, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
 

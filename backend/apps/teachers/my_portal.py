@@ -95,7 +95,7 @@ class StaffReportViewSet(SchoolScopedViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        kind, profile = _staff_profile(user)
+        _, profile = _staff_profile(user)
         if profile is None:
             raise PermissionDenied("Only staff members file reports.")
         serializer.save(
@@ -238,7 +238,7 @@ class MyPortalView(APIView):
         school = user.school
         from apps.facilities.models import FacilityAssignment
         from apps.students.models import ClassGroup, Learner
-        from apps.timetable.models import Lesson, LessonRequirement
+        from apps.timetable.models import LessonRequirement
 
         # --- What they do -------------------------------------------------
         responsibilities = {"class_teacher_of": [], "lessons": [], "facilities": [], "duties": []}

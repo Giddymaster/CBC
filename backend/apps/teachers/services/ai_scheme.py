@@ -15,7 +15,11 @@ once in `apps.schools.moe` and is stated to the model explicitly.
 import json
 import os
 
-from apps.schools.moe import GOVERNING_AUTHORITY, AUTHORITY_LABELS, level_of  # noqa: F401
+from apps.schools.moe import (
+    AUTHORITY_LABELS,
+    GOVERNING_AUTHORITY,
+    level_of,
+)
 
 SCHEME_JSON_SCHEMA = {
     "type": "object",
@@ -89,8 +93,10 @@ def retrieve_grounding(*, learning_area_name, learning_area_id, grade, term, sch
             [
                 learning_area_name,
                 f"grade {grade}",
-                "strand sub-strand learning outcomes key inquiry question "
-                "learning experiences assessment",
+                (
+                    "strand sub-strand learning outcomes key inquiry question "
+                    "learning experiences assessment"
+                ),
             ],
         )
     )
@@ -133,8 +139,10 @@ def _stub_scheme(learning_area, grade, weeks, lessons_per_week, grounding=None):
                         "strand": strand_for(week),
                         "sub_strand": f"Sub-strand {week}.{lesson}",
                         "learning_outcomes": [
-                            f"By the end of the lesson the learner should be able to "
-                            f"demonstrate competency {week}.{lesson} in {learning_area}."
+                            (
+                                "By the end of the lesson the learner should be able to "
+                                f"demonstrate competency {week}.{lesson} in {learning_area}."
+                            )
                         ],
                         "learning_experiences": (
                             "Learners discuss, practise and present in groups."

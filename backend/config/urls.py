@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.views import MeView
+from apps.assessments.subject_analysis import SubjectAnalysisView
 from apps.assessments.views import (
     AssessmentViewSet,
     GenerateClassReportCardsView,
@@ -16,7 +17,6 @@ from apps.assessments.views import (
     ScoreBulkView,
     ScoreViewSet,
 )
-from apps.assessments.subject_analysis import SubjectAnalysisView
 from apps.attendance.views import AttendanceBulkView, AttendanceViewSet
 from apps.common.audit_views import AuditEntryViewSet, AuditSummaryView
 from apps.communication.parent_messages import (
@@ -57,8 +57,8 @@ from apps.schools.structure import GradeDetailView, SchoolStructureView
 from apps.schools.views import SchoolViewSet
 from apps.students.admissions import (
     AdmissionRightViewSet,
-    BulkImportView,
     AdmissionView,
+    BulkImportView,
     LearnerPhotoView,
     MyAdmissionAccessView,
 )
@@ -70,12 +70,7 @@ from apps.students.views import (
     LearnerViewSet,
     PathwayViewSet,
 )
-from apps.teachers.my_portal import (
-    DutyViewSet,
-    MyPhotoView,
-    MyPortalView,
-    StaffReportViewSet,
-)
+from apps.teachers.daily import SchemeLessonPlansView, StaffRollCallView
 from apps.teachers.development import (
     PdRecordViewSet,
     PeerReviewQueueView,
@@ -83,21 +78,26 @@ from apps.teachers.development import (
     SchoolAnalysisView,
     TeacherAnalysisView,
 )
-from apps.teachers.daily import SchemeLessonPlansView, StaffRollCallView
+from apps.teachers.my_portal import (
+    DutyViewSet,
+    MyPhotoView,
+    MyPortalView,
+    StaffReportViewSet,
+)
 from apps.teachers.notifications import NotificationsView
 from apps.teachers.portal import TeacherSummaryView
-from apps.teachers.team import (
-    MyTeamView,
-    StaffMessageViewSet,
-    StaffTaskViewSet,
-    TeamMemberView,
-)
 from apps.teachers.staff import (
     AddTeacherView,
     EditTeacherView,
     StaffDirectoryView,
     StaffFieldViewSet,
     SupportStaffViewSet,
+)
+from apps.teachers.team import (
+    MyTeamView,
+    StaffMessageViewSet,
+    StaffTaskViewSet,
+    TeamMemberView,
 )
 from apps.teachers.views import LessonPlanViewSet, SchemeOfWorkViewSet, TeacherViewSet
 from apps.timetable.views import (

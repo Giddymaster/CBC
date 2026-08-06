@@ -10,13 +10,12 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from apps.assessments.models import Assessment, LearningArea, Score
 from apps.communication.models import Announcement
 from apps.payments.models import FeeStructure, Invoice
 from apps.schools.models import School
-from django.utils import timezone
-
 from apps.students.models import ClassGroup, Guardian, Learner, Pathway
 from apps.teachers.models import SchemeOfWork, SupportStaff, Teacher, TeacherAttendance
 from apps.timetable.models import LessonRequirement, Period, Room
@@ -404,7 +403,7 @@ class Command(BaseCommand):
                 school=school, grade=grade, term=2, year=2026,
                 defaults={
                     "amount": Decimal(8000 + max(grade, 0) * 500),
-                    "description": f"Term 2 fees",
+                    "description": "Term 2 fees",
                 },
             )
             existing = Learner.objects.filter(school=school, grade=grade, active=True).count()

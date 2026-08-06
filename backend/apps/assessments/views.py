@@ -1,15 +1,20 @@
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers as drf_serializers
 from rest_framework import status, viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from django.db import transaction
-
-from apps.common.models import IdempotentRequest
 from apps.common.audit import record as audit
-from apps.common.views import IDEMPOTENCY_HEADER, IdempotencyMixin, SchoolScopedViewSet
+from apps.common.models import IdempotentRequest
+from apps.common.views import (
+    IDEMPOTENCY_HEADER,
+    AdminWriteMixin,
+    IdempotencyMixin,
+    SchoolScopedViewSet,
+)
 from apps.students.models import Learner
 
 from .models import Assessment, LearningArea, Score
@@ -19,10 +24,25 @@ from .serializers import AssessmentSerializer, LearningAreaSerializer, ScoreSeri
 from .tasks import generate_class_report_cards
 
 
-class LearningAreaViewSet(viewsets.ModelViewSet):
+class LearningAreaViewSet(AdminWriteMixin, viewsets.ModelViewSet):
+    """Learning areas are national — shared by every school on the platform.
+
+    A school admin may add or correct one, but deletion is reserved for a
+    platform superuser: the FK from Assessment cascades, so deleting a
+    learning area would take every school's assessments and scores in that
+    subject with it."""
+
     queryset = LearningArea.objects.all()
     serializer_class = LearningAreaSerializer
     search_fields = ["name", "code"]
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_superuser:
+            raise PermissionDenied(
+                "Deleting a learning area cascades into every school's scores — "
+                "platform administrators only."
+            )
+        instance.delete()
 
 
 class AssessmentViewSet(SchoolScopedViewSet):
@@ -180,6 +200,9 @@ class GenerateClassReportCardsView(APIView):
     """Queue PDF generation for a whole class (Celery; inline in dev)."""
 
     def post(self, request):
+        user = request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER")):
+            raise PermissionDenied("Generating class report cards is a staff job.")
         serializer = GenerateClassReportCardsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

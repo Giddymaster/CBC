@@ -5,7 +5,7 @@ user per fixture — MD5 here cuts the suite from minutes to seconds. In-memory
 SQLite and a null cache keep the rest off disk.
 """
 
-from .settings import *  # noqa: F401,F403
+from .settings import *
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
@@ -19,7 +19,7 @@ DATABASES = {
 CELERY_TASK_ALWAYS_EAGER = True
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
-MEDIA_ROOT = BASE_DIR / "test-media"  # noqa: F405
+MEDIA_ROOT = BASE_DIR / "test-media"
 
 # Keep the AI scheme generator and Daraja in stub mode regardless of .env.
 ANTHROPIC_API_KEY = ""

@@ -140,7 +140,7 @@ def extract_text(uploaded_file):
     no text simply is not indexed, and the UI says so.
     """
     name = (getattr(uploaded_file, "name", "") or "").lower()
-    if name.endswith(".txt") or name.endswith(".md"):
+    if name.endswith((".txt", ".md")):
         uploaded_file.seek(0)
         return uploaded_file.read().decode("utf-8", errors="replace")
     if name.endswith(".pdf"):

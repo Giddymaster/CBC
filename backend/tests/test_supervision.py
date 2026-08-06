@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 
 from apps.teachers.models import StaffMessage, StaffReport, StaffTask
 from apps.teachers.supervision import rank_level, visible_staff_ids
-from tests.factories import make_school, make_support, make_teacher, make_user
+from tests.factories import make_school, make_support, make_teacher
 
 
 class SupervisionScopeTests(APITestCase):

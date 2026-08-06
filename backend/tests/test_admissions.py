@@ -1,14 +1,14 @@
 """Admitting a learner, delegating that right, learner photos, and the
 notification feed behind the topbar bell."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.students.models import AdmissionRight, Guardian, Learner, can_admit
 from apps.students.admissions import next_admission_number
+from apps.students.models import AdmissionRight, Guardian, Learner, can_admit
 from apps.teachers.models import StaffMessage, StaffReport, StaffTask
 from tests.factories import (
     make_guardian,

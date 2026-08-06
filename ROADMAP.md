@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **363 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **379 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -430,3 +430,48 @@ The four gaps named at the end of §12. 64 new tests — 299 to 363.
 - **Password reset needs an admin.** There is no self-service "forgot password" by SMS or
   email, which for a rural school means waiting for the office. ⬜
 - **Kenya DPA 2019 registration** — a legal precondition, unchanged. ⬜
+
+
+---
+
+## 14. Static-analysis pass and authorization audit (2026-08-05)
+
+Ran ruff over the backend and ESLint over the frontend for the first time, and
+audited every DRF viewset for a write guard. Both linters now run in CI.
+
+### Authorization holes found and closed
+
+The serious findings. Each is now a failing-then-passing regression test in
+`tests/test_write_guards.py`.
+
+| Endpoint | Was | Now |
+|---|---|---|
+| `POST/DELETE /api/learning-areas/` | Any signed-in user, incl. a **parent** | Admin writes; delete is platform-superuser only |
+| `POST/DELETE /api/pathways/` | Any signed-in user | Admin writes; delete platform-only |
+| `GET /api/guardians/` | **Every parent could list every family's name and phone** | Staff only |
+| `PATCH /api/schools/<id>/` | Any user could rewrite `paybill_account_prefix`, redirecting M-Pesa reconciliation | Admin only |
+| `POST /api/timetable/{rooms,periods,lessons,requirements}/` | Any user | Admin only |
+| `POST /api/communication/announcements/` | Any user could blast every parent | Admin only |
+| `POST /api/communication/sms/` | Any user — a **free SMS gateway** | Admin only |
+| `POST /api/timetable/generate/` | Any user could wipe and rebuild every lesson | Admin only |
+| `POST /api/report-cards/generate-class/` | Any user | Staff only |
+
+Root cause: `SchoolScopedViewSet` enforced *tenancy* but not *role*, and several
+registry-style viewsets were added with default CRUD. A parent is a
+school-scoped user, so scoping alone let them write. Fixed at the source with an
+`AdminWriteMixin` that fails closed — read open, write admin-only — so the next
+viewset added this way is safe by default.
+
+### Code hygiene
+
+- ruff: 8 unused imports, an f-string with no placeholder, a dead
+  `serializers.Serializer()` line in the promotion preview, an unused unpacked
+  variable, and three implicit string concatenations inside lists (the class of
+  bug where a missing comma silently joins two list items). All fixed; ruff is
+  clean and gated in CI.
+- ESLint (newly added): 0 errors. 11 warnings, all the "reset state when a prop
+  changes" effect pattern — a performance hint, not a defect, kept visible.
+- A latent CI hole: `settings_ci.py` had its Postgres override reordered by the
+  import sorter to run *before* the SQLite base, so the "PostgreSQL job" was
+  silently testing SQLite. Rewritten so the override cannot be reordered, and
+  proven to select the Postgres engine.

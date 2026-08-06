@@ -26,6 +26,10 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check apps config tests
       - run: python manage.py test tests --settings=config.settings_test
 
   backend-postgres:
@@ -112,4 +116,5 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run build

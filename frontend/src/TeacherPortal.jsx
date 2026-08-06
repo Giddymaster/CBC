@@ -88,6 +88,8 @@ function ScoreEntry({ assessments, onQueueChange }) {
       })),
     )
     setMessage('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identity by id:
+    // `assessments` is refetched wholesale, so a same-id object is same-data.
   }, [assessment?.id])
 
   useEffect(() => {

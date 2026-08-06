@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 
 from apps.attendance.models import AttendanceRecord
 from apps.students.models import ClassGroup, Learner
-from apps.teachers.models import SchemeOfWork, TeacherAttendance
+from apps.teachers.models import TeacherAttendance
 from apps.timetable.models import Lesson, LessonRequirement
 
 CATEGORIES = [

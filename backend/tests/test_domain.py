@@ -2,7 +2,6 @@
 levels, the attendance register, fee payments, the timetable, and the grade
 structure."""
 
-from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 

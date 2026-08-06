@@ -103,7 +103,6 @@ class PromotionRunViewSet(SchoolScopedViewSet):
     def create(self, request, *args, **kwargs):
         """Preview: build the run without changing anything."""
         require_admin(request.user)
-        params = serializers.Serializer(data=request.data)
         from_year = request.data.get("from_year")
         to_year = request.data.get("to_year")
         grade = request.data.get("grade", None)

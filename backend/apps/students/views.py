@@ -6,7 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.common.audit import record as audit
-from apps.common.views import SchoolScopedViewSet
+from apps.common.views import AdminWriteMixin, SchoolScopedViewSet, is_staff_member
 
 from .models import ClassGroup, Guardian, Learner, LearnerField, Pathway
 from .serializers import (
@@ -68,15 +68,54 @@ class ClassGroupViewSet(SchoolScopedViewSet):
         instance.delete()
 
 
-class PathwayViewSet(viewsets.ModelViewSet):
+class PathwayViewSet(AdminWriteMixin, viewsets.ModelViewSet):
+    """The three MoE pathways. National; there is rarely a reason to touch
+    them at all outside seeding, so writes are admin-only and deletes are
+    for the platform."""
+
     queryset = Pathway.objects.all()
     serializer_class = PathwaySerializer
 
+    def perform_destroy(self, instance):
+        if not self.request.user.is_superuser:
+            raise PermissionDenied(
+                "Pathways are national — platform administrators only."
+            )
+        instance.delete()
+
 
 class GuardianViewSet(SchoolScopedViewSet):
+    """The guardian register is every family's name and phone number.
+
+    School scoping alone is not enough here, because parents are
+    school-scoped users too — without a role check a parent could list
+    every other family's contact details. Staff read; the admin writes."""
+
     queryset = Guardian.objects.all()
     serializer_class = GuardianSerializer
     search_fields = ["full_name", "phone"]
+
+    def get_queryset(self):
+        if not is_staff_member(self.request.user):
+            raise PermissionDenied("The guardian register is staff-only.")
+        return super().get_queryset()
+
+    def perform_create(self, serializer):
+        self._require_admin()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_admin()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_admin()
+        instance.delete()
+
+    def _require_admin(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school admin can change guardian records.")
 
 
 class LearnerViewSet(SchoolScopedViewSet):

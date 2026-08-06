@@ -17,7 +17,6 @@ discussed before reading a word.
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
-from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
