@@ -1,16 +1,21 @@
-Django>=6.0
-djangorestframework
-django-filter
-django-cors-headers
-celery
-redis
-requests
-python-dotenv
-reportlab
-anthropic
-Pillow
-whitenoise
-# Production database + server. Installed here too so `pip install -r` on a
-# server is one command; the SQLite dev default does not need psycopg.
-psycopg[binary]
-gunicorn
+# Pinned to the exact set the test suite passes on. Leaving these open lets a
+# fresh install — in Docker, or on a new machine — resolve a *different*
+# combination, which is how a Django/DRF mismatch (cc_delim_re) once reached a
+# server. Bump deliberately, run the suite, then commit the new pins.
+Django==6.0.7
+djangorestframework==3.17.1
+django-filter==26.1
+django-cors-headers==4.9.0
+celery==5.6.3
+redis==8.1.0
+requests==2.34.2
+python-dotenv==1.2.2
+reportlab==5.0.0
+anthropic==0.120.2
+Pillow==12.3.0
+whitenoise==6.12.0
+
+# Production database driver and WSGI server. The Docker image and the
+# PostgreSQL CI leg need them; harmless alongside the SQLite dev default.
+psycopg[binary]==3.3.4
+gunicorn==23.0.0
