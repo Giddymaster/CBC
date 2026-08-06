@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy CBC to a VPS — step-by-step</title>
+</head>
+<body>
+<style>
+  :root {
+    /* Neutrals biased cool/teal to match the product identity */
+    --ground: #eef3f3;
+    --surface: #ffffff;
+    --surface-2: #f6f9f9;
+    --ink: #102530;
+    --ink-soft: #4a636d;
+    --ink-faint: #7c929b;
+    --line: #d5e0e1;
+    --line-strong: #bcccce;
+
+    --teal: #1c7d92;
+    --teal-deep: #114f5e;
+    --teal-wash: #e2eef0;
+    --amber: #b8741a;
+    --amber-wash: #f6ecdc;
+    --green: #2c7a41;
+    --green-wash: #e2efe4;
+    --red: #b23a26;
+    --red-wash: #f5e3df;
+
+    --term-bg: #0d1b24;
+    --term-ink: #d6e7ea;
+    --term-dim: #7ea7b0;
+    --term-comment: #5f9aa6;
+
+    --font-head: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --font-body: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+    --wrap: 46rem;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(16, 37, 48, 0.05), 0 8px 24px rgba(16, 37, 48, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0b151b;
+      --surface: #12222b;
+      --surface-2: #16282f;
+      --ink: #e7eff1;
+      --ink-soft: #a2b6bd;
+      --ink-faint: #6f858d;
+      --line: #23373f;
+      --line-strong: #2f474f;
+
+      --teal: #4bb6cd;
+      --teal-deep: #7fcede;
+      --teal-wash: #143038;
+      --amber: #e3a447;
+      --amber-wash: #2a2011;
+      --green: #5cc074;
+      --green-wash: #14291a;
+      --red: #e2745e;
+      --red-wash: #2c1712;
+
+      --term-bg: #071219;
+      --term-ink: #d6e7ea;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.35);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground: #eef3f3; --surface: #ffffff; --surface-2: #f6f9f9;
+    --ink: #102530; --ink-soft: #4a636d; --ink-faint: #7c929b;
+    --line: #d5e0e1; --line-strong: #bcccce;
+    --teal: #1c7d92; --teal-deep: #114f5e; --teal-wash: #e2eef0;
+    --amber: #b8741a; --amber-wash: #f6ecdc;
+    --green: #2c7a41; --green-wash: #e2efe4;
+    --red: #b23a26; --red-wash: #f5e3df;
+    --term-bg: #0d1b24; --term-ink: #d6e7ea; --term-comment: #5f9aa6;
+    --shadow: 0 1px 2px rgba(16,37,48,0.05), 0 8px 24px rgba(16,37,48,0.06);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b151b; --surface: #12222b; --surface-2: #16282f;
+    --ink: #e7eff1; --ink-soft: #a2b6bd; --ink-faint: #6f858d;
+    --line: #23373f; --line-strong: #2f474f;
+    --teal: #4bb6cd; --teal-deep: #7fcede; --teal-wash: #143038;
+    --amber: #e3a447; --amber-wash: #2a2011;
+    --green: #5cc074; --green-wash: #14291a;
+    --red: #e2745e; --red-wash: #2c1712;
+    --term-bg: #071219; --term-ink: #d6e7ea; --term-comment: #5f9aa6;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  .guide {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .guide p { margin: 0 0 1rem; }
+  .guide a { color: var(--teal); text-underline-offset: 2px; }
+  .guide a:focus-visible,
+  .guide button:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 3px; }
+  .guide strong { font-weight: 700; }
+
+  /* ---- sticky bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    max-width: 62rem; margin: 0 auto;
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 1.25rem;
+  }
+  .brand {
+    font-family: var(--font-head); font-weight: 800; font-size: 0.95rem;
+    letter-spacing: -0.01em; color: var(--ink); white-space: nowrap;
+  }
+  .brand .dot { color: var(--teal); }
+  .partnav {
+    margin-left: auto; display: flex; gap: 0.25rem;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .partnav::-webkit-scrollbar { display: none; }
+  .partnav a {
+    font-family: var(--font-mono); font-size: 0.74rem;
+    color: var(--ink-soft); text-decoration: none;
+    padding: 0.28rem 0.5rem; border-radius: 6px; white-space: nowrap;
+  }
+  .partnav a:hover { background: var(--teal-wash); color: var(--teal-deep); }
+
+  /* ---- shell ---- */
+  main { max-width: var(--wrap); margin: 0 auto; padding: 0 1.25rem 5rem; }
+
+  /* ---- hero ---- */
+  .hero { padding: 3rem 0 1.5rem; }
+  .eyebrow {
+    font-family: var(--font-head); text-transform: uppercase;
+    letter-spacing: 0.14em; font-size: 0.7rem; font-weight: 700;
+    color: var(--teal); margin-bottom: 0.9rem;
+  }
+  .hero h1 {
+    font-family: var(--font-head); font-weight: 800;
+    font-size: clamp(2rem, 6vw, 2.9rem); line-height: 1.05;
+    letter-spacing: -0.025em; margin: 0 0 0.7rem;
+    text-wrap: balance; color: var(--ink);
+  }
+  .hero .lede {
+    font-size: 1.18rem; color: var(--ink-soft); max-width: 34rem; margin: 0;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.5rem;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: var(--font-mono); font-size: 0.76rem;
+    background: var(--surface); border: 1px solid var(--line);
+    color: var(--ink-soft); padding: 0.35rem 0.7rem; border-radius: 999px;
+  }
+  .chip b { color: var(--ink); font-weight: 700; }
+
+  /* ---- mental model ---- */
+  .model {
+    margin-top: 1.75rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .model-head {
+    font-family: var(--font-head); font-weight: 700; font-size: 0.95rem;
+    padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--line);
+    background: var(--surface-2); color: var(--ink);
+  }
+  .model-body { padding: 1.1rem; font-size: 0.98rem; }
+  .stack {
+    display: grid; gap: 0.5rem; margin-top: 0.6rem;
+    font-family: var(--font-mono); font-size: 0.82rem;
+  }
+  .stack .row {
+    display: flex; gap: 0.6rem; align-items: baseline;
+    padding: 0.45rem 0.65rem; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  .stack .k { color: var(--teal-deep); font-weight: 700; min-width: 5.5rem; }
+  .stack .v { color: var(--ink-soft); }
+
+  /* ---- parts ---- */
+  .part { padding: 2.5rem 0 0.5rem; scroll-margin-top: 4rem; }
+  .part-head { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1.1rem; }
+  .num {
+    flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--teal); color: #fff;
+    font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--teal) 40%, transparent);
+  }
+  .part-head .titles { padding-top: 0.1rem; }
+  .part-head .kicker {
+    font-family: var(--font-head); text-transform: uppercase;
+    letter-spacing: 0.12em; font-size: 0.66rem; font-weight: 700;
+    color: var(--ink-faint); margin-bottom: 0.15rem;
+  }
+  .part-head h2 {
+    font-family: var(--font-head); font-weight: 800; font-size: 1.5rem;
+    line-height: 1.15; letter-spacing: -0.02em; margin: 0; color: var(--ink);
+    text-wrap: balance;
+  }
+  .part > p, .part > ul, .part > ol { }
+  .part ul, .part ol { margin: 0 0 1rem; padding-left: 1.2rem; }
+  .part li { margin-bottom: 0.4rem; }
+  h3.sub {
+    font-family: var(--font-head); font-weight: 700; font-size: 1.02rem;
+    letter-spacing: -0.01em; color: var(--ink); margin: 1.6rem 0 0.6rem;
+  }
+
+  /* ---- terminal blocks ---- */
+  .term {
+    background: var(--term-bg); border-radius: 10px; overflow: hidden;
+    margin: 0 0 1.2rem; border: 1px solid rgba(255,255,255,0.06);
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .term-bar .lamp { width: 0.62rem; height: 0.62rem; border-radius: 50%; background: #33474f; }
+  .term-bar .where {
+    margin-left: auto; font-family: var(--font-mono); font-size: 0.68rem;
+    color: var(--term-dim); letter-spacing: 0.04em;
+  }
+  .term pre {
+    margin: 0; padding: 0.85rem 1rem; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.7;
+    color: var(--term-ink);
+  }
+  .term .c { color: var(--term-comment); font-style: italic; }
+  .term .p { color: var(--term-dim); user-select: none; }
+
+  code.inline {
+    font-family: var(--font-mono); font-size: 0.86em;
+    background: var(--teal-wash); color: var(--teal-deep);
+    padding: 0.08em 0.38em; border-radius: 5px;
+    word-break: break-word;
+  }
+
+  /* ---- callouts ---- */
+  .call {
+    display: grid; grid-template-columns: auto 1fr; gap: 0.7rem;
+    padding: 0.85rem 1rem; border-radius: 10px; margin: 0 0 1.2rem;
+    font-size: 0.95rem; border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .call .ico {
+    font-family: var(--font-head); font-weight: 800; font-size: 0.9rem;
+    width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid;
+    place-items: center; color: #fff; margin-top: 0.05rem;
+  }
+  .call p { margin: 0; }
+  .call p + p { margin-top: 0.5rem; }
+  .call .lab {
+    font-family: var(--font-head); font-weight: 700; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.08em; display: block;
+    margin-bottom: 0.15rem;
+  }
+  .call.verify { background: var(--green-wash); border-color: color-mix(in srgb, var(--green) 30%, var(--line)); }
+  .call.verify .ico { background: var(--green); }
+  .call.verify .lab { color: var(--green); }
+  .call.warn { background: var(--amber-wash); border-color: color-mix(in srgb, var(--amber) 32%, var(--line)); }
+  .call.warn .ico { background: var(--amber); }
+  .call.warn .lab { color: var(--amber); }
+  .call.danger { background: var(--red-wash); border-color: color-mix(in srgb, var(--red) 32%, var(--line)); }
+  .call.danger .ico { background: var(--red); }
+  .call.danger .lab { color: var(--red); }
+
+  /* ---- tables ---- */
+  .tw { overflow-x: auto; margin: 0 0 1.2rem; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; background: var(--surface); }
+  th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-family: var(--font-head); font-weight: 700; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft);
+    background: var(--surface-2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td b { color: var(--ink); }
+  .rec {
+    display: inline-block; font-family: var(--font-head); font-weight: 700;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
+    background: var(--teal); color: #fff; padding: 0.1rem 0.4rem;
+    border-radius: 4px; margin-left: 0.4rem; vertical-align: middle;
+  }
+  td.mono, .num-cell { font-family: var(--font-mono); font-size: 0.82rem; white-space: nowrap; }
+
+  hr.rule { border: none; border-top: 1px solid var(--line); margin: 3rem 0 0; }
+
+  /* ---- troubleshooting ---- */
+  .trouble { margin-top: 1rem; display: grid; gap: 0.75rem; }
+  .fix {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--red); border-radius: 8px; padding: 0.85rem 1rem;
+  }
+  .fix .sym { font-family: var(--font-head); font-weight: 700; font-size: 0.95rem; color: var(--ink); margin-bottom: 0.2rem; }
+  .fix .sym::before { content: "→ "; color: var(--red); }
+  .fix p { margin: 0; font-size: 0.92rem; color: var(--ink-soft); }
+
+  footer.foot {
+    margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+    font-size: 0.88rem; color: var(--ink-faint);
+  }
+
+  @media (max-width: 560px) {
+    .guide { font-size: 16px; }
+    .part-head { gap: 0.75rem; }
+    .num { width: 2.2rem; height: 2.2rem; font-size: 0.95rem; }
+    .call { grid-template-columns: 1fr; }
+    .call .ico { display: none; }
+  }
+</style>
+
+<div class="guide">
+  <div class="topbar">
+    <div class="topbar-inner">
+      <span class="brand">Launch<span class="dot">·</span>CBC</span>
+      <nav class="partnav" aria-label="Jump to part">
+        <a href="#p1">1 · Rent</a>
+        <a href="#p2">2 · Harden</a>
+        <a href="#p3">3 · Docker</a>
+        <a href="#p4">4 · Configure</a>
+        <a href="#p5">5 · First boot</a>
+        <a href="#p6">6 · Domain</a>
+        <a href="#p7">7 · Go live</a>
+        <a href="#p8">8 · Backups</a>
+        <a href="#trouble">Fixes</a>
+      </nav>
+    </div>
+  </div>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Deployment walkthrough</div>
+      <h1>Put the school system on a server</h1>
+      <p class="lede">Renting a small Linux machine and running the whole stack on it — from an empty account to a school signing in over HTTPS.</p>
+      <div class="meta">
+        <span class="chip">⏱ <b>60–90 min</b> first time</span>
+        <span class="chip">💳 from <b>~$12/mo</b></span>
+        <span class="chip">🧑‍💻 comfort with a <b>terminal</b> helps</span>
+        <span class="chip">🚀 one <b>Ubuntu box</b>, all in Docker</span>
+      </div>
+
+      <div class="model">
+        <div class="model-head">What you're actually building</div>
+        <div class="model-body">
+          <p style="margin:0 0 0.4rem;">One rented computer (a “VPS”) runs six pieces in Docker containers. You never install them by hand — the compose file does. Caddy sits at the front and gets you a free HTTPS certificate automatically.</p>
+          <div class="stack">
+            <div class="row"><span class="k">caddy</span><span class="v">front door · HTTPS · serves the app + photos</span></div>
+            <div class="row"><span class="k">web</span><span class="v">Django API + admin (gunicorn)</span></div>
+            <div class="row"><span class="k">worker</span><span class="v">background jobs — report-card PDFs, SMS</span></div>
+            <div class="row"><span class="k">db</span><span class="v">PostgreSQL — every record lives here</span></div>
+            <div class="row"><span class="k">redis</span><span class="v">the worker's job queue</span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PART 1 -->
+    <section class="part" id="p1">
+      <div class="part-head">
+        <div class="num">1</div>
+        <div class="titles">
+          <div class="kicker">The machine</div>
+          <h2>Rent the server</h2>
+        </div>
+      </div>
+      <p>A VPS is a small computer you rent by the month. Any of these work — they’re all just an Ubuntu box after you’ve got it. Pick one and make an account.</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Provider</th><th>Best for</th><th>Closest region to Kenya</th><th>From</th></tr></thead>
+          <tbody>
+            <tr><td><b>DigitalOcean</b><span class="rec">this guide</span></td><td>Easiest first time; superb docs</td><td>Frankfurt</td><td class="num-cell">~$12/mo</td></tr>
+            <tr><td><b>AWS Lightsail</b></td><td>Lowest latency to Kenyan users</td><td><b>Cape Town</b> (af-south-1)</td><td class="num-cell">~$12/mo</td></tr>
+            <tr><td><b>Hetzner</b></td><td>Cheapest</td><td>Germany / Finland</td><td class="num-cell">~€5/mo</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The steps below use <b>DigitalOcean</b> because it’s the smoothest for a first deploy. If serving schools with the least lag matters more, use <b>Lightsail</b> and pick the <b>Cape Town</b> region — everything after Part&nbsp;1 is identical.</p>
+
+      <h3 class="sub">Create the machine (DigitalOcean)</h3>
+      <ol>
+        <li>Sign up, then <b>Create → Droplet</b>.</li>
+        <li><b>Image:</b> Ubuntu <b>24.04 LTS</b>.</li>
+        <li><b>Region:</b> Frankfurt (FRA1) — nearest to Kenya on DigitalOcean.</li>
+        <li><b>Size:</b> Basic → Regular SSD → <b>2 GB RAM / 1 CPU</b> (about $12/mo). The 1 GB size is tempting but the app build can run out of memory on it.</li>
+        <li><b>Authentication:</b> choose <b>SSH Key</b> (below) if you can; otherwise Password, and DigitalOcean emails you a root password.</li>
+        <li>Give it a hostname like <code class="inline">cbc-prod</code> and click <b>Create</b>.</li>
+      </ol>
+
+      <div class="call warn">
+        <div class="ico">!</div>
+        <div>
+          <span class="lab">Set up an SSH key — it's worth the two minutes</span>
+          <p>On your own laptop, run <code class="inline">ssh-keygen -t ed25519</code> (press Enter through the prompts), then paste the contents of <code class="inline">~/.ssh/id_ed25519.pub</code> into DigitalOcean’s “New SSH Key” box. It’s safer than a password and you won’t be typing one every time.</p>
+        </div>
+      </div>
+
+      <p>When it finishes, copy the droplet’s <b>public IP address</b> — the four numbers like <code class="inline">203.0.113.42</code>. You’ll use it everywhere below as <code class="inline">YOUR_IP</code>.</p>
+    </section>
+
+    <!-- PART 2 -->
+    <section class="part" id="p2">
+      <div class="part-head">
+        <div class="num">2</div>
+        <div class="titles">
+          <div class="kicker">First login</div>
+          <h2>Get in and set the basics</h2>
+        </div>
+      </div>
+      <p>From your laptop’s terminal, connect to the box:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">your laptop</span></div>
+        <pre><span class="p">$</span> ssh root@YOUR_IP</pre>
+      </div>
+      <p>Say <code class="inline">yes</code> to the fingerprint prompt the first time. Everything from here runs <b>on the server</b>. Bring it up to date:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+        <pre><span class="p">#</span> apt update &amp;&amp; apt upgrade -y</pre>
+      </div>
+
+      <h3 class="sub">Add swap — cheap insurance for the build</h3>
+      <p>A 2 GB box can run short of memory while building the frontend. A swap file prevents that from killing the build. Do it once:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> fallocate -l 2G /swapfile
+<span class="p">#</span> chmod 600 /swapfile
+<span class="p">#</span> mkswap /swapfile
+<span class="p">#</span> swapon /swapfile
+<span class="p">#</span> echo '/swapfile none swap sw 0 0' &gt;&gt; /etc/fstab</pre>
+      </div>
+
+      <h3 class="sub">Turn on the firewall</h3>
+      <p>Allow SSH so you don’t lock yourself out, then enable it. Docker opens ports 80 and 443 itself, so you don’t add those here.</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> ufw allow OpenSSH
+<span class="p">#</span> ufw --force enable</pre>
+      </div>
+    </section>
+
+    <!-- PART 3 -->
+    <section class="part" id="p3">
+      <div class="part-head">
+        <div class="num">3</div>
+        <div class="titles">
+          <div class="kicker">The one dependency</div>
+          <h2>Install Docker</h2>
+        </div>
+      </div>
+      <p>Docker runs all six pieces. The official one-liner installs it and the compose plugin together:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> curl -fsSL https://get.docker.com | sh</pre>
+      </div>
+      <div class="call verify">
+        <div class="ico">✓</div>
+        <div>
+          <span class="lab">Check it landed</span>
+          <p><code class="inline">docker --version</code> and <code class="inline">docker compose version</code> should each print a version number. If both do, you’re set.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PART 4 -->
+    <section class="part" id="p4">
+      <div class="part-head">
+        <div class="num">4</div>
+        <div class="titles">
+          <div class="kicker">The app + its settings</div>
+          <h2>Get the code and configure it</h2>
+        </div>
+      </div>
+      <p>Clone the repository and step into it:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> git clone https://github.com/Giddymaster/CBC.git
+<span class="p">#</span> cd CBC</pre>
+      </div>
+
+      <p>Copy the settings template and generate a secret key (paste the output into the file in a moment):</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> cp deploy/.env.prod.example deploy/.env.prod
+<span class="p">#</span> python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+<span class="c"># copy the long line it prints</span>
+<span class="p">#</span> nano deploy/.env.prod</pre>
+      </div>
+
+      <p>For the <b>first run we test on the IP over plain HTTP</b> — no domain needed yet. Set these values (leave the M-Pesa / SMS keys blank for now):</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Setting</th><th>Value for the IP smoke test</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">SECRET_KEY</td><td>the long line you just generated</td></tr>
+            <tr><td class="mono">SITE_ADDRESS</td><td class="mono">:80</td></tr>
+            <tr><td class="mono">SECURE_SSL_REDIRECT</td><td class="mono">false</td></tr>
+            <tr><td class="mono">ALLOWED_HOSTS</td><td class="mono">YOUR_IP</td></tr>
+            <tr><td class="mono">CORS_ALLOWED_ORIGINS</td><td class="mono">http://YOUR_IP</td></tr>
+            <tr><td class="mono">POSTGRES_PASSWORD</td><td>any strong password you invent</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>In <code class="inline">nano</code>, save with <b>Ctrl-O, Enter</b> and exit with <b>Ctrl-X</b>.</p>
+    </section>
+
+    <!-- PART 5 -->
+    <section class="part" id="p5">
+      <div class="part-head">
+        <div class="num">5</div>
+        <div class="titles">
+          <div class="kicker">Lift-off</div>
+          <h2>First boot</h2>
+        </div>
+      </div>
+      <p>The command to drive the stack is long, so make a shortcut for this session:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> alias dc='docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod'</pre>
+      </div>
+      <p>Now build and start everything. The first time downloads images and builds the app, so give it <b>a few minutes</b>:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> dc up -d --build</pre>
+      </div>
+      <p>Create the database tables, then create <b>your</b> operator account:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> dc run --rm web python manage.py migrate
+<span class="p">#</span> dc run --rm web python manage.py createsuperuser</pre>
+      </div>
+      <div class="call warn">
+        <div class="ico">!</div>
+        <div>
+          <span class="lab">This superuser is you — the platform owner</span>
+          <p>It asks for a username, email and password. It won’t ask for a school, and that’s the point: a superuser with <b>no school</b> is the operator, sitting above every school. Keep these credentials safe.</p>
+        </div>
+      </div>
+      <div class="call verify">
+        <div class="ico">✓</div>
+        <div>
+          <span class="lab">See it running</span>
+          <p><code class="inline">dc ps</code> should list all five services as <code class="inline">running</code>. Open <code class="inline">http://YOUR_IP</code> in a browser — you should get the sign-in screen. Log in with the operator account and you’ll land on the <b>Operator Console</b>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PART 6 -->
+    <section class="part" id="p6">
+      <div class="part-head">
+        <div class="num">6</div>
+        <div class="titles">
+          <div class="kicker">A real address, with a padlock</div>
+          <h2>Point a domain and turn on HTTPS</h2>
+        </div>
+      </div>
+      <p>Buy a domain from any registrar — <b>Namecheap</b> or <b>Cloudflare</b> are simple; a Kenyan <code class="inline">.co.ke</code> comes from a local registrar like Truehost or KENIC. Then, in that registrar’s DNS settings, add one record:</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Type</th><th>Name / Host</th><th>Value</th><th>TTL</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">A</td><td class="mono">@&nbsp; (or <span style="white-space:nowrap">app</span> for a subdomain)</td><td class="mono">YOUR_IP</td><td class="mono">Automatic</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>DNS can take a few minutes to an hour to spread. When <code class="inline">yourdomain.com</code> resolves to your IP, edit the settings again to switch on the real address and HTTPS:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> nano deploy/.env.prod</pre>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Setting</th><th>New value</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">SITE_ADDRESS</td><td class="mono">yourdomain.com</td></tr>
+            <tr><td class="mono">ALLOWED_HOSTS</td><td class="mono">yourdomain.com</td></tr>
+            <tr><td class="mono">CORS_ALLOWED_ORIGINS</td><td class="mono">https://yourdomain.com</td></tr>
+            <tr><td class="mono">SECURE_SSL_REDIRECT</td><td class="mono">true</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Recreate the containers so they pick up the new settings:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> dc up -d</pre>
+      </div>
+      <div class="call warn">
+        <div class="ico">!</div>
+        <div>
+          <span class="lab">Using Cloudflare for DNS?</span>
+          <p>Set the record to <b>“DNS only”</b> (grey cloud, not orange) for this setup, so Caddy can fetch its own certificate. You can turn the proxy on later once you understand the trade-offs.</p>
+        </div>
+      </div>
+      <div class="call verify">
+        <div class="ico">✓</div>
+        <div>
+          <span class="lab">The padlock</span>
+          <p>Give Caddy up to a minute, then open <code class="inline">https://yourdomain.com</code>. You should see a valid certificate (the padlock) and the sign-in screen. If it doesn’t appear, check <code class="inline">dc logs caddy</code> — it prints exactly what the certificate step is waiting on.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PART 7 -->
+    <section class="part" id="p7">
+      <div class="part-head">
+        <div class="num">7</div>
+        <div class="titles">
+          <div class="kicker">Your first customer</div>
+          <h2>Register a school</h2>
+        </div>
+      </div>
+      <p>Sign in as the operator, open the <b>Register</b> tab in the console, and fill in the school’s name, code, county, and the first admin’s name. The system creates the school, its admin login, and a free trial in one step, and shows you the admin’s password <b>once</b> — hand it to the school.</p>
+      <div class="call danger">
+        <div class="ico">×</div>
+        <div>
+          <span class="lab">Don't seed demo data on a real server</span>
+          <p>The <code class="inline">seed_demo</code> and <code class="inline">seed_curriculum</code> commands are for exploring locally. On the machine your real schools use, only ever create schools through the console.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PART 8 -->
+    <section class="part" id="p8">
+      <div class="part-head">
+        <div class="num">8</div>
+        <div class="titles">
+          <div class="kicker">Before anyone real relies on it</div>
+          <h2>Set up backups</h2>
+        </div>
+      </div>
+      <p>Everything that matters lives in two Docker volumes: <code class="inline">cbc_pgdata</code> (the database) and <code class="inline">cbc_media</code> (learner photos and report cards). Back both up and copy them somewhere else. This is a register of children’s records — losing it is not an option, and the Data Protection Act obliges you to protect it.</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="c"># database → a compressed dump</span>
+<span class="p">#</span> dc exec -T db pg_dump -U cbc cbc | gzip &gt; cbc-$(date +%F).sql.gz
+
+<span class="c"># photos + PDFs → a tarball</span>
+<span class="p">#</span> docker run --rm -v cbc_media:/m -v "$PWD":/out alpine \
+      tar czf /out/media-$(date +%F).tar.gz -C /m .</pre>
+      </div>
+      <p>Put those two lines in a daily <code class="inline">cron</code> job and push the files to object storage or another machine. <b>Then test a restore once</b> — a backup you’ve never restored is a guess, not a backup.</p>
+
+      <h3 class="sub">Updating later</h3>
+      <p>When there’s a new release, from inside <code class="inline">CBC</code>:</p>
+      <div class="term">
+        <div class="term-bar"><span class="lamp"></span><span class="lamp"></span><span class="lamp"></span><span class="where">on the server</span></div>
+<pre><span class="p">#</span> git pull
+<span class="p">#</span> dc up -d --build
+<span class="p">#</span> dc run --rm web python manage.py migrate</pre>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- TROUBLESHOOTING -->
+    <section class="part" id="trouble">
+      <div class="part-head">
+        <div class="num" style="background:var(--red); box-shadow:0 4px 12px color-mix(in srgb, var(--red) 40%, transparent);">?</div>
+        <div class="titles">
+          <div class="kicker">When the first boot misbehaves</div>
+          <h2>Common snags</h2>
+        </div>
+      </div>
+      <p>A first deploy almost always hits one or two of these. None are serious.</p>
+      <div class="trouble">
+        <div class="fix">
+          <div class="sym">The build gets “Killed” partway through</div>
+          <p>Out of memory. Add the swap file from Part&nbsp;2 if you skipped it, or resize the droplet to 2 GB, then run <code class="inline">dc up -d --build</code> again.</p>
+        </div>
+        <div class="fix">
+          <div class="sym">The page says “Bad Request (400)”</div>
+          <p>The address you’re visiting isn’t in <code class="inline">ALLOWED_HOSTS</code>. If you’re on the IP it must list <code class="inline">YOUR_IP</code>; on a domain it must list the domain. Fix the env file and <code class="inline">dc up -d</code>.</p>
+        </div>
+        <div class="fix">
+          <div class="sym">HTTPS never gets a certificate</div>
+          <p>Caddy needs the domain pointing at the box and port 80 reachable. Confirm DNS has propagated, and if you use Cloudflare set the record to “DNS only” (grey). <code class="inline">dc logs caddy</code> shows what it’s stuck on.</p>
+        </div>
+        <div class="fix">
+          <div class="sym">The site loads but shows an error / 502</div>
+          <p>Usually migrations haven’t run, or the database is still starting. Run <code class="inline">dc run --rm web python manage.py migrate</code>, then <code class="inline">dc logs web</code> to read the actual message.</p>
+        </div>
+        <div class="fix">
+          <div class="sym">I edited the env file but nothing changed</div>
+          <p>Containers read settings at start. After any change to <code class="inline">deploy/.env.prod</code>, run <code class="inline">dc up -d</code> to recreate them.</p>
+        </div>
+        <div class="fix">
+          <div class="sym">I can’t SSH in at all</div>
+          <p>Check the provider’s own firewall/networking page allows your SSH port, and that you’re using the right key or the emailed password.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>This walkthrough matches the stack in <code class="inline">deploy/</code> and the runbook in <code class="inline">DEPLOY.md</code>. Stuck on a step? Copy the output of <code class="inline">dc logs web</code> or <code class="inline">dc logs caddy</code> and it usually says exactly what’s wrong.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

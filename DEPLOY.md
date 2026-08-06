@@ -1,5 +1,9 @@
 # Deploying to a single server
 
+> **Prefer a click-through walkthrough?** [`deploy/deploy-guide.html`](deploy/deploy-guide.html)
+> is a first-timer's visual version of everything below — open it in a browser. This file
+> is the reference; that one holds your hand through renting the box, DNS, and HTTPS.
+
 This is the launch setup: one Ubuntu box running the whole stack in Docker —
 PostgreSQL, Redis, a Celery worker, the Django app under gunicorn, and Caddy in
 front for automatic HTTPS. It suits the first handful of schools and costs about
