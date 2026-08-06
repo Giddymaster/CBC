@@ -12,3 +12,5 @@ backend/test-media/
 *.log
 .DS_Store
 .env
+deploy/.env.prod
+backend/staticfiles/

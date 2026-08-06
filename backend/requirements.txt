@@ -8,6 +8,9 @@ requests
 python-dotenv
 reportlab
 anthropic
-# Production only:
-# psycopg[binary]
-# gunicorn
+Pillow
+whitenoise
+# Production database + server. Installed here too so `pip install -r` on a
+# server is one command; the SQLite dev default does not need psycopg.
+psycopg[binary]
+gunicorn

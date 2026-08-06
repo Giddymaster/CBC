@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **412 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **415 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -93,9 +93,11 @@ scorecard** — several rows here read ✅ only because DESIGN.md asked for less
 
 ### Blocking a real deployment
 1. ~~No CI and no deployment pipeline~~ — **done**: GitHub Actions runs the suite on
-   SQLite and PostgreSQL, `check --deploy`, a missing-migration check and the frontend
-   build. Docker image and compose stack added. **Still not actually deployed
-   anywhere.** 🟡
+   SQLite and PostgreSQL, `check --deploy`, a missing-migration check, ruff, ESLint,
+   the frontend build, and a production-compose validation. A one-command portable
+   deploy stack (Postgres + Redis + Celery + gunicorn + Caddy auto-HTTPS) ships in
+   `deploy/`, with a runbook in [DEPLOY.md](DEPLOY.md). **Not yet running on a real
+   server** — that is now a matter of renting a VPS and following the runbook. 🟡
 2. ~~Never run on PostgreSQL~~ — **CI now runs the whole suite against PostgreSQL 16**
    on every push. 🟡 *(green in CI; not yet run against a production-sized dataset)*
 3. ~~Production settings are unguarded~~ — **done**: with `DEBUG=false` the app refuses to
@@ -535,3 +537,43 @@ school) into the operator console. Corrected to require no school, with a test.
 - **DPA 2019: you are now a data processor** for the schools (controllers). A
   data-processing agreement per school and a written sub-processor list are
   launch prerequisites — legal, not code. ⬜
+
+
+---
+
+## 16. Portable production stack (2026-08-05)
+
+The app is now deployable to any Ubuntu VPS with one command. Chosen over full
+AWS for launch: right cost and complexity for the first handful of schools, and
+the same images move to managed services later.
+
+- **`deploy/docker-compose.prod.yml`** — Postgres, Redis, a Celery worker, the
+  Django app under gunicorn, and **Caddy** in front for automatic HTTPS, static
+  SPA hosting, and media serving. Everything env-driven; nothing hard-coded.
+- **WhiteNoise** serves Django's own static (admin, DRF), so no separate static
+  host is needed. Hashed, compressed manifest storage in production; plain
+  storage in dev so `runserver` still works. Baked into the image at build time.
+- **`deploy/Caddyfile`** routes `/api /admin /static` to gunicorn, serves
+  `/media` off the shared volume, and hands everything else to the SPA with
+  `try_files` for client-side routing. `SITE_ADDRESS` is a domain (auto-cert) or
+  `:80` (HTTP smoke test).
+- **[DEPLOY.md](DEPLOY.md)** is the runbook: rent a box, point DNS, fill the env,
+  `up --build`, migrate, create the operator. Plus backups (the two durable
+  volumes), updates, and the legal prerequisites.
+
+Verified without Docker (not installed here): `collectstatic` runs clean under
+production settings through the WhiteNoise compressed-manifest storage (157
+files, 453 post-processed); the compose file parses and its media volume is
+shared web(rw)→caddy(ro); the dev server still boots and the app still renders
+with the new middleware. CI gained a job that validates the production compose
+on every push.
+
+### Still open
+
+- **Never actually run on a server.** The stack is proven in config and unit,
+  not on live infrastructure. The genuine first step is renting a VPS. ⬜
+- **Media is on a local volume.** Fine for one box; object storage (S3) is the
+  scale step, and a prerequisite for running more than one `web` replica. ⬜
+- **No automated off-site backup.** The runbook gives the commands; wiring them
+  to a cron + remote target is left to the operator. ⬜
+- **DPA 2019 processor registration and per-school DPAs** — legal, unchanged. ⬜

@@ -124,3 +124,30 @@ class ProductionSettingsTests(SimpleTestCase):
         can tell 'logged out' from 'not allowed'."""
         classes = load(PRODUCTION)["REST_FRAMEWORK"]["DEFAULT_AUTHENTICATION_CLASSES"]
         self.assertIn("TokenAuthentication", classes[0])
+
+    def test_whitenoise_serves_static_in_production(self):
+        """Django's own static (admin, DRF) is served by the app, so a box needs
+        no separate static host."""
+        s = load(PRODUCTION)
+        # Middleware present, and right after SecurityMiddleware.
+        mw = s["MIDDLEWARE"]
+        self.assertIn("whitenoise.middleware.WhiteNoiseMiddleware", mw)
+        self.assertEqual(mw.index("whitenoise.middleware.WhiteNoiseMiddleware"), 1)
+        self.assertEqual(
+            s["STORAGES"]["staticfiles"]["BACKEND"],
+            "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        )
+
+    def test_dev_uses_plain_static_storage(self):
+        """The compressed-manifest backend needs collectstatic; runserver in dev
+        would break with it, so dev keeps the plain backend."""
+        s = load(DEVELOPMENT)
+        self.assertEqual(
+            s["STORAGES"]["staticfiles"]["BACKEND"],
+            "django.contrib.staticfiles.storage.StaticFilesStorage",
+        )
+
+    def test_the_entitlement_gate_is_a_default_permission(self):
+        """A lapsed school is read-only everywhere, not per-view."""
+        perms = load(PRODUCTION)["REST_FRAMEWORK"]["DEFAULT_PERMISSION_CLASSES"]
+        self.assertIn("apps.platform.entitlement.SubscriptionEntitlement", perms)
