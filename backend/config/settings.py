@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "apps.facilities",
     "apps.knowledge",
     "apps.promotions",
+    "apps.platform",
 ]
 
 MIDDLEWARE = [
@@ -128,6 +129,9 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+        # A lapsed subscription makes a school read-only. Reads are never
+        # blocked; see apps/platform/entitlement.py.
+        "apps.platform.entitlement.SubscriptionEntitlement",
     ],
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",

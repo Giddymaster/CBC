@@ -5,7 +5,7 @@ features requested since, against what is actually built and tested.
 
 **Legend:** ✅ built & tested · 🟡 built, gaps noted · ⬜ not started · ➖ deliberately deferred
 
-Last reviewed: **2026-08-05** · Backend suite: **379 tests, all passing**
+Last reviewed: **2026-08-05** · Backend suite: **412 tests, all passing**
 (`python manage.py test tests --settings=config.settings_test`)
 
 ---
@@ -475,3 +475,63 @@ viewset added this way is safe by default.
   import sorter to run *before* the SQLite base, so the "PostgreSQL job" was
   silently testing SQLite. Rewritten so the override cannot be reordered, and
   proven to select the Postgres engine.
+
+
+---
+
+## 15. The control plane — turning this into a product for schools (2026-08-05)
+
+Everything before this was one school's world (the tenant plane). This adds the
+operator layer above all schools: how the owner registers schools, bills them,
+gates their access, and talks to them. 33 new tests — 379 to 412.
+
+Decisions (all the owner's, taken up front): owner-provisioned onboarding,
+manual invoice + mark-paid, per-active-learner-per-term pricing, grace-then-
+read-only enforcement.
+
+### The pieces (`apps/platform`)
+
+| Piece | How it works |
+|---|---|
+| **Operator identity** | A superuser *with no school*. A superuser attached to a school is a school admin who holds the flag — the two planes never merge (regression-tested). |
+| **Provisioning** | `provision_school` creates school + first admin + trial subscription atomically; the admin's password is returned once and must be replaced on first sign-in. |
+| **Billing** | `Plan` (per-learner price + minimum floor) → `Subscription` (one per school) → `SubscriptionInvoice` (amount snapshotted at issue, so later growth doesn't rewrite history). Marking paid extends access through the term. |
+| **Enforcement** | Effective state (`TRIAL`/`ACTIVE`/`GRACE`/`READ_ONLY`/`CANCELLED`) is computed from dates on every read — no cron. A default DRF permission blocks *writes only* when read-only, and fails open on doubt. |
+| **Communication** | Operator announcements → a dismissible banner on every school admin's login, with unread tracking. |
+| **Operator console** | A separate frontend shown to operators: overview stats, school list with status/learners/billing, register-a-school form, per-school invoicing and mark-paid, announcement composer. |
+
+### Design decisions worth keeping
+
+- **The entitlement gate fails open.** A bug that froze every paying school
+  mid-term is far worse than an unpaid school working a little longer than it
+  should. Missing subscription or a check error → writes allowed.
+- **Reads are never gated.** A school that stops paying keeps full sight of its
+  own records; only editing is withheld. Nobody is locked away from their data.
+- **The operator belongs to no school.** This is the whole plane boundary in one
+  rule, and it caught a real bug in verification: the demo `admin` is a
+  superuser, and an earlier `is_operator = is_superuser` mis-routed it into the
+  operator console. Requiring `school_id is None` fixed it; a regression test
+  pins it.
+- **Invoice amounts are snapshots.** A school that grows after being invoiced
+  does not have its past bills silently rewritten.
+
+### Bug found in browser verification
+
+`is_operator = user.is_superuser` sent the demo school admin (a superuser with a
+school) into the operator console. Corrected to require no school, with a test.
+
+### Still open in this area
+
+- **No self-serve signup.** Onboarding is operator-only by design; a public
+  trial signup is a later, deliberate step. ➖
+- **Payment is manual.** No M-Pesa auto-reconciliation of *subscription* fees
+  yet — the operator marks invoices paid by hand. Fine for the first schools;
+  the Daraja pattern is there to automate later. 🟡
+- **Invoices are not generated on a schedule.** The operator raises each term's
+  invoice; there is no automatic term-start billing run. ⬜
+- **No dunning automation.** Reminders before/after due date are not sent
+  automatically (SMS is available to wire in). ⬜
+- **No per-school feature flags or plan tiers beyond price.** One plan shape. ⬜
+- **DPA 2019: you are now a data processor** for the schools (controllers). A
+  data-processing agreement per school and a written sub-processor list are
+  launch prerequisites — legal, not code. ⬜

@@ -18,6 +18,7 @@ python -m venv ../backend-venv
 ../backend-venv/Scripts/python manage.py migrate
 ../backend-venv/Scripts/python manage.py seed_demo         # demo school + admin/admin login
 ../backend-venv/Scripts/python manage.py seed_curriculum   # illustrative curriculum documents
+../backend-venv/Scripts/python manage.py seed_platform     # operator 'owner' + a plan + demo subscription
 ../backend-venv/Scripts/python manage.py runserver
 ```
 
@@ -42,7 +43,7 @@ cd backend
 ../backend-venv/Scripts/python manage.py test tests --settings=config.settings_test
 ```
 
-363 tests, under four seconds. `config/settings_test.py` swaps in an in-memory database and
+412 tests, under five seconds. `config/settings_test.py` swaps in an in-memory database and
 a fast password hasher — without it the suite takes minutes on real hashing.
 
 Coverage is deliberately weighted toward the things that would be worst to get wrong:
@@ -79,6 +80,42 @@ Two older narrative scripts remain for manual walkthroughs:
 - **Schemes of work — upload, AI generation, and head review:** teachers can upload a scheme document (`POST /api/schemes-of-work/` multipart with `document`) or have one AI-drafted (`POST /api/schemes-of-work/generate/` with learning area, grade, term, weeks). Either path lands the scheme in **Pending review**; the admin/head sees a "Schemes Review" queue in the staff UI where they open the uploaded file or the structured weekly plan and approve/reject with a comment (`POST /api/schemes-of-work/<id>/review/`, admin-only). Generation uses the Claude API (`claude-opus-5` with a JSON-schema-constrained response) when `ANTHROPIC_API_KEY` is set in `backend/.env`; without a key it falls back to a deterministic KICD-style template so the workflow works offline.
 - **Teacher portal:** `TEACHER` logins get their own UI. `GET /api/teacher/summary/` returns the teacher's personal timetable, the assessments they can mark (derived from their lesson requirements/lessons; stream-blank assessments cover the whole grade), their schemes of work, and teacher-audience announcements. `POST /api/scores/bulk/` enters a whole class's marks in one offline-tolerant request (Idempotency-Key replay-safe, upserted on assessment+learner, invalid rows skipped and reported) and returns the derived EE/ME/AE/BE level per learner. Portal tabs: My Timetable, Score Entry, Attendance, Schemes of Work.
 - **Timetable generation:** define weekly needs in `/api/timetable/requirements/` (teacher, learning area, class, lessons/week, needs_lab), then `POST /api/timetable/generate/` places lessons greedily — most-constrained first, spread across days, honoring teacher/class/lab availability — and reports anything it could not place. The Timetable tab shows the grid with a regenerate button.
+
+## The platform: registering schools, billing, communicating
+
+The system has two planes. The **tenant plane** is everything inside one school. The
+**control plane** is you, the operator, above all schools. They are kept strictly apart:
+a school admin runs one school and can never reach another, and the operator belongs to no
+school (`is_operator` = superuser **with no school** — a superuser attached to a school is
+just a school admin who holds the flag).
+
+- **Registering a school** (owner-provisioned, sales-led): `POST /api/platform/provision/`
+  creates the school, its first admin, and a trial subscription in one transaction, and
+  returns the admin's password once. The admin must replace it on first sign-in. The
+  operator console has a form for this.
+- **Billing** (per active learner, per term): each school is on a `Plan`
+  (`price_per_learner`, with a `minimum_charge` floor). The operator raises a term's invoice
+  — the amount is snapshotted from the plan and the active-learner count at that moment —
+  and marks it paid when the school pays by M-Pesa or bank transfer. Paying extends the
+  school's access through that term. No card integration; recurring auto-debit is not how
+  Kenyan institutions pay.
+- **Enforcement** (grace, then read-only): the effective access state is *computed from
+  dates on every read*, so no scheduled job is needed. A live trial or paid term is fully
+  writable; a lapsed term is writable through a grace window (default 14 days); after that
+  the school goes **read-only** — full sight of its own data, no edits — until it pays.
+  A lapsed school is never locked out and never loses data. The gate
+  (`apps/platform/entitlement.py`) is a default DRF permission that blocks writes only, and
+  **fails open** on any doubt (missing subscription, or an error in the check itself) so a
+  bug can never freeze a paying school mid-term.
+- **Communicating** with school admins: `POST /api/platform/announcements/` posts a notice
+  (feature / update / maintenance / billing) that appears as a dismissible banner on every
+  school admin's login, with an unread count.
+- A school admin sees only their own standing at `GET /api/my-school/subscription/` — plan,
+  state, days remaining, and their invoices. Nothing else of the control plane is visible
+  to a tenant.
+
+Seed the operator with `seed_platform` (creates `owner` / `owner12345`, a Standard plan,
+and a trial subscription for the demo school).
 
 ## Curriculum knowledge base (RAG)
 

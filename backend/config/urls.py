@@ -47,6 +47,25 @@ from apps.payments.views import (
     StkCallbackView,
     StkPushView,
 )
+
+# Aliased on import: several names (InvoiceViewSet, AnnouncementViewSet, PlanViewSet)
+# also exist in the tenant apps, and the DRF router keys on class name.
+from apps.platform.views import (
+    AnnouncementViewSet as PlatformAnnouncementViewSet,
+)
+from apps.platform.views import (
+    InvoiceViewSet as PlatformInvoiceViewSet,
+)
+from apps.platform.views import (
+    MySchoolSubscriptionView,
+    OperatorOverviewView,
+    PlatformAnnouncementFeedView,
+    ProvisionView,
+    SubscriptionViewSet,
+)
+from apps.platform.views import (
+    PlanViewSet as PlatformPlanViewSet,
+)
 from apps.promotions.views import (
     AcademicYearViewSet,
     PromotionOutcomeViewSet,
@@ -111,6 +130,14 @@ from apps.timetable.views import (
 router = DefaultRouter()
 router.register("schools", SchoolViewSet)
 router.register("audit", AuditEntryViewSet, basename="audit")
+router.register("platform/plans", PlatformPlanViewSet, basename="platform-plan")
+router.register("platform/subscriptions", SubscriptionViewSet, basename="subscription")
+router.register(
+    "platform/invoices", PlatformInvoiceViewSet, basename="platform-invoice"
+)
+router.register(
+    "platform/announcements", PlatformAnnouncementViewSet, basename="platform-announcement"
+)
 router.register("pathways", PathwayViewSet)
 router.register("learners", LearnerViewSet)
 router.register("guardians", GuardianViewSet)
@@ -162,6 +189,10 @@ urlpatterns = [
         AdminResetPasswordView.as_view(),
     ),
     path("api/audit/summary/", AuditSummaryView.as_view()),
+    path("api/platform/provision/", ProvisionView.as_view()),
+    path("api/platform/overview/", OperatorOverviewView.as_view()),
+    path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
+    path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),

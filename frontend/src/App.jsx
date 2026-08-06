@@ -22,6 +22,8 @@ import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
 import { ForcedPasswordChange } from './Password.jsx'
+import Operator from './Operator.jsx'
+import Subscription, { PlatformAnnouncements } from './Subscription.jsx'
 import Promotions from './Promotions.jsx'
 import SchemesReview from './SchemesReview.jsx'
 import StaffRollCall from './StaffRollCall.jsx'
@@ -466,7 +468,10 @@ const NAV_SECTIONS = [
   { title: 'Finance', items: [{ name: 'Fees', ...GRADE_NAV }] },
   {
     title: 'Administration',
-    items: [{ name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true }],
+    items: [
+      { name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true },
+      { name: 'Subscription', label: 'Subscription (Billing)', ownHeading: true },
+    ],
   },
 ]
 
@@ -487,6 +492,7 @@ const TABS = {
   Curriculum: Curriculum,
   'Teaching Outcomes': Analysis,
   'Audit Log': Audit,
+  Subscription: Subscription,
   Facilities: Facilities,
 }
 
@@ -596,6 +602,9 @@ export default function App() {
     )
   }
 
+  // The platform operator lives above all schools — a different app entirely.
+  if (me.is_operator) return <Operator me={me} />
+
   const isParent = me.role === 'PARENT'
   const isTeacher = me.role === 'TEACHER'
   const isSupport = me.role === 'SUPPORT'
@@ -687,6 +696,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {isStaffUI && <PlatformAnnouncements />}
 
       <div className="breadcrumbs">
         {isStaffUI ? (

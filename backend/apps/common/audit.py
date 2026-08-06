@@ -38,6 +38,10 @@ class AuditEntry(TimeStampedModel):
         RIGHTS_WITHDRAWN = "RIGHTS_WITHDRAWN", "Admission rights withdrawn"
         PASSWORD_RESET = "PASSWORD_RESET", "Password reset by admin"
         PAYMENT_RECORDED = "PAYMENT_RECORDED", "Payment recorded"
+        SCHOOL_PROVISIONED = "SCHOOL_PROVISIONED", "School provisioned"
+        SUBSCRIPTION_INVOICED = "SUBSCRIPTION_INVOICED", "Subscription invoiced"
+        SUBSCRIPTION_PAID = "SUBSCRIPTION_PAID", "Subscription paid"
+        SUBSCRIPTION_STATUS = "SUBSCRIPTION_STATUS", "Subscription status changed"
 
     # Null school only for platform-level actions; everything else is scoped.
     school = models.ForeignKey(

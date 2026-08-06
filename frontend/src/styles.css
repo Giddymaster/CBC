@@ -720,3 +720,41 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 
 /* Forced password change — nothing else in the app until it is done */
 .forced-gate { min-height: 100vh; background: #f7fafc; padding: 1rem; }
+
+/* ---- Operator console ---- */
+.op-body { max-width: 1100px; margin: 0 auto; padding: 1.5rem; width: 100%; }
+.op-stats { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1rem; }
+.op-stat {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.7rem 1.1rem;
+  min-width: 7rem;
+  display: flex;
+  flex-direction: column;
+}
+.op-stat b { font-size: 1.4rem; color: #2b6cb0; }
+.op-stat span { font-size: 0.78rem; color: #718096; text-transform: uppercase; letter-spacing: 0.03em; }
+.op-creds { background: #f7fafc; border: 1px solid #cbd5e0; border-radius: 6px; padding: 0.6rem 0.9rem; font-size: 1rem; }
+
+/* Operator announcement banner in the school shell */
+.platform-banner {
+  background: #ebf8ff;
+  border-bottom: 2px solid #4299e1;
+  padding: 0.6rem 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+.platform-item { margin: 0.15rem 0; }
+.platform-banner button {
+  flex: none;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid #4299e1;
+  background: #fff;
+  color: #2b6cb0;
+  border-radius: 4px;
+  cursor: pointer;
+}
