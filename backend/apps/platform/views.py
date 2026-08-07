@@ -9,14 +9,17 @@ Two audiences, kept strictly apart:
   control plane is visible to a tenant.
 """
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.audit import record as audit
 from apps.schools.models import School
+from apps.schools.serializers import SchoolSerializer
 
 from .access import is_operator
 from .models import (
@@ -31,8 +34,29 @@ from .services import (
     issue_invoice,
     mark_invoice_paid,
     provision_school,
+    replace_school_admin,
+    reset_admin_password,
     set_subscription_status,
 )
+
+User = get_user_model()
+
+
+def _admin_dict(user):
+    """The safe, operator-visible view of a school's admin account. Contact and
+    status only — never anything from the tenant's own records."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "name": user.get_full_name() or user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone,
+        "email": user.email,
+        "is_active": user.is_active,
+        "must_change_password": user.must_change_password,
+        "last_login": user.last_login.isoformat() if user.last_login else None,
+    }
 
 
 class IsOperator(BasePermission):
@@ -233,6 +257,146 @@ class ProvisionView(APIView):
         if generated:
             body["admin"]["generated_password"] = generated
         return Response(body, status=201)
+
+
+# --- Operator: managing a school after it is live ----------------------
+class OperatorSchoolView(APIView):
+    """GET/PATCH /api/platform/schools/<pk>/ — the school's profile, contact,
+    and admin account(s), plus its subscription standing.
+
+    Strictly the control plane: profile metadata, the admin contacts the
+    operator uses to reach the school, and billing. No learner, guardian, staff
+    or assessment data ever passes through here — that stays inside the tenant.
+    """
+
+    permission_classes = [IsOperator]
+
+    # What the operator may correct after registration. Deliberately excludes
+    # anything that would touch the tenant's own data.
+    EDITABLE = {
+        "name", "code", "kemis_code", "levels", "county", "subcounty", "ward",
+        "zone", "category", "gender", "accommodation", "ownership",
+        "contact_phone", "contact_email", "paybill_account_prefix",
+    }
+
+    def _get(self, pk):
+        school = School.objects.filter(pk=pk).first()
+        if school is None:
+            raise NotFound("No such school.")
+        return school
+
+    def get(self, request, pk):
+        school = self._get(pk)
+        admins = school.users.filter(role=User.Role.ADMIN).order_by(
+            "-is_active", "username"
+        )
+        sub = getattr(school, "subscription", None)
+        return Response({
+            "school": SchoolSerializer(school).data,
+            "admins": [_admin_dict(u) for u in admins],
+            "subscription": SubscriptionSerializer(sub).data if sub else None,
+        })
+
+    def patch(self, request, pk):
+        school = self._get(pk)
+        data = {k: v for k, v in request.data.items() if k in self.EDITABLE}
+        if not data:
+            raise ValidationError({"detail": "No editable fields supplied."})
+        serializer = SchoolSerializer(school, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        audit(
+            actor=request.user, school=school, action="SCHOOL_UPDATED",
+            target=school, label=school.name, detail={"fields": sorted(data)},
+        )
+        return Response(SchoolSerializer(school).data)
+
+
+class OperatorSchoolAdminView(APIView):
+    """POST /api/platform/schools/<pk>/admin/ — replace the school's admin.
+
+    Creates the new admin and deactivates whoever held the role before, so the
+    school ends up with exactly one active key-holder. The one-time password is
+    returned for handover.
+    """
+
+    permission_classes = [IsOperator]
+
+    def post(self, request, pk):
+        school = School.objects.filter(pk=pk).first()
+        if school is None:
+            raise NotFound("No such school.")
+        first = (request.data.get("first_name") or "").strip()
+        last = (request.data.get("last_name") or "").strip()
+        if not first or not last:
+            raise ValidationError(
+                {"detail": "first_name and last_name are required."}
+            )
+        try:
+            admin, generated = replace_school_admin(
+                school=school,
+                operator=request.user,
+                first_name=first,
+                last_name=last,
+                phone=(request.data.get("phone") or "").strip(),
+                email=(request.data.get("email") or "").strip(),
+                username=(request.data.get("username") or "").strip(),
+            )
+        except ValueError as exc:
+            raise ValidationError({"username": str(exc)})
+        return Response(
+            {"admin": _admin_dict(admin), "generated_password": generated},
+            status=201,
+        )
+
+
+class OperatorAdminMemberView(APIView):
+    """PATCH /api/platform/schools/<pk>/admin/<uid>/ — correct an admin's
+    contact details, or activate/deactivate the account."""
+
+    permission_classes = [IsOperator]
+    FIELDS = {"first_name", "last_name", "phone", "email", "is_active"}
+
+    def _target(self, pk, uid):
+        user = User.objects.filter(
+            pk=uid, school_id=pk, role=User.Role.ADMIN
+        ).first()
+        if user is None:
+            raise NotFound("No such admin for this school.")
+        if user.is_superuser:
+            raise PermissionDenied("A platform superuser is not managed here.")
+        return user
+
+    def patch(self, request, pk, uid):
+        user = self._target(pk, uid)
+        for field in self.FIELDS:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+        user.save()
+        return Response(_admin_dict(user))
+
+
+class OperatorAdminResetView(APIView):
+    """POST /api/platform/schools/<pk>/admin/<uid>/reset-password/ — issue a
+    fresh handover password for a locked-out admin."""
+
+    permission_classes = [IsOperator]
+
+    def post(self, request, pk, uid):
+        user = User.objects.filter(
+            pk=uid, school_id=pk, role=User.Role.ADMIN
+        ).first()
+        if user is None:
+            raise NotFound("No such admin for this school.")
+        if user.is_superuser:
+            raise PermissionDenied("A platform superuser's password is not reset here.")
+        password = reset_admin_password(admin=user, operator=request.user)
+        return Response({
+            "username": user.username,
+            "name": user.get_full_name() or user.username,
+            "generated_password": password,
+            "detail": "Hand this over now — it is not shown again.",
+        })
 
 
 class OperatorOverviewView(APIView):

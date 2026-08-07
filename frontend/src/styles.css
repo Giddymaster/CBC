@@ -547,6 +547,29 @@ select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-
 }
 .level-check input { width: auto; }
 
+/* Operator: manage-school cards. */
+.op-card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.op-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0.5rem 0 0;
+}
+.op-facts > div { display: flex; flex-direction: column; }
+.op-facts dt {
+  font-size: 0.7rem; font-weight: 600; color: #718096;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.op-facts dd { margin: 0; }
+.op-creds.handover {
+  background: #fffbea; border: 1px solid #f6e05e;
+  border-radius: 6px; padding: 0.55rem 0.8rem; margin: 0.4rem 0;
+}
+.admin-edit { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.admin-edit input { padding: 0.35rem; }
+.row-actions { white-space: nowrap; }
+.row-actions button + button { margin-left: 0.35rem; }
+
 .adm-photo {
   grid-row: span 3;
   display: flex;

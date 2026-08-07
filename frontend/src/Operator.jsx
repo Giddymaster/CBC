@@ -270,17 +270,244 @@ function SchoolRow({ sub, onOpen }) {
   )
 }
 
+function labelOf(options, code) {
+  const hit = options.find(([c]) => c === code)
+  return hit ? hit[1] : code
+}
+
+// A one-time handover credential — username and, for a fresh account, the
+// generated password. Never shown again after this render.
+function Creds({ data }) {
+  return (
+    <div className="op-creds handover">
+      <b>{data.name || data.username}</b> · username <b>{data.username}</b>
+      {data.generated_password && <> · password <b>{data.generated_password}</b></>}
+      <div className="muted">
+        {data.detail || 'Shown once. They set their own password at first sign-in.'}
+      </div>
+    </div>
+  )
+}
+
+// The school's profile and office contact — view, with an inline edit that
+// reuses the same pickers as registration. No tenant data here.
+function SchoolProfileCard({ school, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState(school)
+  const [message, setMessage] = useState('')
+  useEffect(() => setForm(school), [school])
+
+  async function save(e) {
+    e.preventDefault()
+    const res = await apiWrite(`/api/platform/schools/${school.id}/`, {
+      name: form.name, kemis_code: form.kemis_code, levels: form.levels || [],
+      county: form.county, subcounty: form.subcounty, ward: form.ward, zone: form.zone,
+      category: form.category, gender: form.gender, accommodation: form.accommodation,
+      ownership: form.ownership, contact_phone: form.contact_phone,
+      contact_email: form.contact_email, paybill_account_prefix: form.paybill_account_prefix,
+    }, { method: 'PATCH' })
+    if (res.ok) { setEditing(false); onSaved?.() }
+    else setMessage(res.data?.detail || JSON.stringify(res.data))
+  }
+
+  if (editing) {
+    const field = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+    return (
+      <div className="card">
+        <h3>School details</h3>
+        <form onSubmit={save} className="adm-grid">
+          <label className="adm-field"><span className="adm-label">School name</span>
+            <input value={form.name || ''} onChange={field('name')} required /></label>
+          <label className="adm-field"><span className="adm-label">KEMIS / NEMIS code</span>
+            <input value={form.kemis_code || ''} onChange={field('kemis_code')} /></label>
+          <LevelChecklist value={form.levels || []}
+            onChange={(levels) => setForm((f) => ({ ...f, levels }))} />
+          <LocationPicker county={form.county} subcounty={form.subcounty} ward={form.ward}
+            onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} />
+          <label className="adm-field"><span className="adm-label">Zone / location</span>
+            <input value={form.zone || ''} onChange={field('zone')} /></label>
+          <Selects label="MoE category" value={form.category || ''} onChange={field('category')} options={CATEGORIES} />
+          <Selects label="Gender" value={form.gender || ''} onChange={field('gender')} options={GENDERS} />
+          <Selects label="Boarding" value={form.accommodation || ''} onChange={field('accommodation')} options={ACCOMMODATION} />
+          <Selects label="Ownership" value={form.ownership || ''} onChange={field('ownership')} options={OWNERSHIP} />
+          <label className="adm-field"><span className="adm-label">School phone</span>
+            <input value={form.contact_phone || ''} onChange={field('contact_phone')} /></label>
+          <label className="adm-field"><span className="adm-label">School email</span>
+            <input type="email" value={form.contact_email || ''} onChange={field('contact_email')} /></label>
+          <label className="adm-field"><span className="adm-label">Paybill account prefix</span>
+            <input value={form.paybill_account_prefix || ''} onChange={field('paybill_account_prefix')} /></label>
+          <div className="adm-wide">
+            <button className="primary" type="submit">Save</button>
+            <button type="button" onClick={() => { setEditing(false); setForm(school) }}>Cancel</button>
+            {message && <span className="error"> {message}</span>}
+          </div>
+        </form>
+      </div>
+    )
+  }
+
+  const loc = [school.ward, school.subcounty, school.county].filter(Boolean).join(', ')
+  const classification = [
+    labelOf(CATEGORIES, school.category), labelOf(GENDERS, school.gender),
+    labelOf(ACCOMMODATION, school.accommodation), labelOf(OWNERSHIP, school.ownership),
+  ].filter((x) => x && x !== '—').join(' · ')
+  return (
+    <div className="card">
+      <div className="op-card-head">
+        <h3>School details</h3>
+        <button onClick={() => setEditing(true)}>Edit details</button>
+      </div>
+      <dl className="op-facts">
+        <div><dt>Code</dt><dd>{school.code}{school.kemis_code ? ` · KEMIS ${school.kemis_code}` : ''}</dd></div>
+        <div><dt>Location</dt><dd>{loc || '—'}{school.zone ? ` (${school.zone})` : ''}</dd></div>
+        <div><dt>Levels</dt><dd>{(school.levels || []).map((c) => labelOf(LEVELS, c)).join(', ') || '—'}</dd></div>
+        <div><dt>Classification</dt><dd>{classification || '—'}</dd></div>
+        <div><dt>School contact</dt><dd>{school.contact_phone || '—'}{school.contact_email ? ` · ${school.contact_email}` : ''}</dd></div>
+      </dl>
+    </div>
+  )
+}
+
+// The school's admin account(s): the operator's contact and the levers for a
+// handover — reset the password, correct contact details, or replace the person.
+function SchoolAdminsCard({ schoolId, admins, onChanged }) {
+  const [creds, setCreds] = useState(null)
+  const [message, setMessage] = useState('')
+  const [changing, setChanging] = useState(false)
+  const [newAdmin, setNewAdmin] = useState({ first_name: '', last_name: '', phone: '', email: '' })
+  const [editingId, setEditingId] = useState(null)
+  const [edit, setEdit] = useState({ first_name: '', last_name: '', phone: '', email: '' })
+
+  async function resetPw(a) {
+    if (!window.confirm(`Issue a new password for ${a.name}? Their current one stops working.`)) return
+    const res = await apiWrite(`/api/platform/schools/${schoolId}/admin/${a.id}/reset-password/`, {})
+    if (res.ok) { setCreds(res.data); setMessage(''); onChanged?.() } else setMessage('Failed.')
+  }
+
+  async function replace(e) {
+    e.preventDefault()
+    if (!newAdmin.first_name.trim() || !newAdmin.last_name.trim()) {
+      setMessage('First and last name are needed.'); return
+    }
+    const res = await apiWrite(`/api/platform/schools/${schoolId}/admin/`, newAdmin)
+    if (res.ok) {
+      setCreds(res.data); setMessage(''); setChanging(false)
+      setNewAdmin({ first_name: '', last_name: '', phone: '', email: '' })
+      onChanged?.()
+    } else setMessage(res.data?.detail || res.data?.username || 'Failed.')
+  }
+
+  function startEdit(a) {
+    setEditingId(a.id)
+    setEdit({ first_name: a.first_name, last_name: a.last_name, phone: a.phone, email: a.email })
+  }
+  async function saveEdit(a) {
+    const res = await apiWrite(`/api/platform/schools/${schoolId}/admin/${a.id}/`, edit, { method: 'PATCH' })
+    if (res.ok) { setEditingId(null); onChanged?.() } else setMessage('Failed.')
+  }
+
+  return (
+    <div className="card">
+      <div className="op-card-head">
+        <h3>School admin</h3>
+        {!changing && (
+          <button onClick={() => { setChanging(true); setCreds(null) }}>Change admin</button>
+        )}
+      </div>
+      <p className="muted">Who runs this school in the system — and how you reach them.</p>
+      {creds && <Creds data={creds} />}
+      {message && <p className="error">{message}</p>}
+
+      {changing && (
+        <form onSubmit={replace} className="adm-grid" style={{ marginBottom: '0.8rem' }}>
+          <label className="adm-field"><span className="adm-label">First name</span>
+            <input value={newAdmin.first_name}
+              onChange={(e) => setNewAdmin({ ...newAdmin, first_name: e.target.value })} required /></label>
+          <label className="adm-field"><span className="adm-label">Last name</span>
+            <input value={newAdmin.last_name}
+              onChange={(e) => setNewAdmin({ ...newAdmin, last_name: e.target.value })} required /></label>
+          <label className="adm-field"><span className="adm-label">Phone</span>
+            <input value={newAdmin.phone}
+              onChange={(e) => setNewAdmin({ ...newAdmin, phone: e.target.value })} /></label>
+          <label className="adm-field"><span className="adm-label">Email</span>
+            <input type="email" value={newAdmin.email}
+              onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })} /></label>
+          <div className="adm-wide">
+            <button className="primary" type="submit">Create new admin</button>
+            <button type="button" onClick={() => setChanging(false)}>Cancel</button>
+            <span className="muted"> The current admin is deactivated.</span>
+          </div>
+        </form>
+      )}
+
+      <table>
+        <thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Email</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {admins.map((a) => (editingId === a.id ? (
+            <tr key={a.id}>
+              <td colSpan="4">
+                <div className="admin-edit">
+                  <input placeholder="First" value={edit.first_name}
+                    onChange={(e) => setEdit({ ...edit, first_name: e.target.value })} />
+                  <input placeholder="Last" value={edit.last_name}
+                    onChange={(e) => setEdit({ ...edit, last_name: e.target.value })} />
+                  <input placeholder="Phone" value={edit.phone}
+                    onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
+                  <input placeholder="Email" value={edit.email}
+                    onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
+                </div>
+              </td>
+              <td />
+              <td className="row-actions">
+                <button onClick={() => saveEdit(a)}>Save</button>
+                <button onClick={() => setEditingId(null)}>Cancel</button>
+              </td>
+            </tr>
+          ) : (
+            <tr key={a.id} className={a.is_active ? '' : 'muted'}>
+              <td><b>{a.name}</b></td>
+              <td>{a.username}</td>
+              <td>{a.phone || '—'}</td>
+              <td>{a.email || '—'}</td>
+              <td>
+                {a.is_active
+                  ? <span className="badge online">Active</span>
+                  : <span className="badge offline">Retired</span>}
+                {a.is_active && a.must_change_password && (
+                  <div className="muted">must set password</div>
+                )}
+              </td>
+              <td className="row-actions">
+                {a.is_active && (
+                  <>
+                    <button onClick={() => startEdit(a)}>Edit</button>
+                    <button onClick={() => resetPw(a)}>Reset password</button>
+                  </>
+                )}
+              </td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function SchoolDetail({ sub, onBack, onChange }) {
+  const [detail, setDetail] = useState(null)
   const [invoices, setInvoices] = useState([])
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({ period_label: '', period_end: '', due_on: '' })
 
+  const loadDetail = useCallback(() => {
+    apiGet(`/api/platform/schools/${sub.school}/`).then(setDetail).catch(() => setDetail(null))
+  }, [sub.school])
   const load = useCallback(() => {
     apiGet(`/api/platform/invoices/?subscription=${sub.id}`)
       .then((d) => setInvoices(d.results || d))
       .catch(() => setInvoices([]))
   }, [sub.id])
-  useEffect(load, [load])
+  useEffect(() => { load(); loadDetail() }, [load, loadDetail])
 
   async function raiseInvoice(e) {
     e.preventDefault()
@@ -331,6 +558,20 @@ function SchoolDetail({ sub, onBack, onChange }) {
           <button type="button" onClick={cancel}>Cancel school</button>
         </form>
       </div>
+
+      {detail && (
+        <SchoolProfileCard
+          school={detail.school}
+          onSaved={() => { loadDetail(); onChange?.() }}
+        />
+      )}
+      {detail && (
+        <SchoolAdminsCard
+          schoolId={sub.school}
+          admins={detail.admins}
+          onChanged={loadDetail}
+        />
+      )}
 
       <div className="card">
         <h3>Invoices</h3>

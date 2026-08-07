@@ -69,6 +69,12 @@ class School(TimeStampedModel):
     )
     ownership = models.CharField(max_length=8, choices=Ownership.choices, blank=True)
 
+    # How the operator reaches the school — its office line and email, kept
+    # distinct from whoever currently holds the admin account (that person can
+    # change; the school's own contact should not have to).
+    contact_phone = models.CharField(max_length=15, blank=True)
+    contact_email = models.EmailField(blank=True)
+
     paybill_account_prefix = models.CharField(
         max_length=10,
         blank=True,

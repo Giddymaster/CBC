@@ -5,6 +5,7 @@ import secrets
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.authtoken.models import Token
 
 from apps.common.audit import record as audit
 from apps.schools.models import School
@@ -12,6 +13,16 @@ from apps.schools.models import School
 from .models import Subscription, SubscriptionInvoice
 
 User = get_user_model()
+
+
+def _unique_admin_username(source):
+    """A stable, collision-free username derived from a person's name."""
+    base = "".join(ch for ch in source.lower() if ch.isalnum())[:12] or "admin"
+    username, n = f"{base}admin", 1
+    while User.objects.filter(username=username).exists():
+        n += 1
+        username = f"{base}admin{n}"
+    return username
 
 
 def provision_school(
@@ -76,6 +87,85 @@ def provision_school(
             detail={"plan": plan.name, "trial_days": plan.trial_days},
         )
     return school, admin, subscription, generated
+
+
+def reset_admin_password(*, admin, operator):
+    """Issue a fresh handover password for a school admin who is locked out.
+
+    Returns the plaintext password once. The account is flagged so the admin
+    must replace it at first sign-in, and the old token is killed so the person
+    who lost access truly has to use the new one.
+    """
+    password = secrets.token_urlsafe(9)
+    admin.set_password(password)
+    admin.must_change_password = True
+    admin.password_changed_at = timezone.now()
+    admin.save(
+        update_fields=["password", "must_change_password", "password_changed_at"]
+    )
+    Token.objects.filter(user=admin).delete()
+    audit(
+        actor=operator,
+        school=admin.school,
+        action="PASSWORD_RESET",
+        target=admin,
+        label=admin.get_full_name() or admin.username,
+        detail={"by": "operator", "forced_change": True},
+    )
+    return password
+
+
+def replace_school_admin(
+    *, school, operator, first_name, last_name,
+    phone="", email="", username="",
+):
+    """The school changed hands: create its new admin and retire the old one.
+
+    Every currently-active admin of the school is deactivated (and their tokens
+    dropped), so exactly one person holds the keys afterwards. Returns
+    (new_admin, generated_password).
+    """
+    with transaction.atomic():
+        uname = (username or "").strip().lower()
+        if uname and User.objects.filter(username__iexact=uname).exists():
+            raise ValueError("A user with that username already exists.")
+        if not uname:
+            uname = _unique_admin_username(f"{first_name}{last_name}")
+
+        generated = secrets.token_urlsafe(9)
+        pw = generated
+
+        retired = list(
+            school.users.filter(role=User.Role.ADMIN, is_active=True)
+        )
+
+        new_admin = User.objects.create_user(
+            username=uname,
+            password=pw,
+            first_name=first_name,
+            last_name=last_name,
+            role=User.Role.ADMIN,
+            school=school,
+            phone=phone,
+            email=email,
+        )
+        new_admin.must_change_password = True
+        new_admin.save(update_fields=["must_change_password"])
+
+        for old in retired:
+            old.is_active = False
+            old.save(update_fields=["is_active"])
+            Token.objects.filter(user=old).delete()
+
+        audit(
+            actor=operator,
+            school=school,
+            action="ADMIN_REPLACED",
+            target=new_admin,
+            label=new_admin.get_full_name() or uname,
+            detail={"retired": [u.username for u in retired]},
+        )
+    return new_admin, generated
 
 
 def active_learner_count(school):

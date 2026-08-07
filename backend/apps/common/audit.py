@@ -39,6 +39,8 @@ class AuditEntry(TimeStampedModel):
         PASSWORD_RESET = "PASSWORD_RESET", "Password reset by admin"
         PAYMENT_RECORDED = "PAYMENT_RECORDED", "Payment recorded"
         SCHOOL_PROVISIONED = "SCHOOL_PROVISIONED", "School provisioned"
+        SCHOOL_UPDATED = "SCHOOL_UPDATED", "School details updated"
+        ADMIN_REPLACED = "ADMIN_REPLACED", "School admin replaced"
         SUBSCRIPTION_INVOICED = "SUBSCRIPTION_INVOICED", "Subscription invoiced"
         SUBSCRIPTION_PAID = "SUBSCRIPTION_PAID", "Subscription paid"
         SUBSCRIPTION_STATUS = "SUBSCRIPTION_STATUS", "Subscription status changed"

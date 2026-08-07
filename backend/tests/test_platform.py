@@ -470,3 +470,107 @@ class AnnouncementTests(APITestCase):
             format="json",
         )
         self.assertEqual(res.status_code, 403)
+
+
+class SchoolManagementTests(APITestCase):
+    """Managing a school after it is live: profile/contact edits and the admin
+    account — all without the operator ever seeing tenant data."""
+
+    def setUp(self):
+        self.operator = make_operator()
+        self.plan = make_plan()
+        self.school, self.admin, self.sub, self.pw = provision_school(
+            name="Riverside", code="RS-1", county="Nairobi", plan=self.plan,
+            operator=self.operator, admin_first_name="Asha", admin_last_name="Mwangi",
+            admin_phone="254700111222", admin_email="asha@riverside.ac.ke",
+        )
+        self.url = f"/api/platform/schools/{self.school.id}/"
+
+    def test_detail_shows_profile_admin_and_subscription(self):
+        self.client.force_authenticate(self.operator)
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(set(res.data), {"school", "admins", "subscription"})
+        self.assertEqual(res.data["school"]["code"], "RS-1")
+        self.assertEqual(len(res.data["admins"]), 1)
+        admin = res.data["admins"][0]
+        self.assertEqual(admin["phone"], "254700111222")
+        self.assertEqual(admin["email"], "asha@riverside.ac.ke")
+
+    def test_detail_never_leaks_tenant_data(self):
+        """The operator must not see the school's learners through this endpoint."""
+        make_learner(self.school)
+        self.client.force_authenticate(self.operator)
+        res = self.client.get(self.url)
+        # Only the three control-plane sections, and each admin exposes exactly
+        # the safe contact/status fields — no tenant payload rides along.
+        self.assertEqual(set(res.data), {"school", "admins", "subscription"})
+        self.assertNotIn("learners", res.data["school"])
+        self.assertEqual(
+            set(res.data["admins"][0]),
+            {"id", "username", "name", "first_name", "last_name", "phone",
+             "email", "is_active", "must_change_password", "last_login"},
+        )
+
+    def test_operator_can_edit_school_contact(self):
+        self.client.force_authenticate(self.operator)
+        res = self.client.patch(
+            self.url,
+            {"contact_phone": "254733000000", "contact_email": "office@riverside.ac.ke"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.school.refresh_from_db()
+        self.assertEqual(self.school.contact_phone, "254733000000")
+        self.assertEqual(self.school.contact_email, "office@riverside.ac.ke")
+        self.assertTrue(AuditEntry.objects.filter(action="SCHOOL_UPDATED").exists())
+
+    def test_resetting_the_admin_password_returns_a_handover_and_kills_the_token(self):
+        from rest_framework.authtoken.models import Token
+
+        old = Token.objects.create(user=self.admin)
+        self.client.force_authenticate(self.operator)
+        res = self.client.post(
+            f"{self.url}admin/{self.admin.id}/reset-password/", {}, format="json"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("generated_password", res.data)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.must_change_password)
+        self.assertTrue(self.admin.check_password(res.data["generated_password"]))
+        self.assertFalse(Token.objects.filter(key=old.key).exists())
+
+    def test_changing_the_admin_retires_the_old_one(self):
+        self.client.force_authenticate(self.operator)
+        res = self.client.post(
+            f"{self.url}admin/",
+            {"first_name": "Brian", "last_name": "Otieno", "phone": "254711222333"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertIn("generated_password", res.data)
+        self.admin.refresh_from_db()
+        self.assertFalse(self.admin.is_active)  # the old admin is retired
+        new = User.objects.get(username=res.data["admin"]["username"])
+        self.assertTrue(new.is_active)
+        self.assertEqual(new.role, "ADMIN")
+        self.assertEqual(new.school_id, self.school.id)
+        self.assertTrue(AuditEntry.objects.filter(action="ADMIN_REPLACED").exists())
+
+    def test_operator_can_correct_an_admins_contact(self):
+        self.client.force_authenticate(self.operator)
+        res = self.client.patch(
+            f"{self.url}admin/{self.admin.id}/",
+            {"phone": "254799888777"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.phone, "254799888777")
+
+    def test_a_school_admin_cannot_reach_the_management_endpoint(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(
+            self.client.post(f"{self.url}admin/", {}, format="json").status_code, 403
+        )

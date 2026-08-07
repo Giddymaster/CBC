@@ -58,7 +58,11 @@ from apps.platform.views import (
 )
 from apps.platform.views import (
     MySchoolSubscriptionView,
+    OperatorAdminMemberView,
+    OperatorAdminResetView,
     OperatorOverviewView,
+    OperatorSchoolAdminView,
+    OperatorSchoolView,
     PlatformAnnouncementFeedView,
     ProvisionView,
     SubscriptionViewSet,
@@ -192,6 +196,16 @@ urlpatterns = [
     path("api/audit/summary/", AuditSummaryView.as_view()),
     path("api/platform/provision/", ProvisionView.as_view()),
     path("api/platform/overview/", OperatorOverviewView.as_view()),
+    path("api/platform/schools/<int:pk>/", OperatorSchoolView.as_view()),
+    path("api/platform/schools/<int:pk>/admin/", OperatorSchoolAdminView.as_view()),
+    path(
+        "api/platform/schools/<int:pk>/admin/<int:uid>/",
+        OperatorAdminMemberView.as_view(),
+    ),
+    path(
+        "api/platform/schools/<int:pk>/admin/<int:uid>/reset-password/",
+        OperatorAdminResetView.as_view(),
+    ),
     path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
     path("api/locations/", LocationsView.as_view()),
