@@ -8,7 +8,6 @@ class School(TimeStampedModel):
         PRIMARY = "PRIMARY", "Primary"
         JUNIOR = "JSS", "Junior School"
         SENIOR = "SSS", "Senior School"
-        COMPOSITE = "COMPOSITE", "Composite"
 
     # How the Ministry of Education classifies a school. `category` is the
     # placement tier used from Junior School into Senior School — a school is
@@ -37,7 +36,16 @@ class School(TimeStampedModel):
     name = models.CharField(max_length=200)
     code = models.CharField(max_length=30, unique=True, help_text="MoE school code")
     kemis_code = models.CharField(max_length=30, blank=True)
-    level = models.CharField(max_length=10, choices=Level.choices, default=Level.JUNIOR)
+
+    # The CBC levels this school offers — any combination of the three. A school
+    # running primary through senior selects all three; most run one or two.
+    # Replaces the old single-value field where "Composite" stood in for "more
+    # than one".
+    levels = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Any of PRIMARY / JSS / SSS — the levels the school offers",
+    )
 
     # Where it sits, county down to the education zone. County and sub-county
     # match KEMIS; ward is the electoral unit; zone is the education office's
@@ -72,3 +80,20 @@ class School(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+    @classmethod
+    def normalize_levels(cls, values):
+        """Keep only known level codes, de-duplicated and in canonical order.
+
+        Defensive on the way in: a legacy ``"COMPOSITE"`` expands to all three,
+        and anything unrecognised is dropped rather than stored.
+        """
+        order = [code for code, _ in cls.Level.choices]
+        chosen = set()
+        for value in values or []:
+            code = str(value).strip().upper()
+            if code == "COMPOSITE":
+                chosen.update(order)
+            elif code in order:
+                chosen.add(code)
+        return [code for code in order if code in chosen]

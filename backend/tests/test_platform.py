@@ -93,7 +93,7 @@ class ProvisioningTests(APITestCase):
             {
                 "name": "Gikuu Primary and JSS", "code": "GK-990", "county": "Murang'a",
                 "subcounty": "Kangema", "ward": "Muguru", "zone": "Central",
-                "level": "COMPOSITE", "kemis_code": "NEM-12345",
+                "levels": ["PRIMARY", "JSS"], "kemis_code": "NEM-12345",
                 "category": "SUB_COUNTY", "gender": "MIXED",
                 "accommodation": "DAY", "ownership": "PUBLIC",
                 "plan": self.plan.id,
@@ -110,8 +110,38 @@ class ProvisioningTests(APITestCase):
         self.assertEqual(school.gender, "MIXED")
         self.assertEqual(school.accommodation, "DAY")
         self.assertEqual(school.ownership, "PUBLIC")
-        self.assertEqual(school.level, "COMPOSITE")
+        self.assertEqual(school.levels, ["PRIMARY", "JSS"])
         self.assertEqual(school.kemis_code, "NEM-12345")
+
+    def test_levels_are_normalised_on_the_way_in(self):
+        """The form sends checked codes; junk is dropped, duplicates removed,
+        order made canonical, and a legacy 'COMPOSITE' expands to all three."""
+        from apps.schools.models import School
+
+        self.assertEqual(School.normalize_levels(["SSS", "PRIMARY", "SSS"]),
+                         ["PRIMARY", "SSS"])
+        self.assertEqual(School.normalize_levels(["COMPOSITE"]),
+                         ["PRIMARY", "JSS", "SSS"])
+        self.assertEqual(School.normalize_levels(["nonsense", "jss"]), ["JSS"])
+        self.assertEqual(School.normalize_levels([]), [])
+
+    def test_a_school_can_hold_more_than_one_level(self):
+        from apps.schools.models import School
+
+        self.client.force_authenticate(self.operator)
+        res = self.client.post(
+            "/api/platform/provision/",
+            {
+                "name": "All Through Academy", "code": "AT-1", "county": "Nairobi",
+                "levels": ["SSS", "PRIMARY", "JSS"],
+                "plan": self.plan.id,
+                "admin_first_name": "A", "admin_last_name": "B",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        school = School.objects.get(code="AT-1")
+        self.assertEqual(school.levels, ["PRIMARY", "JSS", "SSS"])
 
     def test_the_optional_profile_may_be_omitted(self):
         """A bare registration still works — the extra fields all allow blank."""

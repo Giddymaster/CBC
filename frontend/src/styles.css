@@ -536,6 +536,17 @@ select, input[type='date'] { padding: 0.4rem; border: 1px solid #cbd5e0; border-
 }
 .adm-field textarea { resize: vertical; }
 
+/* Levels-offered checkboxes: a compact row inside one grid cell. */
+.level-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; padding-top: 0.2rem; }
+.level-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.level-check input { width: auto; }
+
 .adm-photo {
   grid-row: span 3;
   display: flex;

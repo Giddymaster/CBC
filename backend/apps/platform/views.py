@@ -209,8 +209,7 @@ class ProvisionView(APIView):
                 "category", "gender", "accommodation", "ownership",
             )
         }
-        if data.get("level"):
-            optional["level"] = data["level"]
+        optional["levels"] = School.normalize_levels(data.get("levels") or [])
 
         school, admin, subscription, generated = provision_school(
             name=data["name"],

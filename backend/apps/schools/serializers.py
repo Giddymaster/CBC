@@ -7,3 +7,6 @@ class SchoolSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
         fields = "__all__"
+
+    def validate_levels(self, value):
+        return School.normalize_levels(value)

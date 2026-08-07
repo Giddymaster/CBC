@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite, clearToken } from './api.js'
 
+// A school offers any combination of these — checkboxes, not a single choice.
 const LEVELS = [
-  ['', '—'], ['PRIMARY', 'Primary'], ['JSS', 'Junior School'],
-  ['SSS', 'Senior School'], ['COMPOSITE', 'Composite'],
+  ['PRIMARY', 'Primary'], ['JSS', 'Junior School'], ['SSS', 'Senior School'],
 ]
 // The MoE placement tier a school is gazetted as.
 const CATEGORIES = [
@@ -55,7 +55,7 @@ function Overview() {
 }
 
 const BLANK_SCHOOL = {
-  name: '', code: '', kemis_code: '', level: '',
+  name: '', code: '', kemis_code: '', levels: [],
   county: '', subcounty: '', ward: '', zone: '',
   category: '', gender: '', accommodation: '', ownership: '',
   plan: '',
@@ -68,6 +68,33 @@ function Selects({ label, value, onChange, options }) {
       <select value={value} onChange={onChange}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select></label>
+  )
+}
+
+// Levels a school offers: tick any combination. Emits the codes in LEVELS order.
+function LevelChecklist({ value, onChange }) {
+  const toggle = (code) => {
+    const chosen = new Set(value)
+    if (chosen.has(code)) chosen.delete(code)
+    else chosen.add(code)
+    onChange(LEVELS.filter(([c]) => chosen.has(c)).map(([c]) => c))
+  }
+  return (
+    <div className="adm-field">
+      <span className="adm-label">Levels offered</span>
+      <div className="level-checks">
+        {LEVELS.map(([code, label]) => (
+          <label key={code} className="level-check">
+            <input
+              type="checkbox"
+              checked={value.includes(code)}
+              onChange={() => toggle(code)}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -184,7 +211,10 @@ function Provision({ plans, onDone, onGoToPlans }) {
           <input value={form.code} onChange={set('code')} required /></label>
         <label className="adm-field"><span className="adm-label">KEMIS / NEMIS code</span>
           <input value={form.kemis_code} onChange={set('kemis_code')} /></label>
-        <Selects label="Level" value={form.level} onChange={set('level')} options={LEVELS} />
+        <LevelChecklist
+          value={form.levels}
+          onChange={(levels) => setForm((f) => ({ ...f, levels }))}
+        />
 
         <LocationPicker
           county={form.county} subcounty={form.subcounty} ward={form.ward}

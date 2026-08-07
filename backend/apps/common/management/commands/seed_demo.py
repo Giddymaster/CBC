@@ -59,7 +59,7 @@ class Command(BaseCommand):
             code="12345678",
             defaults={
                 "name": "Demo Junior School",
-                "level": School.Level.JUNIOR,
+                "levels": [School.Level.JUNIOR],
                 "county": "Nairobi",
                 "kemis_code": "KEMIS-12345678",
             },
