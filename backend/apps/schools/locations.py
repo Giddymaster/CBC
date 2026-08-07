@@ -14,6 +14,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -75,7 +76,12 @@ class LocationsView(APIView):
 
     Each response is deliberately just the next level down, so the payload is a
     short list, not the whole 1,451-ward tree.
+
+    Public: it is non-sensitive reference data (Kenya's own administrative map)
+    and is read before any account exists, so it carries no auth requirement.
     """
+
+    permission_classes = [AllowAny]
 
     def get(self, request):
         county = request.query_params.get("county")
