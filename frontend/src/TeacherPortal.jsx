@@ -61,11 +61,68 @@ function MyTimetable({ timetable }) {
   )
 }
 
+// Mirror of Assessment.level_for on the server, fed by the rubric the summary
+// endpoint ships. Preview only — the stored level is derived again on save.
+function levelFor(marks, assessment) {
+  if (marks === '' || marks == null) return null
+  const pct = assessment.max_marks ? (Number(marks) / assessment.max_marks) * 100 : 0
+  for (const [bandMin, level] of assessment.rubric || []) {
+    if (pct >= bandMin) return level
+  }
+  if (assessment.rubric?.length) return 'BE'
+  if (pct >= 80) return 'EE'
+  if (pct >= 60) return 'ME'
+  if (pct >= 40) return 'AE'
+  return 'BE'
+}
+
+// Slider takes the colour of the level the mark would earn.
+const LEVEL_ACCENT = { EE: '#2f855a', ME: '#2b6cb0', AE: '#dd6b20', BE: '#c53030' }
+
+function ScoreRow({ row, index, assessment, onMarks }) {
+  const level = levelFor(row.marks, assessment)
+  return (
+    <div className="score-row">
+      <div className="score-name">
+        <span className="score-idx">{index}.</span>
+        {row.name}
+      </div>
+      <div className="score-controls">
+        <input
+          type="range"
+          min="0"
+          max={assessment.max_marks}
+          value={row.marks === '' ? 0 : row.marks}
+          className={`score-slider${row.marks === '' ? ' unset' : ''}`}
+          style={level ? { accentColor: LEVEL_ACCENT[level] } : undefined}
+          aria-label={`Marks for ${row.name}`}
+          onChange={(e) => onMarks(row.learner, e.target.value)}
+        />
+        <span className="score-marks">
+          <input
+            type="number"
+            min="0"
+            max={assessment.max_marks}
+            value={row.marks}
+            onChange={(e) => onMarks(row.learner, e.target.value)}
+          />
+          / {assessment.max_marks}
+        </span>
+        {level
+          ? <span className={`level ${level}`}>{level}</span>
+          : <span className="score-none">—</span>}
+      </div>
+    </div>
+  )
+}
+
 function ScoreEntry({ assessments, onQueueChange }) {
   const [selectedId, setSelectedId] = useState('')
   const [rows, setRows] = useState([])
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [search, setSearch] = useState('')
+  const [ungradedOnly, setUngradedOnly] = useState(false)
 
   const assessment = assessments.find((a) => a.id === Number(selectedId))
 
@@ -84,11 +141,12 @@ function ScoreEntry({ assessments, onQueueChange }) {
       learners.map((l) => ({
         learner: l.id,
         name: l.full_name,
-        marks: byLearner[l.id] ? String(byLearner[l.id].marks) : '',
-        level: byLearner[l.id]?.competency_level || null,
+        marks: byLearner[l.id] ? String(Number(byLearner[l.id].marks)) : '',
       })),
     )
     setMessage('')
+    setSearch('')
+    setUngradedOnly(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- identity by id:
     // `assessments` is refetched wholesale, so a same-id object is same-data.
   }, [assessment?.id])
@@ -96,6 +154,11 @@ function ScoreEntry({ assessments, onQueueChange }) {
   useEffect(() => {
     load()
   }, [load])
+
+  const setMarks = (learnerId, value) =>
+    setRows((prev) =>
+      prev.map((r) => (r.learner === learnerId ? { ...r, marks: value } : r)),
+    )
 
   async function save() {
     setBusy(true)
@@ -116,15 +179,20 @@ function ScoreEntry({ assessments, onQueueChange }) {
       setMessage('Rejected by server — check the marks.')
       return
     }
-    const levels = Object.fromEntries(
-      result.data.saved.map((s) => [s.learner, s.competency_level]),
-    )
-    setRows((prev) => prev.map((r) => ({ ...r, level: levels[r.learner] ?? r.level })))
     setMessage(
       `Saved ${result.data.saved.length} scores.` +
         (result.data.skipped.length ? ` Skipped: ${result.data.skipped.length} (blank/invalid).` : ''),
     )
   }
+
+  const graded = rows.filter((r) => r.marks !== '').length
+  const done = rows.length > 0 && graded === rows.length
+  const needle = search.trim().toLowerCase()
+  const shown = rows.filter(
+    (r) =>
+      (!needle || r.name.toLowerCase().includes(needle)) &&
+      (!ungradedOnly || r.marks === ''),
+  )
 
   return (
     <div className="card">
@@ -138,33 +206,53 @@ function ScoreEntry({ assessments, onQueueChange }) {
       </p>
       {assessment && (
         <>
-          <table>
-            <thead>
-              <tr><th>Learner</th><th>Marks (max {assessment.max_marks})</th><th>Level</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.learner}>
-                  <td>{row.name}</td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      max={assessment.max_marks}
-                      value={row.marks}
-                      style={{ width: '6rem' }}
-                      onChange={(e) =>
-                        setRows((prev) =>
-                          prev.map((r, j) => (j === i ? { ...r, marks: e.target.value } : r)),
-                        )
-                      }
-                    />
-                  </td>
-                  <td>{row.level && <span className={`level ${row.level}`}>{row.level}</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="score-head">
+            <div>
+              <b>{assessment.label}</b>
+              <div className="muted">Out of {assessment.max_marks} marks</div>
+            </div>
+            <span className={`badge ${done ? 'online' : 'queued'}`}>
+              {done ? 'All graded' : 'In progress'}
+            </span>
+          </div>
+
+          <div className="score-tools">
+            <input
+              className="score-search"
+              placeholder="Search learners…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button
+              type="button"
+              className={`grade-chip${ungradedOnly ? ' on' : ''}`}
+              onClick={() => setUngradedOnly((v) => !v)}
+            >
+              Ungraded only
+            </button>
+          </div>
+          <p className="muted score-progress">
+            {graded}/{rows.length} graded
+            {shown.length !== rows.length && ` · showing ${shown.length} of ${rows.length}`}
+          </p>
+
+          <div className="score-list">
+            {shown.map((row) => (
+              <ScoreRow
+                key={row.learner}
+                row={row}
+                index={rows.findIndex((r) => r.learner === row.learner) + 1}
+                assessment={assessment}
+                onMarks={setMarks}
+              />
+            ))}
+            {shown.length === 0 && (
+              <p className="muted">
+                {ungradedOnly ? 'Everyone shown is graded.' : 'No learners match.'}
+              </p>
+            )}
+          </div>
+
           <p>
             <button className="primary" onClick={save} disabled={busy || !rows.length}>
               {busy ? 'Saving…' : 'Save marks'}

@@ -921,6 +921,69 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 .cta-purple { background: #f4ecfb; color: #6b46c1; }
 .cta-red { background: #fdeaea; color: #c53030; }
 
+/* ---- Score entry: one row per learner, slider + marks + live level ---- */
+.score-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.score-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0 0.2rem;
+}
+.score-search {
+  flex: 1;
+  min-width: 12rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font: inherit;
+}
+.score-progress { margin: 0.2rem 0 0.5rem; }
+.score-list { display: flex; flex-direction: column; }
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #edf2f7;
+  flex-wrap: wrap;
+}
+.score-row:last-child { border-bottom: none; }
+.score-name { flex: 1 1 11rem; min-width: 9rem; font-weight: 600; }
+.score-idx { color: #a0aec0; font-weight: 400; margin-right: 0.35rem; }
+.score-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: 2 1 16rem;
+  min-width: 0;
+}
+.score-slider { flex: 1; min-width: 6rem; accent-color: #2b6cb0; }
+.score-slider.unset { opacity: 0.35; }
+.score-marks {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #718096;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.score-marks input {
+  width: 3.6rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  text-align: center;
+  font: inherit;
+}
+.score-none { color: #cbd5e0; min-width: 2.2rem; text-align: center; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 

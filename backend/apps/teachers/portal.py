@@ -71,6 +71,10 @@ class TeacherSummaryView(APIView):
                         "term": assessment.term,
                         "year": assessment.year,
                         "max_marks": assessment.max_marks,
+                        # The banding, so the client can show the level live as
+                        # marks are typed. The server still derives the stored
+                        # level on save; this is preview, not authority.
+                        "rubric": assessment.rubric,
                     }
                 )
 
