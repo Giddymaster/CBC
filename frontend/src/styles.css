@@ -812,6 +812,118 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
   cursor: pointer;
 }
 
+/* ---- Staff portal dashboard: hero, action cards, bottom nav ---- */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(120deg, #2b6cb0 0%, #417690 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1rem;
+}
+.hero-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.hero-text h2 { margin: 0 0 0.15rem; font-size: 1.25rem; }
+.hero-text p { margin: 0; font-size: 0.85rem; opacity: 0.9; }
+.hero-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.hero-chip {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.9rem;
+}
+.action-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.05rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  box-shadow: 0 1px 3px rgba(15, 40, 60, 0.05);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.action-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 40, 60, 0.12);
+  transform: translateY(-1px);
+}
+.action-tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 12px;
+}
+.tile-blue { background: #ebf4ff; color: #2b6cb0; }
+.tile-green { background: #e6f7ec; color: #2f855a; }
+.tile-teal { background: #e0f5f5; color: #2c7a7b; }
+.tile-orange { background: #fff3e3; color: #c05621; }
+.tile-purple { background: #f4ecfb; color: #6b46c1; }
+.tile-red { background: #fdeaea; color: #c53030; }
+.action-body { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.action-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+.action-badge {
+  background: #c53030;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.action-desc { color: #718096; font-size: 0.83rem; }
+.action-cta {
+  margin-top: 0.2rem;
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 0.28rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.cta-blue { background: #ebf4ff; color: #2b6cb0; }
+.cta-green { background: #e6f7ec; color: #2f855a; }
+.cta-teal { background: #e0f5f5; color: #2c7a7b; }
+.cta-orange { background: #fff3e3; color: #c05621; }
+.cta-purple { background: #f4ecfb; color: #6b46c1; }
+.cta-red { background: #fdeaea; color: #c53030; }
+
+/* Bottom tab bar: phone only — the media block at the end turns it on. */
+.bottom-nav { display: none; }
+
 /* ---- Phone layout ----------------------------------------------------
    Kept last on purpose: these override rules of equal specificity above. */
 @media (max-width: 760px) {
@@ -848,4 +960,41 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
   }
 
   .bubble { max-width: 92%; }
+
+  /* Portal bottom tab bar, and room for it under the content. */
+  .portal-shell { padding-bottom: 4.6rem; }
+  .portal-shell nav.tabs { display: none; }
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    padding: 0.3rem 0.2rem calc(0.3rem + env(safe-area-inset-bottom));
+  }
+  .bottom-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    background: none;
+    border: none;
+    color: #718096;
+    font-size: 0.62rem;
+    font-weight: 600;
+    padding: 0.25rem 0;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .bottom-nav button span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bottom-nav button.active { color: #2b6cb0; }
 }

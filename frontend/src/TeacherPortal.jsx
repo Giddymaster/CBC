@@ -8,6 +8,7 @@ import { gradeLabel } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
 import MyTeam from './MyTeam.jsx'
+import { ActionCard, ActionGrid, BottomNav, PortalHero } from './portalUi.jsx'
 import { MyRolePanel, ReportsPanel } from './StaffPortal.jsx'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -176,12 +177,58 @@ function ScoreEntry({ assessments, onQueueChange }) {
   )
 }
 
+// The dashboard's action cards: where each tab lives, in the language of what a
+// teacher comes here to do. `when` hides cards the account has no use for.
+const TEACHER_ACTIONS = [
+  { tab: 'My Timetable', icon: 'calendar', tone: 'blue', title: 'My Timetable',
+    desc: 'Your week — lessons, periods and rooms.', cta: 'Open timetable' },
+  { tab: 'Score Entry', icon: 'pencil', tone: 'green', title: 'Score Entry',
+    desc: 'Record marks; competency levels are worked out for you.', cta: 'Enter scores' },
+  { tab: 'Attendance', icon: 'check', tone: 'teal', title: 'Attendance',
+    desc: 'Mark the daily register for your class.', cta: 'Take attendance' },
+  { tab: 'Schemes of Work', icon: 'book', tone: 'purple', title: 'Schemes of Work',
+    desc: 'Plan the term and track curriculum coverage.', cta: 'Open schemes' },
+  { tab: 'Lesson Plans', icon: 'clipboard', tone: 'orange', title: 'Lesson Plans',
+    desc: 'Prepare lessons from your schemes of work.', cta: 'Plan lessons' },
+  { tab: 'My Outcomes', icon: 'chart', tone: 'red', title: 'My Outcomes',
+    desc: 'How your learners are performing, area by area.', cta: 'View outcomes' },
+  { tab: 'Parents', icon: 'chat', tone: 'green', title: 'Parents',
+    desc: 'Message the parents of your learners.', cta: 'Open messages' },
+  { tab: 'Reports', icon: 'file', tone: 'orange', title: 'Reports',
+    desc: 'Weekly staff reports — yours, and any waiting on you.',
+    cta: 'Open reports', badge: (ctx) => ctx.pending },
+  { tab: 'My Role', icon: 'user', tone: 'blue', title: 'My Role',
+    desc: 'Your duties, tasks and messages from your supervisor.', cta: 'View role' },
+  { tab: 'My Team', icon: 'users', tone: 'teal', title: 'My Team',
+    desc: 'The staff who report to you.', cta: 'Open team',
+    when: (ctx) => ctx.teamSize > 0, badge: (ctx) => ctx.teamSize },
+  { tab: 'Peer Review', icon: 'star', tone: 'purple', title: 'Peer Review',
+    desc: 'Observe colleagues and read feedback on your teaching.', cta: 'Open reviews' },
+  { tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
+    desc: 'Admit a learner into the school.', cta: 'Admit a learner',
+    when: (ctx) => ctx.canAdmit },
+]
+
+const TEACHER_NAV = [
+  { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
+  { key: 'My Timetable', label: 'Timetable', icon: 'calendar' },
+  { key: 'Score Entry', label: 'Scores', icon: 'pencil' },
+  { key: 'Attendance', label: 'Attendance', icon: 'check' },
+  { key: 'Parents', label: 'Parents', icon: 'chat' },
+]
+
+// Monday=1 … Friday=5, matching lesson.day in the timetable.
+function todayLessons(timetable) {
+  const day = new Date().getDay()
+  return timetable.filter((l) => l.day === day).length
+}
+
 export default function TeacherPortal({ onQueueChange }) {
   const [summary, setSummary] = useState(null)
   const [portal, setPortal] = useState(null)
   const [error, setError] = useState('')
   const [access, setAccess] = useState(null)
-  const [tab, setTab] = useState('My Timetable')
+  const [tab, setTab] = useState('Dashboard')
 
   const load = useCallback(() => {
     apiGet('/api/teacher/summary/').then(setSummary).catch((e) => setError(e.message))
@@ -195,30 +242,53 @@ export default function TeacherPortal({ onQueueChange }) {
 
   const pending = portal?.reports?.to_review?.length || 0
   const teamSize = portal?.team?.size || 0
-  const tabs = [
-    'My Role',
-    ...(teamSize ? [`My Team (${teamSize})`] : []),
-    'My Timetable', 'Score Entry', 'Attendance', 'Schemes of Work', 'Lesson Plans',
-    'My Outcomes', 'Peer Review', 'Parents',
-    ...(access?.can_admit ? ['Admissions'] : []),
-    `Reports${pending ? ` (${pending})` : ''}`,
-  ]
+  const ctx = { pending, teamSize, canAdmit: Boolean(access?.can_admit) }
+  const actions = TEACHER_ACTIONS.filter((a) => !a.when || a.when(ctx))
+  const tabs = ['Dashboard', ...actions.map((a) => a.tab)]
+
+  const lessonsToday = todayLessons(summary.timetable)
+  const openTab = (name) => { setTab(name); window.scrollTo(0, 0) }
 
   return (
-    <div>
-      <p className="muted">
-        {summary.teacher.name} (TSC {summary.teacher.tsc_number}) — {summary.teacher.school}
-      </p>
+    <div className="portal-shell">
       <nav className="tabs">
-        {tabs.map((name) => {
-          const key = name.split(' (')[0]
-          return (
-            <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-              {name}
-            </button>
-          )
-        })}
+        {tabs.map((name) => (
+          <button key={name} className={tab === name ? 'active' : ''}
+            onClick={() => openTab(name)}>
+            {name === 'Reports' && pending ? `Reports (${pending})` : name}
+            {name === 'My Team' && teamSize ? ` (${teamSize})` : ''}
+          </button>
+        ))}
       </nav>
+
+      {tab === 'Dashboard' && (
+        <>
+          <PortalHero
+            icon="user"
+            title={summary.teacher.name}
+            subtitle={`TSC ${summary.teacher.tsc_number} · ${summary.teacher.school}`}
+            chips={[
+              `${lessonsToday} lesson${lessonsToday === 1 ? '' : 's'} today`,
+              ...(pending ? [`${pending} report${pending === 1 ? '' : 's'} to review`] : []),
+              ...(teamSize ? [`Team of ${teamSize}`] : []),
+            ]}
+          />
+          <ActionGrid>
+            {actions.map((a) => (
+              <ActionCard
+                key={a.tab}
+                icon={a.icon}
+                tone={a.tone}
+                title={a.title}
+                desc={a.desc}
+                cta={a.cta}
+                badge={a.badge ? a.badge(ctx) : 0}
+                onOpen={() => openTab(a.tab)}
+              />
+            ))}
+          </ActionGrid>
+        </>
+      )}
 
       {tab === 'My Role' && (
         portal ? <MyRolePanel data={portal} onRefresh={load} /> : <p className="muted">Loading…</p>
@@ -270,6 +340,8 @@ export default function TeacherPortal({ onQueueChange }) {
           )}
         </>
       )}
+
+      <BottomNav items={TEACHER_NAV} active={tab} onSelect={openTab} />
     </div>
   )
 }

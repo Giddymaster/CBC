@@ -4,6 +4,7 @@ import { gradeLabel } from './format.js'
 import Admission from './Admission.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
+import { ActionCard, ActionGrid, BottomNav, PortalHero } from './portalUi.jsx'
 
 const STATUS_BADGE = {
   DRAFT: 'queued', SUBMITTED: 'queued', APPROVED: 'online', RETURNED: 'offline',
@@ -394,7 +395,7 @@ export default function SupportPortal() {
   const [data, setData] = useState(null)
   const [access, setAccess] = useState(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('My Role')
+  const [tab, setTab] = useState('Dashboard')
 
   const load = useCallback(() => {
     apiGet('/api/my-portal/').then(setData).catch((e) => setError(e.message))
@@ -407,33 +408,68 @@ export default function SupportPortal() {
 
   const pending = data.reports.to_review.length
   const teamSize = data.team?.size || 0
-  const tabs = [
-    'My Role',
-    ...(teamSize ? [`My Team (${teamSize})`] : []),
-    `Reports${pending ? ` (${pending})` : ''}`,
-    ...(access?.can_admit ? ['Admissions'] : []),
+  const canAdmit = Boolean(access?.can_admit)
+
+  const actions = [
+    { tab: 'My Role', icon: 'user', tone: 'blue', title: 'My Role',
+      desc: 'Your duties, tasks and messages from your supervisor.', cta: 'View role' },
+    ...(teamSize ? [{ tab: 'My Team', icon: 'users', tone: 'teal', title: 'My Team',
+      desc: 'The staff who report to you.', cta: 'Open team', badge: teamSize }] : []),
+    { tab: 'Reports', icon: 'file', tone: 'orange', title: 'Reports',
+      desc: 'Weekly staff reports — yours, and any waiting on you.',
+      cta: 'Open reports', badge: pending },
+    ...(canAdmit ? [{ tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
+      desc: 'Admit a learner into the school.', cta: 'Admit a learner' }] : []),
   ]
+  const tabs = ['Dashboard', ...actions.map((a) => a.tab)]
+  const nav = [
+    { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
+    { key: 'My Role', label: 'My Role', icon: 'user' },
+    { key: 'Reports', label: 'Reports', icon: 'file' },
+    ...(teamSize ? [{ key: 'My Team', label: 'Team', icon: 'users' }] : []),
+    ...(canAdmit ? [{ key: 'Admissions', label: 'Admit', icon: 'plus' }] : []),
+  ]
+  const openTab = (name) => { setTab(name); window.scrollTo(0, 0) }
 
   return (
-    <div>
-      <p className="muted">
-        {data.me.name} — {data.me.title} · {data.me.school}
-      </p>
+    <div className="portal-shell">
       <nav className="tabs">
         {tabs.map((name) => (
-          <button
-            key={name}
-            className={tab === name.split(' (')[0] ? 'active' : ''}
-            onClick={() => setTab(name.split(' (')[0])}
-          >
-            {name}
+          <button key={name} className={tab === name ? 'active' : ''}
+            onClick={() => openTab(name)}>
+            {name === 'Reports' && pending ? `Reports (${pending})` : name}
+            {name === 'My Team' && teamSize ? ` (${teamSize})` : ''}
           </button>
         ))}
       </nav>
+
+      {tab === 'Dashboard' && (
+        <>
+          <PortalHero
+            icon="user"
+            title={data.me.name}
+            subtitle={`${data.me.title} · ${data.me.school}`}
+            chips={[
+              ...(pending ? [`${pending} report${pending === 1 ? '' : 's'} to review`] : []),
+              ...(teamSize ? [`Team of ${teamSize}`] : []),
+            ]}
+          />
+          <ActionGrid>
+            {actions.map((a) => (
+              <ActionCard key={a.tab} icon={a.icon} tone={a.tone} title={a.title}
+                desc={a.desc} cta={a.cta} badge={a.badge || 0}
+                onOpen={() => openTab(a.tab)} />
+            ))}
+          </ActionGrid>
+        </>
+      )}
+
       {tab === 'My Role' && <MyRolePanel data={data} onRefresh={load} />}
       {tab === 'My Team' && <MyTeam />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'Reports' && <ReportsPanel data={data} onRefresh={load} />}
+
+      <BottomNav items={nav} active={tab} onSelect={openTab} />
     </div>
   )
 }
