@@ -9,6 +9,44 @@ function problems(data) {
     .join(' ')
 }
 
+function EyeIcon({ off }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <line x1="3" y1="3" x2="21" y2="21" />}
+    </svg>
+  )
+}
+
+/** A password box with an eye to peek at what you are typing — phone keyboards
+ * make blind typing error-prone. Visibility resets on every mount. */
+export function PasswordInput({ value, onChange, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span className="pw-wrap">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+      />
+      <button
+        type="button"
+        className="pw-eye"
+        aria-label={show ? 'Hide password' : 'Show password'}
+        title={show ? 'Hide password' : 'Show password'}
+        onClick={() => setShow((s) => !s)}
+      >
+        <EyeIcon off={show} />
+      </button>
+    </span>
+  )
+}
+
 /** The form itself — reused by the settings panel and the forced-change gate. */
 export function ChangePasswordForm({ onDone, forced }) {
   const [form, setForm] = useState({ current: '', next: '', confirm: '' })
@@ -46,18 +84,18 @@ export function ChangePasswordForm({ onDone, forced }) {
         <span className="adm-label">
           {forced ? 'The password you were given' : 'Current password'}
         </span>
-        <input type="password" value={form.current} onChange={set('current')}
+        <PasswordInput value={form.current} onChange={set('current')}
           autoComplete="current-password" />
       </label>
       <label className="adm-field">
         <span className="adm-label">New password</span>
-        <input type="password" value={form.next} onChange={set('next')}
+        <PasswordInput value={form.next} onChange={set('next')}
           autoComplete="new-password" />
         <span className="adm-hint">At least 8 characters, and not a common one.</span>
       </label>
       <label className="adm-field">
         <span className="adm-label">New password again</span>
-        <input type="password" value={form.confirm} onChange={set('confirm')}
+        <PasswordInput value={form.confirm} onChange={set('confirm')}
           autoComplete="new-password" />
       </label>
       <div className="adm-wide">

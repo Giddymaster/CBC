@@ -21,7 +21,7 @@ import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
-import { ForcedPasswordChange } from './Password.jsx'
+import { ForcedPasswordChange, PasswordInput } from './Password.jsx'
 import Operator from './Operator.jsx'
 import Subscription, { PlatformAnnouncements } from './Subscription.jsx'
 import Promotions from './Promotions.jsx'
@@ -59,16 +59,16 @@ function Login({ onLogin }) {
   return (
     <form className="login" onSubmit={submit}>
       <h2>CBC School Management</h2>
-      <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-      <input
-        type="password"
+      <input placeholder="Username" value={username} autoComplete="username"
+        onChange={(e) => setUsername(e.target.value)} />
+      <PasswordInput
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        autoComplete="current-password"
       />
       <button className="primary" type="submit">Sign in</button>
       {error && <div className="error">{error}</div>}
-      <div className="muted">Demo: admin / admin</div>
     </form>
   )
 }
