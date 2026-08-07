@@ -1,6 +1,36 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite, clearToken } from './api.js'
 
+// The 47 counties, so county is picked from a fixed list rather than typed.
+// Sub-county, ward and zone stay free text: a complete, accurate ward dataset
+// (~1,450 of them) belongs in a vetted lookup, not hard-coded from memory.
+const KE_COUNTIES = [
+  'Mombasa', 'Kwale', 'Kilifi', 'Tana River', 'Lamu', 'Taita-Taveta', 'Garissa',
+  'Wajir', 'Mandera', 'Marsabit', 'Isiolo', 'Meru', 'Tharaka-Nithi', 'Embu',
+  'Kitui', 'Machakos', 'Makueni', 'Nyandarua', 'Nyeri', 'Kirinyaga', "Murang'a",
+  'Kiambu', 'Turkana', 'West Pokot', 'Samburu', 'Trans Nzoia', 'Uasin Gishu',
+  'Elgeyo-Marakwet', 'Nandi', 'Baringo', 'Laikipia', 'Nakuru', 'Narok', 'Kajiado',
+  'Kericho', 'Bomet', 'Kakamega', 'Vihiga', 'Bungoma', 'Busia', 'Siaya', 'Kisumu',
+  'Homa Bay', 'Migori', 'Kisii', 'Nyamira', 'Nairobi',
+]
+
+const LEVELS = [
+  ['', '—'], ['PRIMARY', 'Primary'], ['JSS', 'Junior School'],
+  ['SSS', 'Senior School'], ['COMPOSITE', 'Composite'],
+]
+// The MoE placement tier a school is gazetted as.
+const CATEGORIES = [
+  ['', '—'], ['NATIONAL', 'National'], ['EXTRA_COUNTY', 'Extra-County'],
+  ['COUNTY', 'County'], ['SUB_COUNTY', 'Sub-County'],
+]
+const GENDERS = [['', '—'], ['MIXED', 'Mixed'], ['BOYS', 'Boys'], ['GIRLS', 'Girls']]
+const ACCOMMODATION = [
+  ['', '—'], ['DAY', 'Day'], ['BOARDING', 'Boarding'], ['DAY_BOARDING', 'Day & Boarding'],
+]
+const OWNERSHIP = [
+  ['', '—'], ['PUBLIC', 'Public'], ['PRIVATE', 'Private'], ['FAITH', 'Faith-based / Sponsored'],
+]
+
 const STATE_BADGE = {
   TRIAL: 'queued', ACTIVE: 'online', GRACE: 'queued',
   READ_ONLY: 'offline', CANCELLED: 'offline',
@@ -37,26 +67,58 @@ function Overview() {
   )
 }
 
-function Provision({ plans, onDone }) {
-  const blank = {
-    name: '', code: '', county: '', plan: plans[0]?.id || '',
-    admin_first_name: '', admin_last_name: '', admin_phone: '', admin_email: '',
-  }
-  const [form, setForm] = useState(blank)
+const BLANK_SCHOOL = {
+  name: '', code: '', kemis_code: '', level: '',
+  county: '', subcounty: '', ward: '', zone: '',
+  category: '', gender: '', accommodation: '', ownership: '',
+  plan: '',
+  admin_first_name: '', admin_last_name: '', admin_phone: '', admin_email: '',
+}
+
+function Selects({ label, value, onChange, options }) {
+  return (
+    <label className="adm-field"><span className="adm-label">{label}</span>
+      <select value={value} onChange={onChange}>
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select></label>
+  )
+}
+
+function Provision({ plans, onDone, onGoToPlans }) {
+  const [form, setForm] = useState(BLANK_SCHOOL)
   const [result, setResult] = useState(null)
   const [message, setMessage] = useState('')
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Default the plan to the first available once plans have loaded.
+  useEffect(() => {
+    if (!form.plan && plans[0]) setForm((f) => ({ ...f, plan: plans[0].id }))
+  }, [plans, form.plan])
+
   async function submit(e) {
     e.preventDefault()
+    if (!form.plan) { setMessage('Choose a plan — create one on the Plans tab first.'); return }
     const res = await apiWrite('/api/platform/provision/', { ...form, plan: Number(form.plan) })
     if (res.ok) {
       setResult(res.data)
-      setForm(blank)
+      setForm(BLANK_SCHOOL)
       onDone?.()
     } else {
       setMessage(res.data?.detail || JSON.stringify(res.data))
     }
+  }
+
+  if (plans.length === 0) {
+    return (
+      <div className="card">
+        <h3>Register a school</h3>
+        <p className="muted">
+          You need a billing plan before you can register a school — it decides what
+          they’re charged. Create one first.
+        </p>
+        <button className="primary" onClick={onGoToPlans}>Go to Plans</button>
+      </div>
+    )
   }
 
   if (result) {
@@ -87,14 +149,34 @@ function Provision({ plans, onDone }) {
           <input value={form.name} onChange={set('name')} required /></label>
         <label className="adm-field"><span className="adm-label">MoE code</span>
           <input value={form.code} onChange={set('code')} required /></label>
+        <label className="adm-field"><span className="adm-label">KEMIS / NEMIS code</span>
+          <input value={form.kemis_code} onChange={set('kemis_code')} /></label>
+        <Selects label="Level" value={form.level} onChange={set('level')} options={LEVELS} />
+
         <label className="adm-field"><span className="adm-label">County</span>
-          <input value={form.county} onChange={set('county')} required /></label>
+          <select value={form.county} onChange={set('county')} required>
+            <option value="">Choose county…</option>
+            {KE_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select></label>
+        <label className="adm-field"><span className="adm-label">Sub-county</span>
+          <input value={form.subcounty} onChange={set('subcounty')} /></label>
+        <label className="adm-field"><span className="adm-label">Ward</span>
+          <input value={form.ward} onChange={set('ward')} /></label>
+        <label className="adm-field"><span className="adm-label">Zone / location</span>
+          <input value={form.zone} onChange={set('zone')} /></label>
+
+        <Selects label="MoE category" value={form.category} onChange={set('category')} options={CATEGORIES} />
+        <Selects label="Gender" value={form.gender} onChange={set('gender')} options={GENDERS} />
+        <Selects label="Boarding" value={form.accommodation} onChange={set('accommodation')} options={ACCOMMODATION} />
+        <Selects label="Ownership" value={form.ownership} onChange={set('ownership')} options={OWNERSHIP} />
+
         <label className="adm-field"><span className="adm-label">Plan</span>
           <select value={form.plan} onChange={set('plan')}>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>{p.name} — {money(p.price_per_learner)}/learner</option>
             ))}
           </select></label>
+
         <label className="adm-field"><span className="adm-label">Admin first name</span>
           <input value={form.admin_first_name} onChange={set('admin_first_name')} required /></label>
         <label className="adm-field"><span className="adm-label">Admin last name</span>
@@ -273,6 +355,76 @@ function Announcements() {
   )
 }
 
+function Plans({ plans, onChange }) {
+  const [form, setForm] = useState({
+    name: '', price_per_learner: '', minimum_charge: '', trial_days: 30,
+  })
+  const [message, setMessage] = useState('')
+
+  async function create(e) {
+    e.preventDefault()
+    if (!form.name.trim() || form.price_per_learner === '') {
+      setMessage('A name and a price per learner are needed.')
+      return
+    }
+    const res = await apiWrite('/api/platform/plans/', {
+      name: form.name.trim(),
+      price_per_learner: form.price_per_learner,
+      minimum_charge: form.minimum_charge || 0,
+      trial_days: Number(form.trial_days) || 30,
+    })
+    setMessage(res.ok ? 'Plan created.' : res.data ? JSON.stringify(res.data) : 'Failed.')
+    if (res.ok) {
+      setForm({ name: '', price_per_learner: '', minimum_charge: '', trial_days: 30 })
+      onChange?.()
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3>Plans</h3>
+      <p className="muted">
+        What a school is billed — per active learner, each term — with a floor so a very
+        small school still covers its cost. Create at least one before registering a school.
+      </p>
+      <form onSubmit={create} className="adm-grid" style={{ maxWidth: '44rem' }}>
+        <label className="adm-field"><span className="adm-label">Plan name</span>
+          <input value={form.name} placeholder="e.g. Standard"
+            onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+        <label className="adm-field"><span className="adm-label">Price per learner / term (KES)</span>
+          <input type="number" min="0" step="1" value={form.price_per_learner}
+            onChange={(e) => setForm({ ...form, price_per_learner: e.target.value })} /></label>
+        <label className="adm-field"><span className="adm-label">Minimum per term (KES)</span>
+          <input type="number" min="0" step="1" value={form.minimum_charge}
+            onChange={(e) => setForm({ ...form, minimum_charge: e.target.value })} /></label>
+        <label className="adm-field"><span className="adm-label">Free-trial days</span>
+          <input type="number" min="0" value={form.trial_days}
+            onChange={(e) => setForm({ ...form, trial_days: e.target.value })} /></label>
+        <div className="adm-wide">
+          <button className="primary" type="submit">Create plan</button>
+          {message && <span className="muted"> {message}</span>}
+        </div>
+      </form>
+
+      {plans.length > 0 && (
+        <table>
+          <thead><tr><th>Plan</th><th>Per learner</th><th>Minimum</th><th>Trial</th></tr></thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr key={p.id}>
+                <td><b>{p.name}</b></td>
+                <td>{money(p.price_per_learner)}</td>
+                <td>{money(p.minimum_charge)}</td>
+                <td>{p.trial_days} days</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export default function Operator({ me }) {
   const [tab, setTab] = useState('Schools')
   const [subs, setSubs] = useState([])
@@ -300,7 +452,7 @@ export default function Operator({ me }) {
       <div className="op-body">
         <Overview />
         <nav className="tabs">
-          {['Schools', 'Register', 'Announcements'].map((t) => (
+          {['Schools', 'Register', 'Plans', 'Announcements'].map((t) => (
             <button key={t} className={tab === t ? 'active' : ''} onClick={() => { setTab(t); setOpen(null) }}>{t}</button>
           ))}
         </nav>
@@ -325,7 +477,10 @@ export default function Operator({ me }) {
               </div>
             )
         )}
-        {tab === 'Register' && <Provision plans={plans} onDone={load} />}
+        {tab === 'Register' && (
+          <Provision plans={plans} onDone={load} onGoToPlans={() => setTab('Plans')} />
+        )}
+        {tab === 'Plans' && <Plans plans={plans} onChange={load} />}
         {tab === 'Announcements' && <Announcements />}
       </div>
     </div>

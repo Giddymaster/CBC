@@ -200,11 +200,22 @@ class ProvisionView(APIView):
         if School.objects.filter(code__iexact=data["code"]).exists():
             raise ValidationError({"code": "A school with this code already exists."})
 
+        # Optional school detail — passed straight through to the School row.
+        # Blank strings are fine; the model fields all allow blank.
+        optional = {
+            field: data.get(field, "")
+            for field in (
+                "kemis_code", "subcounty", "ward", "zone",
+                "category", "gender", "accommodation", "ownership",
+            )
+        }
+        if data.get("level"):
+            optional["level"] = data["level"]
+
         school, admin, subscription, generated = provision_school(
             name=data["name"],
             code=data["code"],
             county=data["county"],
-            subcounty=data.get("subcounty", ""),
             plan=plan,
             operator=request.user,
             admin_first_name=data["admin_first_name"],
@@ -213,6 +224,7 @@ class ProvisionView(APIView):
             admin_password=data.get("admin_password", ""),
             admin_phone=data.get("admin_phone", ""),
             admin_email=data.get("admin_email", ""),
+            **optional,
         )
         body = {
             "school": {"id": school.id, "name": school.name, "code": school.code},

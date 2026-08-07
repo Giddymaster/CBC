@@ -80,8 +80,31 @@ export function queuedCount() {
   return loadQueue().length
 }
 
+// crypto.randomUUID() only exists in a secure context (HTTPS or localhost), so
+// it is undefined on a plain-HTTP page — e.g. a server reached by bare IP before
+// its certificate is set up. crypto.getRandomValues *is* available there, so
+// build a v4 UUID from it, and fall back to Math.random only if even that is
+// missing. Every write path depends on this, so it must never throw.
+function makeUuid() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0'))
+  return (
+    `${hex[0]}${hex[1]}${hex[2]}${hex[3]}-${hex[4]}${hex[5]}-` +
+    `${hex[6]}${hex[7]}-${hex[8]}${hex[9]}-` +
+    `${hex[10]}${hex[11]}${hex[12]}${hex[13]}${hex[14]}${hex[15]}`
+  )
+}
+
 export async function apiWrite(path, body, { method = 'POST' } = {}) {
-  const idempotencyKey = crypto.randomUUID()
+  const idempotencyKey = makeUuid()
   const entry = { path, body, method, idempotencyKey, queuedAt: Date.now() }
   try {
     const res = checkAuth(

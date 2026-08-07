@@ -82,6 +82,51 @@ class ProvisioningTests(APITestCase):
         self.assertEqual(res.status_code, 201, res.data)
         self.assertIn("generated_password", res.data["admin"])
 
+    def test_provisioning_stores_the_full_school_profile(self):
+        """The MoE classification and location fields set at registration land
+        on the school row."""
+        from apps.schools.models import School
+
+        self.client.force_authenticate(self.operator)
+        res = self.client.post(
+            "/api/platform/provision/",
+            {
+                "name": "Gikuu Primary and JSS", "code": "GK-990", "county": "Murang'a",
+                "subcounty": "Kangema", "ward": "Muguru", "zone": "Central",
+                "level": "COMPOSITE", "kemis_code": "NEM-12345",
+                "category": "SUB_COUNTY", "gender": "MIXED",
+                "accommodation": "DAY", "ownership": "PUBLIC",
+                "plan": self.plan.id,
+                "admin_first_name": "Stephen", "admin_last_name": "Waweru",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        school = School.objects.get(code="GK-990")
+        self.assertEqual(school.county, "Murang'a")
+        self.assertEqual(school.ward, "Muguru")
+        self.assertEqual(school.zone, "Central")
+        self.assertEqual(school.category, "SUB_COUNTY")
+        self.assertEqual(school.gender, "MIXED")
+        self.assertEqual(school.accommodation, "DAY")
+        self.assertEqual(school.ownership, "PUBLIC")
+        self.assertEqual(school.level, "COMPOSITE")
+        self.assertEqual(school.kemis_code, "NEM-12345")
+
+    def test_the_optional_profile_may_be_omitted(self):
+        """A bare registration still works — the extra fields all allow blank."""
+        self.client.force_authenticate(self.operator)
+        res = self.client.post(
+            "/api/platform/provision/",
+            {
+                "name": "Bare Minimum", "code": "BM-1", "county": "Nairobi",
+                "plan": self.plan.id,
+                "admin_first_name": "A", "admin_last_name": "B",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+
     def test_a_duplicate_school_code_is_rejected(self):
         make_school("Existing", code="DUP1")
         self.client.force_authenticate(self.operator)
