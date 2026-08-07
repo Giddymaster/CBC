@@ -1,19 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite, clearToken } from './api.js'
 
-// The 47 counties, so county is picked from a fixed list rather than typed.
-// Sub-county, ward and zone stay free text: a complete, accurate ward dataset
-// (~1,450 of them) belongs in a vetted lookup, not hard-coded from memory.
-const KE_COUNTIES = [
-  'Mombasa', 'Kwale', 'Kilifi', 'Tana River', 'Lamu', 'Taita-Taveta', 'Garissa',
-  'Wajir', 'Mandera', 'Marsabit', 'Isiolo', 'Meru', 'Tharaka-Nithi', 'Embu',
-  'Kitui', 'Machakos', 'Makueni', 'Nyandarua', 'Nyeri', 'Kirinyaga', "Murang'a",
-  'Kiambu', 'Turkana', 'West Pokot', 'Samburu', 'Trans Nzoia', 'Uasin Gishu',
-  'Elgeyo-Marakwet', 'Nandi', 'Baringo', 'Laikipia', 'Nakuru', 'Narok', 'Kajiado',
-  'Kericho', 'Bomet', 'Kakamega', 'Vihiga', 'Bungoma', 'Busia', 'Siaya', 'Kisumu',
-  'Homa Bay', 'Migori', 'Kisii', 'Nyamira', 'Nairobi',
-]
-
 const LEVELS = [
   ['', '—'], ['PRIMARY', 'Primary'], ['JSS', 'Junior School'],
   ['SSS', 'Senior School'], ['COMPOSITE', 'Composite'],
@@ -81,6 +68,52 @@ function Selects({ label, value, onChange, options }) {
       <select value={value} onChange={onChange}>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select></label>
+  )
+}
+
+// County → sub-county → ward, each list fetched from the API and narrowed by the
+// choice above it. Picking a county resets the two below; picking a sub-county
+// resets the ward.
+function LocationPicker({ county, subcounty, ward, onChange }) {
+  const [counties, setCounties] = useState([])
+  const [subcounties, setSubcounties] = useState([])
+  const [wards, setWards] = useState([])
+
+  useEffect(() => {
+    apiGet('/api/locations/').then((d) => setCounties(d.counties || [])).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!county) { setSubcounties([]); return }
+    apiGet(`/api/locations/?county=${encodeURIComponent(county)}`)
+      .then((d) => setSubcounties(d.subcounties || [])).catch(() => setSubcounties([]))
+  }, [county])
+  useEffect(() => {
+    if (!county || !subcounty) { setWards([]); return }
+    apiGet(`/api/locations/?county=${encodeURIComponent(county)}&subcounty=${encodeURIComponent(subcounty)}`)
+      .then((d) => setWards(d.wards || [])).catch(() => setWards([]))
+  }, [county, subcounty])
+
+  return (
+    <>
+      <label className="adm-field"><span className="adm-label">County</span>
+        <select value={county} required
+          onChange={(e) => onChange({ county: e.target.value, subcounty: '', ward: '' })}>
+          <option value="">Choose county…</option>
+          {counties.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select></label>
+      <label className="adm-field"><span className="adm-label">Sub-county</span>
+        <select value={subcounty} disabled={!county}
+          onChange={(e) => onChange({ subcounty: e.target.value, ward: '' })}>
+          <option value="">{county ? 'Choose sub-county…' : 'Pick a county first'}</option>
+          {subcounties.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select></label>
+      <label className="adm-field"><span className="adm-label">Ward</span>
+        <select value={ward} disabled={!subcounty}
+          onChange={(e) => onChange({ ward: e.target.value })}>
+          <option value="">{subcounty ? 'Choose ward…' : 'Pick a sub-county first'}</option>
+          {wards.map((w) => <option key={w} value={w}>{w}</option>)}
+        </select></label>
+    </>
   )
 }
 
@@ -153,15 +186,10 @@ function Provision({ plans, onDone, onGoToPlans }) {
           <input value={form.kemis_code} onChange={set('kemis_code')} /></label>
         <Selects label="Level" value={form.level} onChange={set('level')} options={LEVELS} />
 
-        <label className="adm-field"><span className="adm-label">County</span>
-          <select value={form.county} onChange={set('county')} required>
-            <option value="">Choose county…</option>
-            {KE_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select></label>
-        <label className="adm-field"><span className="adm-label">Sub-county</span>
-          <input value={form.subcounty} onChange={set('subcounty')} /></label>
-        <label className="adm-field"><span className="adm-label">Ward</span>
-          <input value={form.ward} onChange={set('ward')} /></label>
+        <LocationPicker
+          county={form.county} subcounty={form.subcounty} ward={form.ward}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        />
         <label className="adm-field"><span className="adm-label">Zone / location</span>
           <input value={form.zone} onChange={set('zone')} /></label>
 

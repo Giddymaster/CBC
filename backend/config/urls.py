@@ -72,6 +72,7 @@ from apps.promotions.views import (
     PromotionRunViewSet,
     TransitionInfoView,
 )
+from apps.schools.locations import LocationsView
 from apps.schools.structure import GradeDetailView, SchoolStructureView
 from apps.schools.views import SchoolViewSet
 from apps.students.admissions import (
@@ -193,6 +194,7 @@ urlpatterns = [
     path("api/platform/overview/", OperatorOverviewView.as_view()),
     path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
+    path("api/locations/", LocationsView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
