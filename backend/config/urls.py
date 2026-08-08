@@ -94,7 +94,11 @@ from apps.students.views import (
     LearnerViewSet,
     PathwayViewSet,
 )
-from apps.teachers.daily import SchemeLessonPlansView, StaffRollCallView
+from apps.teachers.daily import (
+    SchemeLessonPlansView,
+    StaffRollCallHistoryView,
+    StaffRollCallView,
+)
 from apps.teachers.development import (
     PdRecordViewSet,
     PeerReviewQueueView,
@@ -214,6 +218,7 @@ urlpatterns = [
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
     path("api/school/subject-analysis/", SubjectAnalysisView.as_view()),
     path("api/staff/roll-call/", StaffRollCallView.as_view()),
+    path("api/staff/roll-call/history/", StaffRollCallHistoryView.as_view()),
     path(
         "api/schemes-of-work/<int:scheme_id>/lesson-plans/",
         SchemeLessonPlansView.as_view(),

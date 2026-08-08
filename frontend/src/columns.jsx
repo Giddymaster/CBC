@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { apiWrite } from './api.js'
 
 /** Position a menu against its trigger with position:fixed, so a scrolling
- * table (every register scrolls sideways now) cannot clip it. */
+ * table (every register scrolls sideways now) cannot clip it.
+ *
+ * The menu follows its trigger while anything scrolls or resizes, opens
+ * upward when the trigger sits near the bottom of the screen, and caps its
+ * height to the space it has — the menu scrolls inside itself, so its Save
+ * button can never end up below the viewport. */
 export function useAnchoredMenu(open, width = 240) {
   const anchorRef = useRef(null)
   const [style, setStyle] = useState(null)
@@ -11,13 +16,38 @@ export function useAnchoredMenu(open, width = 240) {
       setStyle(null)
       return
     }
-    const r = anchorRef.current.getBoundingClientRect()
-    setStyle({
-      position: 'fixed',
-      top: r.bottom + 4,
-      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
-      width,
-    })
+    const measure = () => {
+      const el = anchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const below = vh - r.bottom - 12
+      const above = r.top - 12
+      const openUp = below < 220 && above > below
+      const base = {
+        position: 'fixed',
+        left: Math.max(8, Math.min(r.left, vw - width - 8)),
+        width,
+        overflowY: 'auto',
+      }
+      setStyle(
+        openUp
+          // top:'auto' beats the stylesheet's `top: 100%`, which would
+          // otherwise pin the menu off-screen and ignore `bottom`.
+          ? { ...base, top: 'auto', bottom: vh - r.top + 4,
+              maxHeight: Math.min(above, vh * 0.6) }
+          : { ...base, top: r.bottom + 4, maxHeight: Math.min(below, vh * 0.6) },
+      )
+    }
+    measure()
+    // Capture-phase scroll catches the table's own sideways scroll too.
+    window.addEventListener('scroll', measure, true)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', measure)
+    }
   }, [open, width])
   return [anchorRef, style]
 }

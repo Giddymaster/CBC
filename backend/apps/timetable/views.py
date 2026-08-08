@@ -30,10 +30,31 @@ class LessonViewSet(AdminWriteMixin, SchoolScopedViewSet):
     filterset_fields = ["day", "period", "teacher", "grade", "stream", "room"]
 
 
-class LessonRequirementViewSet(AdminWriteMixin, SchoolScopedViewSet):
+class LessonRequirementViewSet(SchoolScopedViewSet):
+    """Teaching assignments: teacher × learning area × class. Written by the
+    people who run the school day — the admin, head teacher or deputy — since
+    assigning who teaches what is the head teacher's job, not only the office's."""
+
     queryset = LessonRequirement.objects.select_related("teacher", "learning_area").all()
     serializer_class = LessonRequirementSerializer
     filterset_fields = ["teacher", "learning_area", "grade", "stream"]
+
+    def _require_leadership(self):
+        from apps.teachers.daily import _require_office
+
+        _require_office(self.request.user)
+
+    def perform_create(self, serializer):
+        self._require_leadership()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_leadership()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_leadership()
+        instance.delete()
 
 
 class GenerateTimetableView(APIView):

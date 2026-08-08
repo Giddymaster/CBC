@@ -14,6 +14,18 @@ from rest_framework.views import APIView
 from .models import LessonPlan, SchemeOfWork, Teacher, TeacherAttendance
 
 
+def _require_office(user):
+    """The admin, head teacher or deputy — the people who run the school day."""
+    if user.is_superuser or user.role == "ADMIN":
+        return
+    from .supervision import SCOPE_WHOLE_SCHOOL, rank_level
+
+    if rank_level(user) < SCOPE_WHOLE_SCHOOL:
+        raise PermissionDenied(
+            "Staff attendance is taken by the head teacher, deputy or admin."
+        )
+
+
 class StaffRollCallView(APIView):
     """GET/POST /api/staff/roll-call/?date= — who is in today.
 
@@ -22,14 +34,7 @@ class StaffRollCallView(APIView):
     """
 
     def _require_office(self, user):
-        if user.is_superuser or user.role == "ADMIN":
-            return
-        from .supervision import SCOPE_WHOLE_SCHOOL, rank_level
-
-        if rank_level(user) < SCOPE_WHOLE_SCHOOL:
-            raise PermissionDenied(
-                "Staff attendance is taken by the head teacher, deputy or admin."
-            )
+        _require_office(user)
 
     def _date(self, request):
         raw = request.query_params.get("date") or request.data.get("date")
@@ -101,6 +106,58 @@ class StaffRollCallView(APIView):
             )
             saved.append(teacher_id)
         return Response({"date": day.isoformat(), "saved": saved, "skipped": skipped})
+
+
+class StaffRollCallHistoryView(APIView):
+    """GET /api/staff/roll-call/history/?days=N — the register over time.
+
+    The last N school days (weekdays), staff × day, so absences show as a
+    pattern rather than a single morning's snapshot.
+    """
+
+    def get(self, request):
+        _require_office(request.user)
+        try:
+            n = max(1, min(int(request.query_params.get("days", 14)), 60))
+        except ValueError:
+            return Response({"detail": "days must be a number"}, status=400)
+
+        day = timezone.localdate()
+        days = []
+        while len(days) < n:
+            if day.weekday() < 5:  # Monday–Friday
+                days.append(day)
+            day -= timezone.timedelta(days=1)
+        days.reverse()
+
+        school = request.user.school
+        marks = {}
+        for record in TeacherAttendance.objects.filter(
+            school=school, date__range=(days[0], days[-1])
+        ):
+            marks.setdefault(record.teacher_id, {})[record.date.isoformat()] = (
+                record.status
+            )
+
+        staff = []
+        for t in Teacher.objects.filter(
+            school=school, user__is_active=True
+        ).select_related("user"):
+            mine = marks.get(t.id, {})
+            staff.append(
+                {
+                    "teacher": t.id,
+                    "name": t.user.get_full_name() or t.user.username,
+                    "rank": t.get_rank_display(),
+                    "marks": mine,
+                    "totals": {
+                        "present": sum(1 for s in mine.values() if s == "P"),
+                        "absent": sum(1 for s in mine.values() if s == "A"),
+                        "on_leave": sum(1 for s in mine.values() if s == "L"),
+                    },
+                }
+            )
+        return Response({"days": [d.isoformat() for d in days], "staff": staff})
 
 
 class LessonPlanSerializer(serializers.ModelSerializer):

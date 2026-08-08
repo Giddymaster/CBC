@@ -7,6 +7,7 @@ import Attendance from './Attendance.jsx'
 import { gradeLabel } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
+import SchoolStructure from './SchoolStructure.jsx'
 import MyTeam from './MyTeam.jsx'
 import {
   ActionCard, ActionGrid, BackBar, BottomNav, PickList, PortalHero, Trail, count,
@@ -360,6 +361,9 @@ const TEACHER_ACTIONS = [
   { tab: 'My Team', icon: 'users', tone: 'teal', title: 'My Team',
     desc: 'The staff who report to you.', cta: 'Open team',
     when: (ctx) => ctx.teamSize > 0, badge: (ctx) => ctx.teamSize },
+  { tab: 'School (Grades)', icon: 'grid', tone: 'blue', title: 'School (Grades)',
+    desc: 'Classes, streams, learning areas and teaching assignments.',
+    cta: 'Open school', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Peer Review', icon: 'star', tone: 'purple', title: 'Peer Review',
     desc: 'Observe colleagues and read feedback on your teaching.', cta: 'Open reviews' },
   { tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
@@ -400,7 +404,14 @@ export default function TeacherPortal({ onQueueChange }) {
 
   const pending = portal?.reports?.to_review?.length || 0
   const teamSize = portal?.team?.size || 0
-  const ctx = { pending, teamSize, canAdmit: Boolean(access?.can_admit) }
+  const ctx = {
+    pending,
+    teamSize,
+    canAdmit: Boolean(access?.can_admit),
+    // Head teacher / deputy — they run the school day, so they also see the
+    // school structure and set teaching assignments.
+    rankLevel: portal?.team?.rank_level || 0,
+  }
   const actions = TEACHER_ACTIONS.filter((a) => !a.when || a.when(ctx))
 
   const lessonsToday = todayLessons(summary.timetable)
@@ -448,6 +459,7 @@ export default function TeacherPortal({ onQueueChange }) {
         portal ? <MyRolePanel data={portal} onRefresh={load} /> : <p className="muted">Loading…</p>
       )}
       {tab === 'My Team' && <MyTeam />}
+      {tab === 'School (Grades)' && <SchoolStructure grade={null} />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
         <>
