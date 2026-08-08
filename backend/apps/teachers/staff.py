@@ -11,6 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.assessments.models import LearningArea
 from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 from apps.timetable.models import LessonRequirement
@@ -184,6 +185,10 @@ class AddTeacherSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150, allow_blank=True, default="")
     password = serializers.CharField(allow_blank=True, default="", write_only=True)
     supervisor = serializers.IntegerField(required=False, allow_null=True)
+    # The subjects this teacher is qualified to teach (LearningArea ids).
+    learning_areas = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
 
 
 class AddTeacherView(APIView):
@@ -238,6 +243,10 @@ class AddTeacherView(APIView):
                 data.get("supervisor"), school=user.school, exclude_user_id=account.id
             ),
         )
+        if data.get("learning_areas"):
+            teacher.learning_areas.set(
+                LearningArea.objects.filter(id__in=data["learning_areas"])
+            )
         body = {
             "id": teacher.id,
             "name": account.get_full_name(),
@@ -274,6 +283,9 @@ class EditTeacherSerializer(serializers.Serializer):
     active = serializers.BooleanField(required=False)
     extra = serializers.DictField(required=False)
     supervisor = serializers.IntegerField(required=False, allow_null=True)
+    learning_areas = serializers.ListField(
+        child=serializers.IntegerField(), required=False
+    )
 
 
 class EditTeacherView(APIView):
@@ -319,6 +331,10 @@ class EditTeacherView(APIView):
                 exclude_user_id=teacher.user_id,
             )
         teacher.save()
+        if "learning_areas" in data:
+            teacher.learning_areas.set(
+                LearningArea.objects.filter(id__in=data["learning_areas"])
+            )
 
         account = teacher.user
         for field in ("first_name", "last_name", "phone"):
@@ -363,7 +379,11 @@ class StaffDirectoryView(APIView):
 
         include_inactive = request.query_params.get("include_inactive") == "true"
 
-        teacher_qs = Teacher.objects.filter(school=school).select_related("user", "supervisor")
+        teacher_qs = (
+            Teacher.objects.filter(school=school)
+            .select_related("user", "supervisor")
+            .prefetch_related("learning_areas")
+        )
         if not include_inactive:
             teacher_qs = teacher_qs.filter(user__is_active=True)
         teaching = [
@@ -377,7 +397,13 @@ class StaffDirectoryView(APIView):
                 "rank": t.rank,
                 "rank_label": t.get_rank_display(),
                 "phone": t.user.phone,
-                "subjects": sorted(subjects.get(t.id, [])),
+                # What they teach: the subjects set on their record, plus any the
+                # timetable already assigns them.
+                "subjects": sorted(
+                    {la.name for la in t.learning_areas.all()}
+                    | subjects.get(t.id, set())
+                ),
+                "learning_area_ids": [la.id for la in t.learning_areas.all()],
                 "present_today": present.get(t.id),
                 "active": t.user.is_active,
                 "extra": t.extra or {},
@@ -446,6 +472,11 @@ class StaffDirectoryView(APIView):
                     ],
                 },
                 "rank_choices": [{"value": v, "label": l} for v, l in Teacher.Rank.choices],
+                # National list, for the subjects picker on teaching staff.
+                "learning_area_choices": [
+                    {"id": la.id, "name": la.name}
+                    for la in LearningArea.objects.order_by("name")
+                ],
                 "totals": {
                     "teaching": len(teaching),
                     "non_teaching": len(non_teaching),

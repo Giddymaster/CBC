@@ -121,6 +121,102 @@ function GuardianCard({ index, value, onChange, onRemove, canRemove }) {
   )
 }
 
+// A paper twin of the digital form, for parents filling it at the gate or at
+// home. Opens the browser's print dialog — "Save as PDF" makes the download.
+function printBlankForm(schoolName) {
+  const f = (label, wide) =>
+    `<div class="f${wide ? ' wide' : ''}"><span>${label}</span><i></i></div>`
+  const box = (label) => `<span class="bx">☐ ${label}</span>`
+  const area = (label) =>
+    `<div class="f wide tall"><span>${label}</span><i></i><i></i></div>`
+  const guardian = (n) => `
+    <h2>Guardian ${n}</h2>
+    <div class="grid">
+      ${f('Full name', true)}
+      ${f('Relationship')}${f('Phone (2547XXXXXXXX)')}
+      ${f('Alternative phone')}${f('ID / passport no')}
+      ${f('Occupation')}${f('Email')}
+      ${f('Address', true)}
+    </div>`
+  const html = `<!doctype html><html><head><title>Learner Admission Form</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 12px; color: #111;
+           max-width: 46rem; margin: 1.2rem auto; padding: 0 1rem; }
+    h1 { font-size: 16px; text-align: center; margin: 0; }
+    .school { text-align: center; font-size: 14px; font-weight: 700;
+              text-transform: uppercase; margin-bottom: 0.2rem; }
+    .note { text-align: center; color: #444; margin: 0.3rem 0 1rem; }
+    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+         border-bottom: 1.5px solid #111; padding-bottom: 2px; margin: 1.1rem 0 0.5rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem 1.2rem; }
+    .f { display: flex; flex-direction: column; gap: 2px; }
+    .f.wide { grid-column: 1 / -1; }
+    .f span { font-size: 10px; color: #333; }
+    .f i { display: block; border-bottom: 1px solid #555; height: 1.1rem; }
+    .f.tall i { height: 1.4rem; }
+    .bx { margin-right: 1.2rem; }
+    .sig { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.2rem; margin-top: 1.4rem; }
+    @media print { body { margin: 0 auto; } }
+  </style></head><body>
+  <div class="school">${schoolName || ''}</div>
+  <h1>Learner Admission Form</h1>
+  <p class="note">Please fill in BLOCK letters. Fields marked * are required.</p>
+
+  <h2>The child</h2>
+  <div class="grid">
+    ${f('First name *')}${f('Middle name')}
+    ${f('Last name *')}${f('Date of birth *')}
+    <div class="f"><span>Gender</span><div>${box('Male')}${box('Female')}</div></div>
+    ${f('Grade joining (PP1–G12)')}
+    ${f('Birth certificate no')}${f('UPI (if issued)')}
+    ${f('Nationality')}${f('Religion')}
+  </div>
+
+  ${guardian(1)}
+  ${guardian(2)}
+
+  <h2>Home and travel</h2>
+  <div class="grid">
+    ${f('County')}${f('Sub-county')}
+    ${f('Ward')}${f('Home address')}
+    <div class="f"><span>Day or boarder</span><div>${box('Day scholar')}${box('Boarder')}</div></div>
+    <div class="f"><span>How they travel</span>
+      <div>${box('Walks')}${box('School bus')}${box('Private')}${box('Public')}</div></div>
+  </div>
+
+  <h2>Health — held for the school's duty of care</h2>
+  <div class="grid">
+    ${f('Blood group')}${f('NHIF number')}
+    <div class="f"><span>Immunisation up to date</span><div>${box('Yes')}${box('No')}</div></div>
+    ${f('Regular medication')}
+    ${area('Allergies (foods, medicines, insect stings)')}
+    ${area('Chronic conditions and past serious illnesses (e.g. asthma, epilepsy, sickle cell)')}
+    ${area('Special / learning needs (learning support, mobility, vision, hearing)')}
+  </div>
+
+  <h2>Emergency contact (other than the guardians above)</h2>
+  <div class="grid">
+    ${f('Name')}${f('Phone')}
+    ${f('Relationship to the child', true)}
+  </div>
+
+  <h2>Previous school</h2>
+  <div class="grid">
+    ${f('School attended')}${f('Grade reached')}
+    ${f('Reason for transfer', true)}
+  </div>
+
+  <div class="sig">
+    ${f('Parent/guardian signature')}${f('Date')}${f('Received by (school)')}
+  </div>
+  <script>window.onload = function () { window.print() }</script>
+  </body></html>`
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.write(html)
+  w.document.close()
+}
+
 export default function Admission({ scope, onAdmitted }) {
   const [access, setAccess] = useState(null)
   const [form, setForm] = useState(() => blankForm(scope))
@@ -247,7 +343,18 @@ export default function Admission({ scope, onAdmitted }) {
   return (
     <div>
       <div className="card">
-        <h3>Admit a new learner</h3>
+        <div className="page-header" style={{ marginBottom: 0 }}>
+          <h3 style={{ margin: 0 }}>Admit a new learner</h3>
+          <button
+            type="button"
+            onClick={async () => {
+              const me = await apiGet('/api/me/').catch(() => null)
+              printBlankForm(me?.school)
+            }}
+          >
+            Download blank form
+          </button>
+        </div>
         <p className="muted">
           {access.reason}
           {access.note ? ` — ${access.note}` : ''}
@@ -462,7 +569,12 @@ export default function Admission({ scope, onAdmitted }) {
             <input value={form.previous_school} onChange={set('previous_school')} />
           </Field>
           <Field label="Grade reached">
-            <input value={form.previous_grade} onChange={set('previous_grade')} />
+            <select value={form.previous_grade} onChange={set('previous_grade')}>
+              <option value="">—</option>
+              {ALL_GRADES.map((g) => (
+                <option key={g} value={gradeLabel(g)}>{gradeLabel(g)}</option>
+              ))}
+            </select>
           </Field>
           <Field label="Reason for transfer" wide>
             <input value={form.transfer_reason} onChange={set('transfer_reason')} />

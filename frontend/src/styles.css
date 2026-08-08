@@ -984,6 +984,48 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 }
 .score-none { color: #cbd5e0; min-width: 2.2rem; text-align: center; }
 
+/* ---- Excel-style editable cells on the staff register ---- */
+.cell-view {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+}
+.cell-view:hover { border-bottom-color: #90cdf4; background: #f7fafc; }
+.cell-input {
+  width: 100%;
+  min-width: 6rem;
+  padding: 0.25rem 0.35rem;
+  border: 1.5px solid #2b6cb0;
+  border-radius: 4px;
+  font: inherit;
+  box-sizing: border-box;
+}
+.subj-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.subj-inline { display: flex; flex-direction: column; gap: 0.25rem; width: 100%; }
+.subj-inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  max-height: 6.5rem;
+  overflow-y: auto;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
 /* ---- Section header + drill-down pickers ---- */
 .backbar {
   display: flex;

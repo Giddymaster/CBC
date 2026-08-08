@@ -11,12 +11,90 @@ const EMPTY_SUPPORT = {
 }
 const EMPTY_TEACHER = {
   first_name: '', last_name: '', tsc_number: '', employment_type: 'TSC',
-  rank: 'TEACHER', phone: '', username: '', password: '', supervisor: '', extra: {},
+  rank: 'TEACHER', phone: '', username: '', password: '', supervisor: '',
+  learning_areas: [], extra: {},
 }
 
 function PresenceBadge({ status }) {
   if (!status) return <span className="muted">Not marked</span>
   return <span className={`badge ${PRESENT_BADGE[status]}`}>{PRESENT_LABEL[status]}</span>
+}
+
+// ---- Excel-style cells: click the value, edit in place, Enter/blur saves ----
+
+function CellText({ value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  if (!editing) {
+    return (
+      <button type="button" className="cell-view" title="Click to edit"
+        onClick={() => { setDraft(value || ''); setEditing(true) }}>
+        {value || '—'}
+      </button>
+    )
+  }
+  return (
+    <input
+      className="cell-input" autoFocus value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { setEditing(false); if (draft !== (value || '')) onSave(draft) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') { setDraft(value || ''); e.currentTarget.blur() }
+      }}
+    />
+  )
+}
+
+function CellSelect({ value, options, display, onSave }) {
+  const [editing, setEditing] = useState(false)
+  if (!editing) {
+    return (
+      <button type="button" className="cell-view" title="Click to edit"
+        onClick={() => setEditing(true)}>
+        {display || '—'}
+      </button>
+    )
+  }
+  return (
+    <select className="cell-input" autoFocus value={value ?? ''}
+      onChange={(e) => { setEditing(false); onSave(e.target.value) }}
+      onBlur={() => setEditing(false)}>
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+}
+
+// Subjects: a checkbox popover, because a teacher usually has more than one.
+function CellSubjects({ ids, subjects, choices, onSave }) {
+  const [open, setOpen] = useState(false)
+  const [sel, setSel] = useState([])
+  const toggle = (id) =>
+    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" className="cell-view" title="Click to edit"
+        onClick={() => { setSel(ids || []); setOpen((o) => !o) }}>
+        {subjects.join(', ') || '—'}
+      </button>
+      {open && (
+        <div className="col-menu">
+          {choices.map((c) => (
+            <label key={c.id} className="subj-choice">
+              <input type="checkbox" checked={sel.includes(c.id)}
+                onChange={() => toggle(c.id)} />
+              {c.name}
+            </label>
+          ))}
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button type="button" className="primary"
+              onClick={() => { setOpen(false); onSave(sel) }}>Save</button>
+            <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Who this person reports to. Rank alone decides how *wide* a view is; this
@@ -208,8 +286,6 @@ export default function Staff({ view }) {
 
   const showTeaching = view !== 'NON_TEACHING'
   const showNonTeaching = view !== 'TEACHING'
-  const editing = panel && panel.mode === 'edit' ? panel : null
-  const editingUserId = editing?.userId ?? null
 
   const teachingFields = data.fields.filter((f) => ['ALL', 'TEACHING'].includes(f.applies_to))
   const nonTeachingFields = data.fields.filter((f) =>
@@ -236,39 +312,6 @@ export default function Staff({ view }) {
     setPanel(panel === 'add' ? null : 'add')
   }
 
-  function openEditTeacher(t) {
-    const [first, ...rest] = (t.name || '').split(' ')
-    setStaffType('TEACHING')
-    setTeacherForm({
-      ...EMPTY_TEACHER,
-      first_name: first || '',
-      last_name: rest.join(' '),
-      tsc_number: t.tsc_number,
-      employment_type: t.employment_type,
-      rank: t.rank,
-      phone: t.phone || '',
-      supervisor: t.supervisor || '',
-      extra: t.extra || {},
-    })
-    setMessage('')
-    setPanel({ mode: 'edit', kind: 'TEACHING', id: t.id, name: t.name, userId: t.user_id })
-  }
-
-  function openEditSupport(s) {
-    setStaffType('NON_TEACHING')
-    setForm({
-      full_name: s.full_name,
-      category: s.category,
-      title: s.title || '',
-      phone: s.phone || '',
-      employment_type: s.employment_type,
-      supervisor: s.supervisor || '',
-      extra: s.extra || {},
-    })
-    setMessage('')
-    setPanel({ mode: 'edit', kind: 'NON_TEACHING', id: s.id, name: s.full_name, userId: s.user })
-  }
-
   async function resetPassword(userId, name) {
     if (!userId) {
       setMessage(`${name} has no portal login to reset.`)
@@ -277,11 +320,29 @@ export default function Staff({ view }) {
     const res = await apiWrite(`/api/school/staff/${userId}/reset-password/`, {})
     setMessage(
       res.ok
-        ? `New password for ${res.data.name}: ${res.data.generated_password}` +
-          ' — hand it over now, it is not shown again. They will be asked to' +
-          ' choose their own when they sign in.'
+        ? `${res.data.name} — username: ${res.data.username}, new password: ` +
+          `${res.data.generated_password} — hand both over now, they are not` +
+          ' shown again. They will be asked to choose their own password when' +
+          ' they sign in.'
         : res.data?.detail || 'Could not reset that password.',
     )
+  }
+
+  // Inline cell edits — save one field, then reload the register.
+  async function patchTeacher(id, body) {
+    const res = await apiWrite(`/api/school/staff/teachers/${id}/`, body, { method: 'PATCH' })
+    if (!res.ok) setMessage(`Could not save: ${JSON.stringify(res.data)}`)
+    load()
+  }
+  async function patchSupport(id, body) {
+    const res = await apiWrite(`/api/support-staff/${id}/`, body, { method: 'PATCH' })
+    if (!res.ok) setMessage(`Could not save: ${JSON.stringify(res.data)}`)
+    load()
+  }
+  // "Jane Wanjiru Kamau" → first name + the rest, mirroring how names entered.
+  const splitName = (full) => {
+    const [first, ...rest] = (full || '').trim().split(/\s+/)
+    return { first_name: first || '', last_name: rest.join(' ') }
   }
 
   async function setActive(kind, id, active, name) {
@@ -302,33 +363,6 @@ export default function Staff({ view }) {
   async function submitStaff(e) {
     e.preventDefault()
     const isTeaching = staffType === 'TEACHING'
-
-    if (editing) {
-      const path =
-        editing.kind === 'TEACHING'
-          ? `/api/school/staff/teachers/${editing.id}/`
-          : `/api/support-staff/${editing.id}/`
-      const body =
-        editing.kind === 'TEACHING'
-          ? {
-              first_name: teacherForm.first_name,
-              last_name: teacherForm.last_name,
-              tsc_number: teacherForm.tsc_number,
-              employment_type: teacherForm.employment_type,
-              rank: teacherForm.rank,
-              phone: teacherForm.phone,
-              supervisor: teacherForm.supervisor === '' ? null : Number(teacherForm.supervisor),
-              extra: teacherForm.extra,
-            }
-          : { ...form, supervisor: form.supervisor === '' ? null : Number(form.supervisor) }
-      const result = await apiWrite(path, body, { method: 'PATCH' })
-      setMessage(result.ok ? 'Staff record updated.' : `Failed: ${JSON.stringify(result.data)}`)
-      if (result.ok) {
-        setPanel(null)
-        load()
-      }
-      return
-    }
 
     if (isTeaching) {
       if (!teacherForm.first_name || !teacherForm.last_name || !teacherForm.tsc_number) {
@@ -380,6 +414,15 @@ export default function Staff({ view }) {
   const toggleAddMenu = (table) =>
     setColMenu((m) => (m?.type === 'add' && m.table === table ? null : { type: 'add', table }))
 
+  // Everyone who could be a supervisor, minus the person themselves.
+  const supervisorOptions = (excludeUserId) => [
+    { value: '', label: '— none —' },
+    ...data.supervisor_choices
+      .filter((c) => c.id !== excludeUserId)
+      .map((c) => ({ value: String(c.id), label: `${c.name} (${c.kind})` })),
+  ]
+  const asSupervisor = (v) => ({ supervisor: v === '' ? null : Number(v) })
+
   // Category is a column, so rows are flat — ordered by category, then name.
   const orderOf = (groups) => Object.fromEntries(groups.map((g, i) => [g.key, i]))
   const teachingOrder = orderOf(data.teaching_groups)
@@ -425,14 +468,13 @@ export default function Staff({ view }) {
       </p>
 
       {/* Panels open at the top, above the register */}
-      {(panel === 'add' || editing) && (
+      {panel === 'add' && (
         <div className="card">
-          <h3>{editing ? `Edit ${editing.name}` : 'Add staff'}</h3>
+          <h3>Add staff</h3>
           <p>
             Staff type{' '}
             <select
               value={staffType}
-              disabled={Boolean(editing)}
               onChange={(e) => { setStaffType(e.target.value); setMessage('') }}
             >
               <option value="TEACHING">Teaching staff</option>
@@ -464,17 +506,35 @@ export default function Staff({ view }) {
                   value={teacherForm.supervisor}
                   onChange={setTeacherField('supervisor')}
                   choices={data.supervisor_choices}
-                  excludeUserId={editing ? editingUserId : null}
+                  excludeUserId={null}
                 />
-                {!editing && (
-                  <>
-                    <input placeholder="Username (optional)" value={teacherForm.username}
-                      onChange={setTeacherField('username')} style={{ padding: '0.4rem' }} />
-                    <input placeholder="Password (optional — generated if blank)" type="password"
-                      value={teacherForm.password} onChange={setTeacherField('password')}
-                      style={{ padding: '0.4rem', minWidth: '15rem' }} />
-                  </>
-                )}
+                <input placeholder="Username (optional)" value={teacherForm.username}
+                  onChange={setTeacherField('username')} style={{ padding: '0.4rem' }} />
+                <input placeholder="Password (optional — generated if blank)" type="password"
+                  value={teacherForm.password} onChange={setTeacherField('password')}
+                  style={{ padding: '0.4rem', minWidth: '15rem' }} />
+                <div className="subj-inline adm-wide">
+                  <span className="adm-label">Subjects they teach</span>
+                  <div className="subj-inline-list">
+                    {(data.learning_area_choices || []).map((c) => (
+                      <label key={c.id} className="subj-choice">
+                        <input
+                          type="checkbox"
+                          checked={teacherForm.learning_areas.includes(c.id)}
+                          onChange={() =>
+                            setTeacherForm((f) => ({
+                              ...f,
+                              learning_areas: f.learning_areas.includes(c.id)
+                                ? f.learning_areas.filter((x) => x !== c.id)
+                                : [...f.learning_areas, c.id],
+                            }))
+                          }
+                        />
+                        {c.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </>
             ) : (
               <>
@@ -498,7 +558,7 @@ export default function Staff({ view }) {
                   value={form.supervisor}
                   onChange={setField('supervisor')}
                   choices={data.supervisor_choices}
-                  excludeUserId={editing ? editingUserId : null}
+                  excludeUserId={null}
                 />
               </>
             )}
@@ -513,13 +573,10 @@ export default function Staff({ view }) {
                 style={{ padding: '0.4rem' }}
               />
             ))}
-            <button className="primary" type="submit">{editing ? 'Save changes' : 'Add'}</button>
-            {editing && (
-              <button type="button" onClick={() => setPanel(null)}>Cancel</button>
-            )}
+            <button className="primary" type="submit">Add</button>
           </form>
           {message && <p className="muted">{message}</p>}
-          {staffType === 'TEACHING' && !editing && (
+          {staffType === 'TEACHING' && (
             <p className="muted">
               Teaching staff get a portal login (role: teacher). Leave username/password blank to
               auto-generate them — the password is shown once after adding.
@@ -539,8 +596,8 @@ export default function Staff({ view }) {
           <table>
             <thead>
               <tr>
-                <th>Name</th><th>TSC / Payroll No</th><th>Category</th><th>Rank</th>
-                <th>Supervisor</th><th>Subjects</th>
+                <th>Name</th><th>TSC / Payroll No</th><th>Phone</th><th>Category</th>
+                <th>Rank</th><th>Supervisor</th><th>Subjects</th>
                 {teachingFields.map((f) => (
                   <ColumnHeader
                     key={f.id}
@@ -565,22 +622,48 @@ export default function Staff({ view }) {
               {teachingRows.map((t) => (
                 <tr key={t.id} style={t.active === false ? { opacity: 0.55 } : undefined}>
                   <td>
-                    {t.name}
+                    <CellText value={t.name}
+                      onSave={(v) => patchTeacher(t.id, splitName(v))} />
                     {t.active === false && <> <span className="badge offline">Deactivated</span></>}
                   </td>
-                  <td>{t.tsc_number}</td>
-                  <td>{t.employment_label}</td>
-                  <td>{t.rank_label}</td>
-                  <td className="muted">
-                    {t.supervisor_name || <span className="badge queued">Not set</span>}
+                  <td>
+                    <CellText value={t.tsc_number}
+                      onSave={(v) => patchTeacher(t.id, { tsc_number: v })} />
                   </td>
-                  <td className="muted">{t.subjects.join(', ') || '—'}</td>
+                  <td>
+                    <CellText value={t.phone}
+                      onSave={(v) => patchTeacher(t.id, { phone: v })} />
+                  </td>
+                  <td>
+                    <CellSelect value={t.employment_type} display={t.employment_label}
+                      options={data.employment_choices.teaching}
+                      onSave={(v) => patchTeacher(t.id, { employment_type: v })} />
+                  </td>
+                  <td>
+                    <CellSelect value={t.rank} display={t.rank_label}
+                      options={data.rank_choices}
+                      onSave={(v) => patchTeacher(t.id, { rank: v })} />
+                  </td>
+                  <td>
+                    <CellSelect
+                      value={t.supervisor == null ? '' : String(t.supervisor)}
+                      display={t.supervisor_name || 'Not set'}
+                      options={supervisorOptions(t.user_id)}
+                      onSave={(v) => patchTeacher(t.id, asSupervisor(v))} />
+                  </td>
+                  <td>
+                    <CellSubjects ids={t.learning_area_ids} subjects={t.subjects}
+                      choices={data.learning_area_choices || []}
+                      onSave={(ids) => patchTeacher(t.id, { learning_areas: ids })} />
+                  </td>
                   {teachingFields.map((f) => (
-                    <td key={f.id}>{t.extra?.[f.key] || <span className="muted">—</span>}</td>
+                    <td key={f.id}>
+                      <CellText value={t.extra?.[f.key] || ''}
+                        onSave={(v) => patchTeacher(t.id, { extra: { [f.key]: v } })} />
+                    </td>
                   ))}
                   <td><PresenceBadge status={t.present_today} /></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <button onClick={() => openEditTeacher(t)}>Edit</button>{' '}
                     <button onClick={() => resetPassword(t.user_id, t.name)}>
                       Reset password
                     </button>{' '}
@@ -630,21 +713,42 @@ export default function Staff({ view }) {
               {nonTeachingRows.map((s) => (
                 <tr key={s.id} style={!s.active ? { opacity: 0.55 } : undefined}>
                   <td>
-                    {s.full_name}
+                    <CellText value={s.full_name}
+                      onSave={(v) => patchSupport(s.id, { full_name: v })} />
                     {!s.active && <> <span className="badge offline">Deactivated</span></>}
                   </td>
-                  <td>{s.category_label}</td>
-                  <td>{s.title || '—'}</td>
-                  <td>{s.phone ? <a href={`tel:${s.phone}`}>{s.phone}</a> : '—'}</td>
-                  <td className="muted">{s.employment_label}</td>
-                  <td className="muted">
-                    {s.supervisor_name || <span className="badge queued">Not set</span>}
+                  <td>
+                    <CellSelect value={s.category} display={s.category_label}
+                      options={data.non_teaching_groups.map((g) => ({ value: g.key, label: g.label }))}
+                      onSave={(v) => patchSupport(s.id, { category: v })} />
+                  </td>
+                  <td>
+                    <CellText value={s.title}
+                      onSave={(v) => patchSupport(s.id, { title: v })} />
+                  </td>
+                  <td>
+                    <CellText value={s.phone}
+                      onSave={(v) => patchSupport(s.id, { phone: v })} />
+                  </td>
+                  <td>
+                    <CellSelect value={s.employment_type} display={s.employment_label}
+                      options={data.employment_choices.non_teaching}
+                      onSave={(v) => patchSupport(s.id, { employment_type: v })} />
+                  </td>
+                  <td>
+                    <CellSelect
+                      value={s.supervisor == null ? '' : String(s.supervisor)}
+                      display={s.supervisor_name || 'Not set'}
+                      options={supervisorOptions(s.user)}
+                      onSave={(v) => patchSupport(s.id, asSupervisor(v))} />
                   </td>
                   {nonTeachingFields.map((f) => (
-                    <td key={f.id}>{s.extra?.[f.key] || <span className="muted">—</span>}</td>
+                    <td key={f.id}>
+                      <CellText value={s.extra?.[f.key] || ''}
+                        onSave={(v) => patchSupport(s.id, { extra: { ...s.extra, [f.key]: v } })} />
+                    </td>
                   ))}
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <button onClick={() => openEditSupport(s)}>Edit</button>{' '}
                     <button onClick={() => resetPassword(s.user, s.full_name)}>
                       Reset password
                     </button>{' '}
