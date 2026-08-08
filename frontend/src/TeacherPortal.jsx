@@ -8,7 +8,9 @@ import { gradeLabel } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
 import MyTeam from './MyTeam.jsx'
-import { ActionCard, ActionGrid, BottomNav, PortalHero } from './portalUi.jsx'
+import {
+  ActionCard, ActionGrid, BackBar, BottomNav, PickList, PortalHero, Trail, count,
+} from './portalUi.jsx'
 import { MyRolePanel, ReportsPanel } from './StaffPortal.jsx'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -116,7 +118,18 @@ function ScoreRow({ row, index, assessment, onMarks }) {
   )
 }
 
+const KIND_LABEL = {
+  CAT1: 'CAT 1',
+  CAT2: 'CAT 2',
+  ENDTERM: 'End of Term Exam',
+  FORMATIVE: 'Formative assessment',
+}
+
 function ScoreEntry({ assessments, onQueueChange }) {
+  // The drill: class → learning area → assessment. A teacher thinks in
+  // classes first, so the picker does too.
+  const [classKey, setClassKey] = useState('')
+  const [areaName, setAreaName] = useState('')
   const [selectedId, setSelectedId] = useState('')
   const [rows, setRows] = useState([])
   const [message, setMessage] = useState('')
@@ -194,16 +207,73 @@ function ScoreEntry({ assessments, onQueueChange }) {
       (!ungradedOnly || r.marks === ''),
   )
 
+  // Drill-down derivations. classKey is "grade|stream".
+  const keyOf = (a) => `${a.grade}|${a.stream || ''}`
+  const classLabel = (a) => `${gradeLabel(a.grade)}${a.stream ? ` ${a.stream}` : ''}`
+  const classes = []
+  for (const a of assessments) {
+    if (!classes.some((c) => c.key === keyOf(a))) {
+      const inIt = assessments.filter((x) => keyOf(x) === keyOf(a))
+      classes.push({
+        key: keyOf(a),
+        label: classLabel(a),
+        hint: count(new Set(inIt.map((x) => x.learning_area)).size, 'learning area'),
+      })
+    }
+  }
+  const inClass = assessments.filter((a) => keyOf(a) === classKey)
+  const areas = [...new Set(inClass.map((a) => a.learning_area))].map((name) => ({
+    key: name,
+    label: name,
+    hint: count(inClass.filter((a) => a.learning_area === name).length, 'assessment'),
+  }))
+  const inArea = inClass.filter((a) => a.learning_area === areaName)
+
+  const crumbs = [
+    'Classes',
+    ...(classKey ? [classes.find((c) => c.key === classKey)?.label] : []),
+    ...(areaName ? [areaName] : []),
+    ...(assessment ? [KIND_LABEL[assessment.kind] || assessment.kind] : []),
+  ]
+  const backTo = (i) => {
+    if (i < 1) setClassKey('')
+    if (i < 2) setAreaName('')
+    setSelectedId('')
+  }
+
+  if (assessments.length === 0) {
+    return (
+      <div className="card">
+        <p className="muted">
+          No assessments for your classes yet — the admin creates them, then they
+          appear here for marking.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="card">
-      <p>
-        <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-          <option value="">Select assessment…</option>
-          {assessments.map((a) => (
-            <option key={a.id} value={a.id}>{a.label}</option>
-          ))}
-        </select>
-      </p>
+      {crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
+      {!classKey && (
+        <PickList prompt="Choose a class you teach." options={classes}
+          onPick={setClassKey} />
+      )}
+      {classKey && !areaName && (
+        <PickList prompt="Choose the learning area." options={areas}
+          onPick={setAreaName} />
+      )}
+      {classKey && areaName && !assessment && (
+        <PickList
+          prompt="Choose the assessment."
+          options={inArea.map((a) => ({
+            key: String(a.id),
+            label: KIND_LABEL[a.kind] || a.kind,
+            hint: `Term ${a.term} · ${a.year} · out of ${a.max_marks}`,
+          }))}
+          onPick={setSelectedId}
+        />
+      )}
       {assessment && (
         <>
           <div className="score-head">
@@ -332,22 +402,18 @@ export default function TeacherPortal({ onQueueChange }) {
   const teamSize = portal?.team?.size || 0
   const ctx = { pending, teamSize, canAdmit: Boolean(access?.can_admit) }
   const actions = TEACHER_ACTIONS.filter((a) => !a.when || a.when(ctx))
-  const tabs = ['Dashboard', ...actions.map((a) => a.tab)]
 
   const lessonsToday = todayLessons(summary.timetable)
   const openTab = (name) => { setTab(name); window.scrollTo(0, 0) }
 
   return (
     <div className="portal-shell">
-      <nav className="tabs">
-        {tabs.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''}
-            onClick={() => openTab(name)}>
-            {name === 'Reports' && pending ? `Reports (${pending})` : name}
-            {name === 'My Team' && teamSize ? ` (${teamSize})` : ''}
-          </button>
-        ))}
-      </nav>
+      {tab !== 'Dashboard' && (
+        <BackBar
+          title={actions.find((a) => a.tab === tab)?.title || tab}
+          onBack={() => openTab('Dashboard')}
+        />
+      )}
 
       {tab === 'Dashboard' && (
         <>

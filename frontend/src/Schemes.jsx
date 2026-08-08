@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiUpload, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
+import { PickList, Trail, count } from './portalUi.jsx'
 
 const STATUS_BADGE = {
   DRAFT: 'queued',
@@ -56,14 +57,28 @@ export function SchemeWeeks({ content }) {
   )
 }
 
-// Teacher-facing tab: upload a scheme document or generate one with AI.
+/** The grades this teacher works in — from their timetable, the assessments
+ * they mark, and any schemes they already wrote. */
+export function taughtGrades(summary) {
+  const grades = new Set([
+    ...(summary.timetable || []).map((l) => l.grade),
+    ...(summary.assessments || []).map((a) => a.grade),
+    ...(summary.schemes_of_work || []).map((s) => s.grade),
+  ])
+  return [...grades].filter(Boolean).sort((a, b) => a - b)
+}
+
+// Teacher-facing tab: pick the class, then the learning area, then work on
+// that combination's schemes — upload a document or generate one with AI.
 export default function TeacherSchemes({ summary, onRefresh }) {
   // Only offer subjects this teacher actually teaches — the backend rejects
   // schemes of work for anything else.
   const [areas, setAreas] = useState(summary.taught_learning_areas || [])
+  const [grade, setGrade] = useState(null)
+  const [areaId, setAreaId] = useState(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ learning_area: '', grade: 7, term: 2, year: 2026, weeks: 10 })
+  const [form, setForm] = useState({ term: 2, year: 2026, weeks: 10 })
   const [file, setFile] = useState(null)
 
   useEffect(() => {
@@ -75,17 +90,46 @@ export default function TeacherSchemes({ summary, onRefresh }) {
   }, [summary])
 
   const setField = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const area = areas.find((a) => a.id === areaId)
+  const schemes = summary.schemes_of_work
+  const grades = taughtGrades(summary)
+  const gradeOptions = (grades.length ? grades : Array.from({ length: 12 }, (_, i) => i + 1))
+    .map((g) => ({
+      key: String(g),
+      label: gradeLabel(g),
+      hint: count(schemes.filter((s) => s.grade === g).length, 'scheme'),
+    }))
+  const areaOptions = areas.map((a) => ({
+    key: String(a.id),
+    label: a.name,
+    hint: count(
+      schemes.filter((s) => s.grade === grade && s.learning_area === a.name).length,
+      'scheme',
+    ),
+  }))
+  const mine = schemes.filter((s) => s.grade === grade && s.learning_area === area?.name)
+
+  const crumbs = [
+    'Classes',
+    ...(grade ? [gradeLabel(grade)] : []),
+    ...(area ? [area.name] : []),
+  ]
+  const backTo = (i) => {
+    if (i < 1) setGrade(null)
+    setAreaId(null)
+    setMessage('')
+  }
 
   async function upload(e) {
     e.preventDefault()
-    if (!file || !form.learning_area) {
-      setMessage('Pick a learning area and a file first.')
+    if (!file) {
+      setMessage('Pick a file first.')
       return
     }
     setBusy(true)
     const fd = new FormData()
-    fd.append('learning_area', form.learning_area)
-    fd.append('grade', form.grade)
+    fd.append('learning_area', areaId)
+    fd.append('grade', grade)
     fd.append('term', form.term)
     fd.append('year', form.year)
     fd.append('document', file)
@@ -101,15 +145,11 @@ export default function TeacherSchemes({ summary, onRefresh }) {
   }
 
   async function generate() {
-    if (!form.learning_area) {
-      setMessage('Pick a learning area first.')
-      return
-    }
     setBusy(true)
     setMessage('Generating scheme of work…')
     const result = await apiWrite('/api/schemes-of-work/generate/', {
-      learning_area: Number(form.learning_area),
-      grade: Number(form.grade),
+      learning_area: Number(areaId),
+      grade: Number(grade),
       term: Number(form.term),
       year: Number(form.year),
       weeks: Number(form.weeks),
@@ -122,19 +162,28 @@ export default function TeacherSchemes({ summary, onRefresh }) {
     if (result.ok) onRefresh()
   }
 
-  const schemes = summary.schemes_of_work
+  if (!grade || !area) {
+    return (
+      <div className="card">
+        {crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
+        {!grade && (
+          <PickList prompt="Choose the class." options={gradeOptions}
+            onPick={(k) => setGrade(Number(k))} />
+        )}
+        {grade && (
+          <PickList prompt="Choose the learning area." options={areaOptions}
+            onPick={(k) => setAreaId(Number(k))} />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
       <div className="card">
-        <h3>New scheme of work</h3>
+        <Trail crumbs={crumbs} onCrumb={backTo} />
+        <h3>New scheme — {area.name}, {gradeLabel(grade)}</h3>
         <p>
-          <select value={form.learning_area} onChange={setField('learning_area')}>
-            <option value="">Learning area…</option>
-            {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>{' '}
-          Grade <input type="number" min="1" max="12" style={{ width: '4rem' }}
-            value={form.grade} onChange={setField('grade')} />{' '}
           Term <input type="number" min="1" max="3" style={{ width: '3.5rem' }}
             value={form.term} onChange={setField('term')} />{' '}
           Year <input type="number" style={{ width: '5rem' }}
@@ -155,21 +204,18 @@ export default function TeacherSchemes({ summary, onRefresh }) {
       </div>
 
       <div className="card">
-        <h3>My schemes</h3>
-        {schemes.length === 0 && <p className="muted">No schemes yet.</p>}
-        {schemes.length > 0 && (
+        <h3>My schemes — {area.name}, {gradeLabel(grade)}</h3>
+        {mine.length === 0 && <p className="muted">No schemes for this class yet.</p>}
+        {mine.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Learning area</th><th>Class</th><th>Term</th><th>Source</th>
-                <th>Status</th><th>Feedback</th>
+                <th>Term</th><th>Source</th><th>Status</th><th>Feedback</th>
               </tr>
             </thead>
             <tbody>
-              {schemes.map((s) => (
+              {mine.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.learning_area}</td>
-                  <td>{gradeLabel(s.grade)}</td>
                   <td>T{s.term} {s.year}</td>
                   <td>
                     {s.source === 'GENERATED' ? 'AI generated'

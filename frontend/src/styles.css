@@ -984,6 +984,63 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 }
 .score-none { color: #cbd5e0; min-width: 2.2rem; text-align: center; }
 
+/* ---- Section header + drill-down pickers ---- */
+.backbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.9rem;
+}
+.backbar button {
+  flex: none;
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid #cbd5e0;
+  background: #fff;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: #2b6cb0;
+}
+.backbar button:hover { background: #ebf4ff; }
+.backbar h2 { margin: 0; font-size: 1.15rem; }
+
+.trail { margin: 0 0 0.7rem; font-size: 0.88rem; color: #4a5568; }
+.trail-sep { margin: 0 0.35rem; color: #a0aec0; }
+.trail-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2b6cb0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.6rem;
+}
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.pick-item:hover { box-shadow: 0 3px 10px rgba(15, 40, 60, 0.1); border-color: #bcd0e0; }
+.pick-label { font-weight: 600; }
+.pick-hint { color: #718096; font-size: 0.78rem; }
+.pick-arrow { margin-left: auto; color: #2b6cb0; font-weight: 700; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 
@@ -1026,7 +1083,6 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 
   /* Portal bottom tab bar, and room for it under the content. */
   .portal-shell { padding-bottom: 4.6rem; }
-  .portal-shell nav.tabs { display: none; }
   .bottom-nav {
     display: flex;
     position: fixed;

@@ -102,6 +102,11 @@ const PATHS = {
   ),
 }
 
+/** "3 schemes", "1 learning area" — a count with its noun, pluralised. */
+export function count(n, noun) {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`
+}
+
 export function Icon({ name, size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -150,6 +155,53 @@ export function ActionCard({ icon, tone = 'blue', title, desc, cta, badge = 0, o
 
 export function ActionGrid({ children }) {
   return <div className="action-grid">{children}</div>
+}
+
+/** Section header that replaces the old tab strip: back to the dashboard on
+ * the left, where you are on the right. */
+export function BackBar({ title, onBack }) {
+  return (
+    <div className="backbar">
+      <button type="button" onClick={onBack} aria-label="Back to dashboard">←</button>
+      <h2>{title}</h2>
+    </div>
+  )
+}
+
+/** Where you are in a drill-down (Class › Learning area › …). Every crumb but
+ * the last is a button that jumps back to that level. */
+export function Trail({ crumbs, onCrumb }) {
+  return (
+    <p className="trail">
+      {crumbs.map((c, i) => (
+        <span key={c}>
+          {i > 0 && <span className="trail-sep">›</span>}
+          {i < crumbs.length - 1
+            ? <button type="button" className="trail-link" onClick={() => onCrumb(i)}>{c}</button>
+            : <b>{c}</b>}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/** One level of a drill-down: big tappable options, each with an optional
+ * hint of what is behind it. */
+export function PickList({ prompt, options, onPick }) {
+  return (
+    <div>
+      {prompt && <p className="muted">{prompt}</p>}
+      <div className="pick-grid">
+        {options.map((o) => (
+          <button key={o.key} type="button" className="pick-item" onClick={() => onPick(o.key)}>
+            <span className="pick-label">{o.label}</span>
+            {o.hint && <span className="pick-hint">{o.hint}</span>}
+            <span className="pick-arrow">→</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /** Phone-only bottom tab bar (CSS hides it on desktop). `items` are

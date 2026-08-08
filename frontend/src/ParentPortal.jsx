@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ParentThreads } from './ParentMessages.jsx'
 import { apiGet } from './api.js'
 import { gradeLabel } from './format.js'
-import { ActionCard, ActionGrid, BottomNav, PortalHero } from './portalUi.jsx'
+import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
 
 const PARENT_NAV = [
   { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
@@ -148,14 +148,9 @@ export default function ParentPortal() {
 
   return (
     <div className="portal-shell">
-      <nav className="tabs">
-        {PARENT_NAV.map(({ key }) => (
-          <button key={key} className={tab === key ? 'active' : ''}
-            onClick={() => openTab(key)}>
-            {key}
-          </button>
-        ))}
-      </nav>
+      {tab !== 'Dashboard' && (
+        <BackBar title={tab} onBack={() => openTab('Dashboard')} />
+      )}
 
       {tab === 'Dashboard' && (
         <>

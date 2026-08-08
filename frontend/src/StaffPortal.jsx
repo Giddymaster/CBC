@@ -4,7 +4,7 @@ import { gradeLabel } from './format.js'
 import Admission from './Admission.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
-import { ActionCard, ActionGrid, BottomNav, PortalHero } from './portalUi.jsx'
+import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
 
 const STATUS_BADGE = {
   DRAFT: 'queued', SUBMITTED: 'queued', APPROVED: 'online', RETURNED: 'offline',
@@ -421,7 +421,6 @@ export default function SupportPortal() {
     ...(canAdmit ? [{ tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
       desc: 'Admit a learner into the school.', cta: 'Admit a learner' }] : []),
   ]
-  const tabs = ['Dashboard', ...actions.map((a) => a.tab)]
   const nav = [
     { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
     { key: 'My Role', label: 'My Role', icon: 'user' },
@@ -433,15 +432,12 @@ export default function SupportPortal() {
 
   return (
     <div className="portal-shell">
-      <nav className="tabs">
-        {tabs.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''}
-            onClick={() => openTab(name)}>
-            {name === 'Reports' && pending ? `Reports (${pending})` : name}
-            {name === 'My Team' && teamSize ? ` (${teamSize})` : ''}
-          </button>
-        ))}
-      </nav>
+      {tab !== 'Dashboard' && (
+        <BackBar
+          title={actions.find((a) => a.tab === tab)?.title || tab}
+          onBack={() => openTab('Dashboard')}
+        />
+      )}
 
       {tab === 'Dashboard' && (
         <>
