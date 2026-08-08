@@ -25,18 +25,20 @@ function TimetableGrid({ lessons, showTeacher }) {
     <table>
       <thead>
         <tr>
-          <th>Period</th>
-          {Object.values(DAY_NAMES).map((d) => <th key={d}>{d}</th>)}
+          <th>Day</th>
+          {periods.map((p) => (
+            <th key={p}>P{p}<div className="muted">{times[p]}</div></th>
+          ))}
         </tr>
       </thead>
       <tbody>
-        {periods.map((p) => (
-          <tr key={p}>
-            <td>P{p}<div className="muted">{times[p]}</div></td>
-            {Object.keys(DAY_NAMES).map((day) => {
+        {Object.entries(DAY_NAMES).map(([day, label]) => (
+          <tr key={day}>
+            <td><b>{label}</b></td>
+            {periods.map((p) => {
               const l = grid[p]?.[day]
               return (
-                <td key={day}>
+                <td key={p}>
                   {l && (
                     <>
                       {l.learning_area}

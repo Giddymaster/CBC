@@ -24,7 +24,15 @@ export default function Timetable({ grade }) {
     const result = await apiWrite('/api/timetable/generate/', { clear_existing: true })
     setBusy(false)
     if (result.ok) {
-      const { placed, unplaced, lower_grades_skipped } = result.data
+      const { placed, unplaced, requirements, lower_grades_skipped } = result.data
+      if (!requirements) {
+        setMessage(
+          'Nothing to schedule: no teaching assignments exist for Grades 4–9 yet. '
+          + 'Click "Auto-assign teachers" to build them from teacher subjects and '
+          + 'phases, or assign per grade under School (Grades).',
+        )
+        return
+      }
       setMessage(
         `Placed ${placed} lessons.` +
           (unplaced.length ? ` Could not place: ${unplaced.join('; ')}` : ' No clashes.') +
@@ -37,6 +45,32 @@ export default function Timetable({ grade }) {
     } else {
       setMessage('Generation failed — are requirements and periods configured?')
     }
+  }
+
+  async function autoAssign() {
+    setBusy(true)
+    setMessage('')
+    const res = await apiWrite('/api/timetable/assignments/auto/', {})
+    setBusy(false)
+    if (!res.ok) {
+      setMessage(res.data?.detail || 'Could not auto-assign.')
+      return
+    }
+    const { created, skipped_existing, unfilled } = res.data
+    let text = `Created ${created} assignment${created === 1 ? '' : 's'}`
+    if (skipped_existing) text += ` (${skipped_existing} already existed)`
+    text += '.'
+    if (unfilled.length) {
+      const sample = unfilled.slice(0, 5)
+        .map((u) => `${gradeLabel(u.grade)}${u.stream ? ` ${u.stream}` : ''} ${u.area}`)
+        .join('; ')
+      text += ` ${unfilled.length} class-subject${unfilled.length === 1 ? '' : 's'} have no `
+        + `qualified teacher: ${sample}${unfilled.length > 5 ? '…' : ''} — give a teacher `
+        + 'that subject (and the right phase) on the Staff page, then run this again.'
+    } else if (created) {
+      text += ' Now click Generate timetable.'
+    }
+    setMessage(text)
   }
 
   async function loadStandardDay() {
@@ -66,6 +100,9 @@ export default function Timetable({ grade }) {
         <button className="primary" onClick={generate} disabled={busy}>
           {busy ? 'Working…' : 'Generate timetable'}
         </button>{' '}
+        <button onClick={autoAssign} disabled={busy}>
+          Auto-assign teachers
+        </button>{' '}
         <button onClick={loadStandardDay} disabled={busy}>
           Load the standard day
         </button>{' '}
@@ -90,20 +127,24 @@ export default function Timetable({ grade }) {
         <table>
           <thead>
             <tr>
-              <th>Period</th>
-              {Object.values(DAYS).map((d) => <th key={d}>{d}</th>)}
+              <th>Day</th>
+              {periods.map((p) => (
+                <th key={p.id}>
+                  P{p.number}
+                  <div className="muted">
+                    {p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {periods.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  P{p.number}
-                  <div className="muted">{p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}</div>
-                </td>
-                {Object.keys(DAYS).map((day) => {
+            {Object.entries(DAYS).map(([day, label]) => (
+              <tr key={day}>
+                <td><b>{label}</b></td>
+                {periods.map((p) => {
                   const lesson = grid[p.id]?.[day]
-                  return <td key={day}>{lesson ? areaName(lesson) : ''}</td>
+                  return <td key={p.id}>{lesson ? areaName(lesson) : ''}</td>
                 })}
               </tr>
             ))}

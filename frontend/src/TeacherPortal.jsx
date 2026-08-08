@@ -31,21 +31,20 @@ function MyTimetable({ timetable }) {
     <table>
       <thead>
         <tr>
-          <th>Period</th>
-          {DAY_NAMES.map((d) => <th key={d}>{d}</th>)}
+          <th>Day</th>
+          {periods.map((p) => (
+            <th key={p}>P{p}<div className="muted">{times[p]}</div></th>
+          ))}
         </tr>
       </thead>
       <tbody>
-        {periods.map((p) => (
-          <tr key={p}>
-            <td>
-              P{p}
-              <div className="muted">{times[p]}</div>
-            </td>
-            {[1, 2, 3, 4, 5].map((day) => {
+        {[1, 2, 3, 4, 5].map((day) => (
+          <tr key={day}>
+            <td><b>{DAY_NAMES[day - 1]}</b></td>
+            {periods.map((p) => {
               const lesson = grid[p]?.[day]
               return (
-                <td key={day}>
+                <td key={p}>
                   {lesson && (
                     <>
                       {lesson.learning_area}

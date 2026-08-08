@@ -131,6 +131,7 @@ from apps.teachers.team import (
 )
 from apps.teachers.views import LessonPlanViewSet, SchemeOfWorkViewSet, TeacherViewSet
 from apps.timetable.views import (
+    AutoAssignView,
     GenerateTimetableView,
     LessonRequirementViewSet,
     LessonViewSet,
@@ -255,6 +256,7 @@ urlpatterns = [
     path("api/report-card/<int:learner_id>/pdf/", ReportCardPdfView.as_view()),
     path("api/report-cards/generate-class/", GenerateClassReportCardsView.as_view()),
     path("api/timetable/generate/", GenerateTimetableView.as_view()),
+    path("api/timetable/assignments/auto/", AutoAssignView.as_view()),
     path("api/payments/stk-push/", StkPushView.as_view()),
     path("api/payments/stk-callback/", StkCallbackView.as_view()),
     path("api/payments/c2b-confirmation/", C2BConfirmationView.as_view()),

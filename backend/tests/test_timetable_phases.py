@@ -42,6 +42,58 @@ class PhaseRulesTests(APITestCase):
         self.assertEqual(self._assign(floater, 8).status_code, 201)
 
 
+class AutoAssignTests(APITestCase):
+    def setUp(self):
+        from apps.students.models import ClassGroup
+
+        self.school = make_school()
+        self.admin = make_user(self.school, "ADMIN")
+        self.maths = make_learning_area("Mathematics", "MATH", grades=[7, 8, 9])
+        self.english = make_learning_area("English", "ENG", grades=[7, 8, 9])
+        ClassGroup.objects.create(school=self.school, grade=7, stream="North")
+        ClassGroup.objects.create(school=self.school, grade=7, stream="South")
+        self.mary = make_teacher(self.school, phase="JUNIOR")
+        self.mary.learning_areas.set([self.maths])
+        self.eric = make_teacher(self.school, phase="JUNIOR")
+        self.eric.learning_areas.set([self.english])
+
+    def test_assignments_come_from_subjects_and_phases(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        self.assertEqual(res.status_code, 200, res.data)
+        # G7 North + G7 South, Maths + English (G8/G9 have no class groups →
+        # one streamless class each): 2 areas × (2 + 1 + 1) classes = 8.
+        self.assertEqual(res.data["created"], 8)
+        self.assertEqual(res.data["unfilled"], [])
+        for req in LessonRequirement.objects.filter(learning_area=self.maths):
+            self.assertEqual(req.teacher_id, self.mary.id)
+        self.assertEqual(
+            LessonRequirement.objects.filter(teacher=self.eric).count(), 4
+        )
+
+    def test_rerunning_creates_nothing_new(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        self.assertEqual(res.data["created"], 0)
+        self.assertEqual(res.data["skipped_existing"], 8)
+
+    def test_an_area_nobody_can_teach_is_reported_not_guessed(self):
+        kis = make_learning_area("Kiswahili", "KIS", grades=[7])
+        self.client.force_authenticate(self.admin)
+        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        unfilled = [u for u in res.data["unfilled"] if u["area"] == "Kiswahili"]
+        self.assertEqual(len(unfilled), 2)  # G7 North and South
+        self.assertFalse(LessonRequirement.objects.filter(learning_area=kis).exists())
+
+    def test_a_primary_phase_teacher_is_not_pulled_into_jss(self):
+        primary = make_teacher(self.school, phase="PRIMARY")
+        primary.learning_areas.set([self.maths])
+        self.client.force_authenticate(self.admin)
+        self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        self.assertFalse(LessonRequirement.objects.filter(teacher=primary).exists())
+
+
 class GeneratorScopeTests(APITestCase):
     def setUp(self):
         self.school = make_school()

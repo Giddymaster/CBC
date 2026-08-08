@@ -98,6 +98,20 @@ class LessonRequirementViewSet(SchoolScopedViewSet):
         instance.delete()
 
 
+class AutoAssignView(APIView):
+    """POST /api/timetable/assignments/auto/ — build the G4-G9 assignments
+    from teacher subjects, phases and the grades' learning areas. Leadership
+    only, like hand-made assignments."""
+
+    def post(self, request):
+        from apps.teachers.daily import _require_office
+
+        _require_office(request.user)
+        from .generator import auto_assign
+
+        return Response(auto_assign(request.user.school))
+
+
 class GenerateTimetableView(APIView):
     """Regenerate the school's timetable from its LessonRequirements.
     Replaces existing lessons unless {"clear_existing": false} is passed."""

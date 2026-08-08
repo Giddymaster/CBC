@@ -94,8 +94,76 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
     return {
         "placed": placed,
         "unplaced": unplaced,
+        "requirements": len(requirements),
         "slots_available": len(periods) * len(days),
         "lower_grades_skipped": lower_grades_skipped,
+    }
+
+
+def auto_assign(school):
+    """Build the G4-G9 teaching assignments from what the school already
+    recorded: each grade's learning areas, each teacher's subjects and phase,
+    and the streams its classes run.
+
+    For every (grade, stream, learning area) without an assignment, the
+    least-loaded qualified teacher — right phase (or unphased), subject on
+    their record — gets it at 5 lessons/week. Areas nobody is qualified to
+    teach are reported, not guessed.
+    """
+    from apps.assessments.models import LearningArea
+    from apps.students.models import ClassGroup
+    from apps.teachers.models import Teacher
+
+    teachers = list(
+        Teacher.objects.filter(school=school, user__is_active=True)
+        .select_related("user")
+        .prefetch_related("learning_areas")
+    )
+    subject_ids = {t.id: {a.id for a in t.learning_areas.all()} for t in teachers}
+
+    load = defaultdict(int)
+    existing_keys = set()
+    for req in LessonRequirement.objects.filter(school=school):
+        load[req.teacher_id] += req.lessons_per_week
+        existing_keys.add((req.grade, req.stream, req.learning_area_id))
+
+    streams_by_grade = defaultdict(set)
+    for group in ClassGroup.objects.filter(school=school):
+        streams_by_grade[group.grade].add(group.stream)
+
+    areas = list(LearningArea.objects.all())
+    created, skipped_existing, unfilled = 0, 0, []
+    for grade in range(4, 10):
+        grade_areas = [a for a in areas if grade in (a.grades or [])]
+        streams = sorted(streams_by_grade.get(grade) or {""})
+        for stream in streams:
+            for area in grade_areas:
+                if (grade, stream, area.id) in existing_keys:
+                    skipped_existing += 1
+                    continue
+                candidates = [
+                    t for t in teachers
+                    if t.may_teach_grade(grade)
+                    and area.id in subject_ids[t.id]
+                    and load[t.id] < 40  # keep everyone under a full week
+                ]
+                if not candidates:
+                    unfilled.append({
+                        "grade": grade, "stream": stream, "area": area.name,
+                    })
+                    continue
+                best = min(candidates, key=lambda t: load[t.id])
+                LessonRequirement.objects.create(
+                    school=school, teacher=best, learning_area=area,
+                    grade=grade, stream=stream, lessons_per_week=5,
+                )
+                existing_keys.add((grade, stream, area.id))
+                load[best.id] += 5
+                created += 1
+    return {
+        "created": created,
+        "skipped_existing": skipped_existing,
+        "unfilled": unfilled,
     }
 
 
