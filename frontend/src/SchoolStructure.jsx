@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
+import { useAnchoredMenu } from './columns.jsx'
 import { ALL_GRADES, gradeLabel } from './format.js'
 
 const DAY_NAMES = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
@@ -266,9 +267,141 @@ function ClassTeacherPicker({ classGroupId, currentName, onSaved }) {
   )
 }
 
+// Who teaches what in this class. One row = teacher × learning area × stream ×
+// lessons/week — the LessonRequirement the timetable generator places, and the
+// same assignment that puts the class into that teacher's portal: their score
+// entry, schemes of work and lesson plans all follow from here.
+function TeachingAssignments({ grade, streams, onMessage }) {
+  const [reqs, setReqs] = useState(null)
+  const [areas, setAreas] = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [form, setForm] = useState({
+    learning_area: '', teacher: '', stream: '', lessons_per_week: 5,
+  })
+
+  const load = useCallback(() => {
+    apiGet(`/api/timetable/requirements/?grade=${grade}&page_size=200`)
+      .then((d) => setReqs(d.results || d))
+      .catch(() => setReqs([]))
+  }, [grade])
+  useEffect(load, [load])
+  useEffect(() => {
+    apiGet('/api/learning-areas/?page_size=200')
+      .then((d) => setAreas(d.results || d)).catch(() => {})
+    apiGet('/api/teachers/?page_size=200')
+      .then((d) => setTeachers(d.results || d)).catch(() => {})
+  }, [])
+
+  // Only the areas this grade actually teaches (School (Grades) overview).
+  const gradeAreas = areas.filter((a) => a.grades.includes(grade))
+
+  async function add(e) {
+    e.preventDefault()
+    if (!form.learning_area || !form.teacher) {
+      onMessage('Pick a learning area and the teacher taking it.')
+      return
+    }
+    const res = await apiWrite('/api/timetable/requirements/', {
+      grade,
+      learning_area: Number(form.learning_area),
+      teacher: Number(form.teacher),
+      stream: form.stream,
+      lessons_per_week: Number(form.lessons_per_week) || 5,
+    })
+    if (res.ok) {
+      setForm({ learning_area: '', teacher: '', stream: '', lessons_per_week: 5 })
+      onMessage('')
+      load()
+    } else {
+      onMessage(res.data?.detail || JSON.stringify(res.data) || 'Could not assign.')
+    }
+  }
+
+  async function remove(r) {
+    if (!window.confirm(`Remove ${r.learning_area_name} from ${r.teacher_name}?`)) return
+    const res = await apiWrite(`/api/timetable/requirements/${r.id}/`, {}, { method: 'DELETE' })
+    if (!res.ok) onMessage('Could not remove that assignment.')
+    load()
+  }
+
+  if (!reqs) return null
+
+  return (
+    <div className="card">
+      <h3>Teaching assignments</h3>
+      <p className="muted">
+        Who teaches what in this class. The timetable is generated from these, and
+        each teacher's portal — score entry, schemes, lesson plans — follows them.
+      </p>
+      <form onSubmit={add}
+        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center',
+                 marginBottom: '0.6rem' }}>
+        <select value={form.learning_area}
+          onChange={(e) => setForm({ ...form, learning_area: e.target.value })}>
+          <option value="">Learning area…</option>
+          {gradeAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <select value={form.teacher}
+          onChange={(e) => setForm({ ...form, teacher: e.target.value })}>
+          <option value="">Teacher…</option>
+          {teachers.map((t) => (
+            <option key={t.id} value={t.id}>{t.name || t.user} (TSC {t.tsc_number})</option>
+          ))}
+        </select>
+        {streams.length > 0 && (
+          <select value={form.stream}
+            onChange={(e) => setForm({ ...form, stream: e.target.value })}>
+            <option value="">Whole grade</option>
+            {streams.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        <label className="muted">
+          Lessons/week{' '}
+          <input type="number" min="1" max="14" value={form.lessons_per_week}
+            style={{ width: '4rem' }}
+            onChange={(e) => setForm({ ...form, lessons_per_week: e.target.value })} />
+        </label>
+        <button className="primary" type="submit">Assign</button>
+      </form>
+      {gradeAreas.length === 0 && (
+        <p className="muted">
+          This grade has no learning areas yet — tick them on the School (Grades)
+          overview first.
+        </p>
+      )}
+      {reqs.length === 0 ? (
+        <p className="muted">Nothing assigned yet.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Learning area</th><th>Stream</th><th>Teacher</th>
+              <th>Lessons/week</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {reqs.map((r) => (
+              <tr key={r.id}>
+                <td><b>{r.learning_area_name}</b></td>
+                <td>{r.stream || <span className="muted">whole grade</span>}</td>
+                <td>{r.teacher_name}</td>
+                <td>{r.lessons_per_week}</td>
+                <td>
+                  <button onClick={() => remove(r)}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 function GradeDetail({ grade, label, onBack }) {
   const [detail, setDetail] = useState(null)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [sortBy, setSortBy] = useState('admission_number')
   const [genderFilter, setGenderFilter] = useState('ALL')
   const [profileId, setProfileId] = useState(null)
@@ -344,6 +477,13 @@ function GradeDetail({ grade, label, onBack }) {
           )}
         </div>
       ))}
+
+      {message && <p className="error">{message}</p>}
+      <TeachingAssignments
+        grade={grade}
+        streams={[...new Set(detail.class_teachers.map((ct) => ct.stream).filter(Boolean))]}
+        onMessage={setMessage}
+      />
 
       <div className="card">
         <h3>Students</h3>
@@ -445,26 +585,61 @@ function StreamsCell({ grade, classes, onChanged, onMessage }) {
   )
 }
 
+// Which learning areas the grade teaches — the same fact the Learning areas
+// card edits, seen from the grade's side.
+function GradeAreasCell({ grade, areas, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const [anchorRef, menuStyle] = useAnchoredMenu(open, 260)
+  const inGrade = areas.filter((a) => a.grades.includes(grade))
+  const summary = inGrade.length
+    ? `${inGrade.length} — ${inGrade.slice(0, 3).map((a) => a.name).join(', ')}${inGrade.length > 3 ? '…' : ''}`
+    : '—'
+  return (
+    <>
+      <button ref={anchorRef} type="button" className="cell-view" title="Click to choose"
+        onClick={() => setOpen((o) => !o)}>
+        {summary}
+      </button>
+      {open && (
+        <div className="col-menu scrolly" style={menuStyle}>
+          {areas.length === 0 && (
+            <p className="muted" style={{ margin: 0 }}>
+              No learning areas defined — load the MoE set below, or add your own.
+            </p>
+          )}
+          {areas.map((a) => (
+            <label key={a.id} className="subj-choice">
+              <input type="checkbox" checked={a.grades.includes(grade)}
+                onChange={() => onToggle(a, grade)} />
+              {a.name}
+            </label>
+          ))}
+          <button type="button" onClick={() => setOpen(false)}>Close</button>
+        </div>
+      )}
+    </>
+  )
+}
+
 // Which learning areas the school teaches, and in which grades. This list
 // feeds assessments, teacher subjects, schemes of work and the timetable.
-function LearningAreasCard({ onMessage }) {
-  const [areas, setAreas] = useState(null)
+function LearningAreasCard({ areas, onChanged, onMessage, onToggle }) {
   const [form, setForm] = useState({ name: '', code: '' })
+  const [seeding, setSeeding] = useState(false)
 
-  const load = useCallback(() => {
-    apiGet('/api/learning-areas/?page_size=200')
-      .then((d) => setAreas(d.results || d))
-      .catch(() => setAreas([]))
-  }, [])
-  useEffect(load, [load])
-
-  async function toggleGrade(area, g) {
-    const grades = area.grades.includes(g)
-      ? area.grades.filter((x) => x !== g)
-      : [...area.grades, g].sort((a, b) => a - b)
-    const res = await apiWrite(`/api/learning-areas/${area.id}/`, { grades }, { method: 'PATCH' })
-    if (!res.ok) onMessage('Could not update grades for that learning area.')
-    load()
+  async function seedMoe() {
+    setSeeding(true)
+    const res = await apiWrite('/api/learning-areas/seed-moe/', {})
+    setSeeding(false)
+    if (res.ok) {
+      onMessage(
+        `MoE set loaded — ${res.data.created} added, ${res.data.updated} updated. ` +
+        'Untick anything your school does not offer.',
+      )
+      onChanged()
+    } else {
+      onMessage(res.data?.detail || 'Could not load the MoE set.')
+    }
   }
 
   async function add(e) {
@@ -479,19 +654,23 @@ function LearningAreasCard({ onMessage }) {
     const res = await apiWrite('/api/learning-areas/', { name, code, grades: [] })
     if (res.ok) {
       setForm({ name: '', code: '' })
-      load()
+      onChanged()
     } else {
       onMessage(JSON.stringify(res.data) || 'Could not add the learning area.')
     }
   }
 
-  if (!areas) return null
-
   return (
     <div className="card">
-      <h3>Learning areas (subjects)</h3>
+      <div className="page-header" style={{ marginBottom: 0 }}>
+        <h3 style={{ margin: 0 }}>Learning areas (subjects)</h3>
+        <button onClick={seedMoe} disabled={seeding}>
+          {seeding ? 'Loading…' : 'Load the MoE set'}
+        </button>
+      </div>
       <p className="muted">
-        Tick the grades where each is taught. These choices feed assessments,
+        The KICD/MoE curriculum per level, one click — then tick the grades where
+        each is taught. These choices feed teaching assignments, assessments,
         teacher subjects, schemes of work and the timetable.
       </p>
       <form onSubmit={add}
@@ -505,7 +684,7 @@ function LearningAreasCard({ onMessage }) {
         <button className="primary" type="submit">Add</button>
       </form>
       {areas.length === 0 && (
-        <p className="muted">None yet — add the subjects your school teaches.</p>
+        <p className="muted">None yet — load the MoE set or add your own.</p>
       )}
       <table>
         <tbody>
@@ -522,7 +701,7 @@ function LearningAreasCard({ onMessage }) {
                     type="button"
                     className={`grade-chip${area.grades.includes(g) ? ' on' : ''}`}
                     style={{ margin: '0.12rem 0.18rem' }}
-                    onClick={() => toggleGrade(area, g)}
+                    onClick={() => onToggle(area, g)}
                   >
                     {gradeLabel(g)}
                   </button>
@@ -550,6 +729,26 @@ export default function SchoolStructure({ grade }) {
     if (selected) return
     apiGet('/api/school/structure/').then(setStructure).catch((e) => setError(e.message))
   }, [selected, refresh])
+
+  // The learning-areas register, shared by the per-grade column and the card.
+  const [areas, setAreas] = useState([])
+  useEffect(() => {
+    if (selected) return
+    apiGet('/api/learning-areas/?page_size=200')
+      .then((d) => setAreas(d.results || d))
+      .catch(() => setAreas([]))
+  }, [selected, refresh])
+
+  async function toggleAreaGrade(area, g) {
+    const grades = area.grades.includes(g)
+      ? area.grades.filter((x) => x !== g)
+      : [...area.grades, g].sort((a, b) => a - b)
+    const res = await apiWrite(
+      `/api/learning-areas/${area.id}/`, { grades }, { method: 'PATCH' },
+    )
+    if (!res.ok) setMessage('Could not update that learning area.')
+    reload()
+  }
 
   // A grade picked from the sidebar opens that class directly.
   useEffect(() => {
@@ -582,7 +781,7 @@ export default function SchoolStructure({ grade }) {
             <thead>
               <tr>
                 <th>Grade</th><th>Learners</th><th>Male</th><th>Female</th>
-                <th>Streams</th><th>Class teacher(s)</th><th></th>
+                <th>Streams</th><th>Learning areas</th><th>Class teacher(s)</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -595,6 +794,10 @@ export default function SchoolStructure({ grade }) {
                   <td>
                     <StreamsCell grade={g.grade} classes={g.classes}
                       onChanged={reload} onMessage={setMessage} />
+                  </td>
+                  <td>
+                    <GradeAreasCell grade={g.grade} areas={areas}
+                      onToggle={toggleAreaGrade} />
                   </td>
                   <td className="muted">
                     {g.classes.length === 0
@@ -615,7 +818,12 @@ export default function SchoolStructure({ grade }) {
         </div>
       ))}
 
-      <LearningAreasCard onMessage={setMessage} />
+      <LearningAreasCard
+        areas={areas}
+        onChanged={reload}
+        onMessage={setMessage}
+        onToggle={toggleAreaGrade}
+      />
     </div>
   )
 }

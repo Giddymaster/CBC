@@ -298,6 +298,9 @@ th.add-col { width: 2.4rem; }
   font-weight: 400;
 }
 .col-menu input, .col-menu select { width: 100%; box-sizing: border-box; }
+/* Long checkbox lists (40 learning areas) scroll inside the menu. */
+.col-menu.scrolly { max-height: 55vh; overflow-y: auto; }
+.col-menu.scrolly input[type='checkbox'] { width: auto; }
 .col-menu-danger {
   background: #fff5f5;
   border: 1px solid #feb2b2;

@@ -5,6 +5,13 @@ from .models import Lesson, LessonRequirement, Period, Room
 
 
 class LessonRequirementSerializer(serializers.ModelSerializer):
+    teacher_name = serializers.CharField(
+        source="teacher.user.get_full_name", read_only=True, default=None
+    )
+    learning_area_name = serializers.CharField(
+        source="learning_area.name", read_only=True, default=None
+    )
+
     class Meta:
         model = LessonRequirement
         fields = "__all__"

@@ -79,7 +79,7 @@ function CellSubjects({ ids, subjects, choices, onSave }) {
         {subjects.join(', ') || '—'}
       </button>
       {open && (
-        <div className="col-menu" style={menuStyle}>
+        <div className="col-menu scrolly" style={menuStyle}>
           {choices.length === 0 && (
             <p className="muted" style={{ margin: 0 }}>
               No learning areas defined yet — add them under

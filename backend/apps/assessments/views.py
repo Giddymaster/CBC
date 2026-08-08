@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers as drf_serializers
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -43,6 +44,36 @@ class LearningAreaViewSet(AdminWriteMixin, viewsets.ModelViewSet):
                 "platform administrators only."
             )
         instance.delete()
+
+    @action(detail=False, methods=["post"], url_path="seed-moe")
+    def seed_moe(self, request):
+        """Load the KICD/MoE canon of learning areas with their level grades.
+
+        Idempotent: an area that already exists (by name or code) keeps its
+        row — its grades become the union of what it had and what the canon
+        says — so a school that already typed some areas loses nothing.
+        """
+        self._require_admin_write()
+        from apps.schools.moe import LEARNING_AREAS
+
+        created = updated = 0
+        for entry in LEARNING_AREAS:
+            area = (
+                LearningArea.objects.filter(name__iexact=entry["name"]).first()
+                or LearningArea.objects.filter(code__iexact=entry["code"]).first()
+            )
+            if area is None:
+                LearningArea.objects.create(
+                    name=entry["name"], code=entry["code"], grades=entry["grades"]
+                )
+                created += 1
+            else:
+                merged = sorted(set(area.grades or []) | set(entry["grades"]))
+                if merged != sorted(area.grades or []):
+                    area.grades = merged
+                    area.save(update_fields=["grades"])
+                    updated += 1
+        return Response({"created": created, "updated": updated})
 
 
 class AssessmentViewSet(SchoolScopedViewSet):

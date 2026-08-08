@@ -128,6 +128,68 @@ def pathway_for_track(track):
     return None
 
 
+# --- Learning areas by level ---------------------------------------------
+# The KICD rationalised curriculum (2023) for basic education, and the
+# gazetted Senior School subjects (compulsory four plus the common pathway
+# subjects). One entry per distinct name; a name taught across levels carries
+# the union of its grades. Schools trim or extend the list — this is the
+# starting canon, not a cage.
+LEARNING_AREAS = [
+    # Pre-Primary (PP1–PP2); activity areas that continue into Lower Primary
+    # keep one row spanning both levels.
+    {"code": "LANGA", "name": "Language Activities", "grades": [-1, 0]},
+    {"code": "MATHA", "name": "Mathematical Activities", "grades": [-1, 0, 1, 2, 3]},
+    {"code": "ENVA", "name": "Environmental Activities", "grades": [-1, 0, 1, 2, 3]},
+    {"code": "CREA", "name": "Creative Activities", "grades": [-1, 0, 1, 2, 3]},
+    {"code": "RELA", "name": "Religious Education Activities", "grades": [-1, 0, 1, 2, 3]},
+    # Lower Primary (G1–G3)
+    {"code": "ENGA", "name": "English Language Activities", "grades": [1, 2, 3]},
+    {"code": "KISA", "name": "Kiswahili Language Activities", "grades": [1, 2, 3]},
+    {"code": "INDA", "name": "Indigenous Language Activities", "grades": [1, 2, 3]},
+    # Upper Primary (G4–G6) → Junior School (G7–G9) → Senior School where
+    # compulsory (English, Kiswahili) or offered as a pathway subject (Maths).
+    {"code": "ENG", "name": "English", "grades": [4, 5, 6, 7, 8, 9, 10, 11, 12]},
+    {"code": "KIS", "name": "Kiswahili", "grades": [4, 5, 6, 7, 8, 9, 10, 11, 12]},
+    {"code": "MATH", "name": "Mathematics", "grades": [4, 5, 6, 7, 8, 9, 10, 11, 12]},
+    {"code": "RE", "name": "Religious Education", "grades": [4, 5, 6, 7, 8, 9]},
+    {"code": "SCITEC", "name": "Science and Technology", "grades": [4, 5, 6]},
+    {"code": "SST", "name": "Social Studies", "grades": [4, 5, 6, 7, 8, 9]},
+    {"code": "AGRN", "name": "Agriculture and Nutrition", "grades": [4, 5, 6, 7, 8, 9]},
+    {"code": "CRARTS", "name": "Creative Arts", "grades": [4, 5, 6]},
+    # Junior School (G7–G9)
+    {"code": "INTSCI", "name": "Integrated Science", "grades": [7, 8, 9]},
+    {"code": "PTS", "name": "Pre-Technical Studies", "grades": [7, 8, 9]},
+    {"code": "CAS", "name": "Creative Arts and Sports", "grades": [7, 8, 9]},
+    # Senior School (G10–G12): the other compulsory two…
+    {"code": "CSL", "name": "Community Service Learning", "grades": [10, 11, 12]},
+    {"code": "PE", "name": "Physical Education", "grades": [10, 11, 12]},
+    # …and the common pathway subjects.
+    {"code": "BIO", "name": "Biology", "grades": [10, 11, 12]},
+    {"code": "CHEM", "name": "Chemistry", "grades": [10, 11, 12]},
+    {"code": "PHY", "name": "Physics", "grades": [10, 11, 12]},
+    {"code": "GSCI", "name": "General Science", "grades": [10, 11, 12]},
+    {"code": "AGR", "name": "Agriculture", "grades": [10, 11, 12]},
+    {"code": "COMP", "name": "Computer Studies", "grades": [10, 11, 12]},
+    {"code": "HSCI", "name": "Home Science", "grades": [10, 11, 12]},
+    {"code": "BST", "name": "Business Studies", "grades": [10, 11, 12]},
+    {"code": "GEO", "name": "Geography", "grades": [10, 11, 12]},
+    {"code": "HIST", "name": "History and Citizenship", "grades": [10, 11, 12]},
+    {"code": "CRE", "name": "Christian Religious Education", "grades": [10, 11, 12]},
+    {"code": "IRE", "name": "Islamic Religious Education", "grades": [10, 11, 12]},
+    {"code": "HRE", "name": "Hindu Religious Education", "grades": [10, 11, 12]},
+    {"code": "LIT", "name": "Literature in English", "grades": [10, 11, 12]},
+    {"code": "FAS", "name": "Fasihi ya Kiswahili", "grades": [10, 11, 12]},
+    {"code": "MUSD", "name": "Music and Dance", "grades": [10, 11, 12]},
+    {"code": "FART", "name": "Fine Arts", "grades": [10, 11, 12]},
+    {"code": "THF", "name": "Theatre and Film", "grades": [10, 11, 12]},
+    {"code": "SPR", "name": "Sports and Recreation", "grades": [10, 11, 12]},
+    {"code": "FRE", "name": "French", "grades": [10, 11, 12]},
+    {"code": "GER", "name": "German", "grades": [10, 11, 12]},
+    {"code": "ARB", "name": "Arabic", "grades": [10, 11, 12]},
+    {"code": "MAN", "name": "Mandarin Chinese", "grades": [10, 11, 12]},
+]
+
+
 # --- Competency levels ---------------------------------------------------
 COMPETENCY_LEVELS = [
     {"code": "EE", "name": "Exceeding Expectation"},
