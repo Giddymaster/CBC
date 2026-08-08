@@ -233,6 +233,17 @@ export default function Admission({ scope, onAdmitted }) {
   }, [])
   useEffect(loadAccess, [loadAccess])
 
+  // Streams defined for the chosen grade (School (Grades) → Streams). Offered
+  // as suggestions; a school without them can still type one.
+  const [streams, setStreams] = useState([])
+  useEffect(() => {
+    apiGet(`/api/class-groups/?grade=${form.grade}&page_size=100`)
+      .then((d) => setStreams(
+        [...new Set((d.results || d).map((c) => c.stream).filter(Boolean))],
+      ))
+      .catch(() => setStreams([]))
+  }, [form.grade])
+
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
   function pickPhoto(e) {
@@ -420,8 +431,13 @@ export default function Admission({ scope, onAdmitted }) {
               ))}
             </select>
           </Field>
-          <Field label="Stream">
-            <input value={form.stream} onChange={set('stream')} placeholder="e.g. North" />
+          <Field label="Stream"
+            hint={streams.length ? undefined : 'Define streams under School (Grades)'}>
+            <input list="admission-streams" value={form.stream} onChange={set('stream')}
+              placeholder="e.g. North" />
+            <datalist id="admission-streams">
+              {streams.map((s) => <option key={s} value={s} />)}
+            </datalist>
           </Field>
           <Field
             label="Admission number"

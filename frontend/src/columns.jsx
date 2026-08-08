@@ -1,18 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiWrite } from './api.js'
+
+/** Position a menu against its trigger with position:fixed, so a scrolling
+ * table (every register scrolls sideways now) cannot clip it. */
+export function useAnchoredMenu(open, width = 240) {
+  const anchorRef = useRef(null)
+  const [style, setStyle] = useState(null)
+  useEffect(() => {
+    if (!open || !anchorRef.current) {
+      setStyle(null)
+      return
+    }
+    const r = anchorRef.current.getBoundingClientRect()
+    setStyle({
+      position: 'fixed',
+      top: r.bottom + 4,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+      width,
+    })
+  }, [open, width])
+  return [anchorRef, style]
+}
 
 // Excel-style column header: left-click it to rename or delete the column.
 export function ColumnHeader({ field, open, onToggle, onRename, onDelete }) {
   const [name, setName] = useState(field.label)
   useEffect(() => setName(field.label), [field.label])
+  const [anchorRef, menuStyle] = useAnchoredMenu(open)
 
   return (
     <th className="col-head">
-      <button className="col-head-btn" onClick={onToggle} title="Edit or delete this column">
+      <button ref={anchorRef} className="col-head-btn" onClick={onToggle}
+        title="Edit or delete this column">
         {field.label} <span className="caret">▾</span>
       </button>
       {open && (
-        <div className="col-menu">
+        <div className="col-menu" style={menuStyle}>
           <form
             onSubmit={(e) => { e.preventDefault(); onRename(name) }}
             style={{ display: 'flex', gap: '0.35rem' }}
@@ -33,12 +56,14 @@ export function AddColumnHeader({ open, onToggle, onAdd, scopes, defaultScope })
   const [label, setLabel] = useState('')
   const [scope, setScope] = useState(defaultScope)
   useEffect(() => setScope(defaultScope), [defaultScope])
+  const [anchorRef, menuStyle] = useAnchoredMenu(open)
 
   return (
     <th className="col-head add-col">
-      <button className="col-head-btn plus" onClick={onToggle} title="Add a column">+</button>
+      <button ref={anchorRef} className="col-head-btn plus" onClick={onToggle}
+        title="Add a column">+</button>
       {open && (
-        <div className="col-menu">
+        <div className="col-menu" style={menuStyle}>
           <form
             onSubmit={(e) => { e.preventDefault(); onAdd(label, scope); setLabel('') }}
             style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}

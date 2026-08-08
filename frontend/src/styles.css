@@ -356,7 +356,17 @@ nav.tabs button {
 }
 nav.tabs button.active { background: #2b6cb0; color: white; border-color: #2b6cb0; }
 
-table { width: 100%; border-collapse: collapse; background: white; }
+/* Wide registers scroll sideways inside themselves at every screen size —
+   the page never grows a horizontal bar and buttons never spill off a card.
+   Menus that must escape the scroll area render position:fixed. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
 th { background: #edf2f7; font-size: 0.85rem; text-transform: uppercase; }
 
@@ -1015,6 +1025,30 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
   white-space: nowrap;
 }
 .subj-inline { display: flex; flex-direction: column; gap: 0.25rem; width: 100%; }
+/* Streams on the School (Grades) overview */
+.streams-cell { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.stream-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ebf4ff;
+  color: #2b6cb0;
+  border-radius: 999px;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.stream-chip button {
+  background: none;
+  border: none;
+  color: #2b6cb0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+.stream-chip button:hover { color: #c53030; }
+
 .subj-inline-list {
   display: flex;
   flex-wrap: wrap;
@@ -1094,14 +1128,6 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
     width: auto;
     position: static;   /* stacked layout — nothing to stick to */
     max-height: none;
-  }
-
-  /* A register has more columns than a phone has pixels. Each table scrolls
-     sideways inside itself; the page itself never grows a horizontal bar. */
-  table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   header.topbar { padding: 0.6rem 0.9rem; flex-wrap: wrap; }

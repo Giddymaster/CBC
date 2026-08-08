@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
-import { gradeLabel } from './format.js'
+import { ALL_GRADES, gradeLabel } from './format.js'
 
 const DAY_NAMES = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
 const TODAY_LABEL = { P: 'Present', A: 'Absent', L: 'Late', E: 'Excused' }
@@ -394,17 +394,162 @@ function GradeDetail({ grade, label, onBack }) {
   )
 }
 
+// The streams a grade runs (its ClassGroup rows). Adding one here makes it
+// selectable on admission, class-teacher assignment and the timetable.
+function StreamsCell({ grade, classes, onChanged, onMessage }) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+
+  async function add(e) {
+    e.preventDefault()
+    const res = await apiWrite('/api/class-groups/', { grade, stream: name.trim() })
+    if (res.ok) {
+      setName('')
+      setAdding(false)
+      onChanged()
+    } else {
+      onMessage(res.data?.detail || JSON.stringify(res.data) || 'Could not add stream.')
+    }
+  }
+
+  async function remove(c) {
+    const label = c.stream || '(no stream name)'
+    if (!window.confirm(`Remove ${label} from ${gradeLabel(grade)}? Learners keep their records.`)) return
+    const res = await apiWrite(`/api/class-groups/${c.id}/`, {}, { method: 'DELETE' })
+    if (!res.ok) onMessage('Could not remove that stream.')
+    onChanged()
+  }
+
+  return (
+    <span className="streams-cell">
+      {classes.map((c) => (
+        <span key={c.id} className="stream-chip">
+          {c.stream || '—'}
+          <button type="button" title="Remove stream" onClick={() => remove(c)}>×</button>
+        </span>
+      ))}
+      {adding ? (
+        <form onSubmit={add} style={{ display: 'inline-flex', gap: '0.3rem' }}>
+          <input autoFocus placeholder="e.g. North" value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ padding: '0.2rem 0.4rem', width: '6.5rem' }} />
+          <button className="primary" type="submit">Add</button>
+          <button type="button" onClick={() => setAdding(false)}>×</button>
+        </form>
+      ) : (
+        <button type="button" className="grade-chip" onClick={() => setAdding(true)}>
+          + stream
+        </button>
+      )}
+    </span>
+  )
+}
+
+// Which learning areas the school teaches, and in which grades. This list
+// feeds assessments, teacher subjects, schemes of work and the timetable.
+function LearningAreasCard({ onMessage }) {
+  const [areas, setAreas] = useState(null)
+  const [form, setForm] = useState({ name: '', code: '' })
+
+  const load = useCallback(() => {
+    apiGet('/api/learning-areas/?page_size=200')
+      .then((d) => setAreas(d.results || d))
+      .catch(() => setAreas([]))
+  }, [])
+  useEffect(load, [load])
+
+  async function toggleGrade(area, g) {
+    const grades = area.grades.includes(g)
+      ? area.grades.filter((x) => x !== g)
+      : [...area.grades, g].sort((a, b) => a - b)
+    const res = await apiWrite(`/api/learning-areas/${area.id}/`, { grades }, { method: 'PATCH' })
+    if (!res.ok) onMessage('Could not update grades for that learning area.')
+    load()
+  }
+
+  async function add(e) {
+    e.preventDefault()
+    const name = form.name.trim()
+    if (!name) {
+      onMessage('Give the learning area a name.')
+      return
+    }
+    const code = form.code.trim().toUpperCase() ||
+      name.replace(/[^A-Za-z]/g, '').slice(0, 6).toUpperCase()
+    const res = await apiWrite('/api/learning-areas/', { name, code, grades: [] })
+    if (res.ok) {
+      setForm({ name: '', code: '' })
+      load()
+    } else {
+      onMessage(JSON.stringify(res.data) || 'Could not add the learning area.')
+    }
+  }
+
+  if (!areas) return null
+
+  return (
+    <div className="card">
+      <h3>Learning areas (subjects)</h3>
+      <p className="muted">
+        Tick the grades where each is taught. These choices feed assessments,
+        teacher subjects, schemes of work and the timetable.
+      </p>
+      <form onSubmit={add}
+        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+        <input placeholder="New learning area e.g. Agriculture" value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          style={{ padding: '0.4rem', minWidth: '14rem' }} />
+        <input placeholder="Code (optional)" value={form.code}
+          onChange={(e) => setForm({ ...form, code: e.target.value })}
+          style={{ padding: '0.4rem', width: '8rem' }} />
+        <button className="primary" type="submit">Add</button>
+      </form>
+      {areas.length === 0 && (
+        <p className="muted">None yet — add the subjects your school teaches.</p>
+      )}
+      <table>
+        <tbody>
+          {areas.map((area) => (
+            <tr key={area.id}>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <b>{area.name}</b>
+                <div className="muted">{area.code}</div>
+              </td>
+              <td>
+                {ALL_GRADES.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`grade-chip${area.grades.includes(g) ? ' on' : ''}`}
+                    style={{ margin: '0.12rem 0.18rem' }}
+                    onClick={() => toggleGrade(area, g)}
+                  >
+                    {gradeLabel(g)}
+                  </button>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function SchoolStructure({ grade }) {
   const [structure, setStructure] = useState(null)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [selected, setSelected] = useState(null) // {grade, label}
+  const [refresh, setRefresh] = useState(0)
+  const reload = () => setRefresh((n) => n + 1)
 
   // Reload whenever we come back to the overview, so a class teacher assigned
   // inside a grade shows up in the list straight away.
   useEffect(() => {
     if (selected) return
     apiGet('/api/school/structure/').then(setStructure).catch((e) => setError(e.message))
-  }, [selected])
+  }, [selected, refresh])
 
   // A grade picked from the sidebar opens that class directly.
   useEffect(() => {
@@ -429,12 +574,16 @@ export default function SchoolStructure({ grade }) {
 
   return (
     <div>
+      {message && <p className="error">{message}</p>}
       {structure.categories.map((cat) => (
         <div className="card" key={cat.name}>
           <h3>{cat.name}</h3>
           <table>
             <thead>
-              <tr><th>Grade</th><th>Learners</th><th>Male</th><th>Female</th><th>Class teacher(s)</th><th></th></tr>
+              <tr>
+                <th>Grade</th><th>Learners</th><th>Male</th><th>Female</th>
+                <th>Streams</th><th>Class teacher(s)</th><th></th>
+              </tr>
             </thead>
             <tbody>
               {cat.grades.map((g) => (
@@ -443,6 +592,10 @@ export default function SchoolStructure({ grade }) {
                   <td>{g.total}</td>
                   <td>{g.male}</td>
                   <td>{g.female}</td>
+                  <td>
+                    <StreamsCell grade={g.grade} classes={g.classes}
+                      onChanged={reload} onMessage={setMessage} />
+                  </td>
                   <td className="muted">
                     {g.classes.length === 0
                       ? '—'
@@ -461,6 +614,8 @@ export default function SchoolStructure({ grade }) {
           </table>
         </div>
       ))}
+
+      <LearningAreasCard onMessage={setMessage} />
     </div>
   )
 }

@@ -115,6 +115,7 @@ class SchoolStructureView(APIView):
         ):
             class_teachers.setdefault(group.grade, []).append(
                 {
+                    "id": group.id,
                     "stream": group.stream,
                     "class_teacher": (
                         group.class_teacher.user.get_full_name()

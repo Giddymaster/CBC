@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
-import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
+import { AddColumnHeader, ColumnHeader, columnApi, useAnchoredMenu } from './columns.jsx'
 
 const PRESENT_LABEL = { P: 'Present', A: 'Absent', L: 'On leave' }
 const PRESENT_BADGE = { P: 'online', A: 'offline', L: 'queued' }
@@ -69,16 +69,23 @@ function CellSelect({ value, options, display, onSave }) {
 function CellSubjects({ ids, subjects, choices, onSave }) {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState([])
+  const [anchorRef, menuStyle] = useAnchoredMenu(open)
   const toggle = (id) =>
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
   return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" className="cell-view" title="Click to edit"
+    <>
+      <button ref={anchorRef} type="button" className="cell-view" title="Click to edit"
         onClick={() => { setSel(ids || []); setOpen((o) => !o) }}>
         {subjects.join(', ') || '—'}
       </button>
       {open && (
-        <div className="col-menu">
+        <div className="col-menu" style={menuStyle}>
+          {choices.length === 0 && (
+            <p className="muted" style={{ margin: 0 }}>
+              No learning areas defined yet — add them under
+              <b> School (Grades) → Learning areas</b>, then pick here.
+            </p>
+          )}
           {choices.map((c) => (
             <label key={c.id} className="subj-choice">
               <input type="checkbox" checked={sel.includes(c.id)}
@@ -87,12 +94,74 @@ function CellSubjects({ ids, subjects, choices, onSave }) {
             </label>
           ))}
           <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button type="button" className="primary"
-              onClick={() => { setOpen(false); onSave(sel) }}>Save</button>
-            <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+            {choices.length > 0 && (
+              <button type="button" className="primary"
+                onClick={() => { setOpen(false); onSave(sel) }}>Save</button>
+            )}
+            <button type="button" onClick={() => setOpen(false)}>
+              {choices.length > 0 ? 'Cancel' : 'Close'}
+            </button>
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+// Everything the register holds about one person, in one card. Read-only —
+// edits happen in the cells; this is the admin's full view.
+function StaffProfile({ kind, row, fields, onClose }) {
+  const teaching = kind === 'TEACHING'
+  const name = teaching ? row.name : row.full_name
+  const initials = (name || '')
+    .split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('')
+  const items = (teaching
+    ? [
+        ['Username', row.username],
+        ['TSC / Payroll no', row.tsc_number],
+        ['Phone', row.phone],
+        ['Category', row.employment_label],
+        ['Rank', row.rank_label],
+        ['Supervisor', row.supervisor_name],
+        ['Subjects', row.subjects?.join(', ')],
+        ['Today', PRESENT_LABEL[row.present_today] || 'Not marked'],
+      ]
+    : [
+        ['Username', row.username],
+        ['Category', row.category_label],
+        ['Rank / title', row.title],
+        ['Phone', row.phone],
+        ['Employment', row.employment_label],
+        ['Supervisor', row.supervisor_name],
+      ]
+  ).concat(fields.map((f) => [f.label, row.extra?.[f.key]]))
+  const active = teaching ? row.active !== false : Boolean(row.active)
+
+  return (
+    <div className="card profile-card">
+      <div className="profile-head">
+        <span className="avatar avatar-lg">{initials || '?'}</span>
+        <div className="profile-headline">
+          <h3>{name}</h3>
+          <p className="profile-title">
+            {teaching ? row.rank_label : row.title || row.category_label}
+          </p>
+          <p className="muted" style={{ margin: 0 }}>
+            {active
+              ? <span className="badge online">Active</span>
+              : <span className="badge offline">Deactivated</span>}
+          </p>
+        </div>
+        <button onClick={onClose} style={{ marginLeft: 'auto' }}>Close</button>
+      </div>
+      <div className="profile-grid">
+        {items.map(([label, value]) => (
+          <div className="profile-field" key={label}>
+            <span className="profile-label">{label}</span>
+            <span className="profile-value">{value || <span className="muted">—</span>}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -268,6 +337,8 @@ export default function Staff({ view }) {
   const [teacherForm, setTeacherForm] = useState(EMPTY_TEACHER)
   // Open column menu: {type:'field', id} | {type:'add', table} | null
   const [colMenu, setColMenu] = useState(null)
+  // Open staff profile: {kind, id} | null — looked up fresh from data on render.
+  const [profile, setProfile] = useState(null)
 
   const load = useCallback(() => {
     apiGet(`/api/school/staff/${showInactive ? '?include_inactive=true' : ''}`)
@@ -585,6 +656,20 @@ export default function Staff({ view }) {
         </div>
       )}
 
+      {profile && (() => {
+        const row = profile.kind === 'TEACHING'
+          ? data.teaching.find((t) => t.id === profile.id)
+          : data.non_teaching.find((s) => s.id === profile.id)
+        return row ? (
+          <StaffProfile
+            kind={profile.kind}
+            row={row}
+            fields={profile.kind === 'TEACHING' ? teachingFields : nonTeachingFields}
+            onClose={() => setProfile(null)}
+          />
+        ) : null
+      })()}
+
       <AdmissionRights
         supervisorChoices={data.supervisor_choices}
         onMessage={setMessage}
@@ -664,6 +749,12 @@ export default function Staff({ view }) {
                   ))}
                   <td><PresenceBadge status={t.present_today} /></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
+                    <button onClick={() => {
+                      setProfile({ kind: 'TEACHING', id: t.id })
+                      window.scrollTo(0, 0)
+                    }}>
+                      Profile
+                    </button>{' '}
                     <button onClick={() => resetPassword(t.user_id, t.name)}>
                       Reset password
                     </button>{' '}
@@ -749,6 +840,12 @@ export default function Staff({ view }) {
                     </td>
                   ))}
                   <td style={{ whiteSpace: 'nowrap' }}>
+                    <button onClick={() => {
+                      setProfile({ kind: 'NON_TEACHING', id: s.id })
+                      window.scrollTo(0, 0)
+                    }}>
+                      Profile
+                    </button>{' '}
                     <button onClick={() => resetPassword(s.user, s.full_name)}>
                       Reset password
                     </button>{' '}
