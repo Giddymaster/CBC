@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { AddColumnHeader, ColumnHeader, columnApi, useAnchoredMenu } from './columns.jsx'
 import { ALL_GRADES, gradeLabel } from './format.js'
+import ImportCard from './ImportCard.jsx'
 
 const PRESENT_LABEL = { P: 'Present', A: 'Absent', L: 'On leave' }
 const PRESENT_BADGE = { P: 'online', A: 'offline', L: 'queued' }
@@ -619,10 +620,64 @@ export default function Staff({ view }) {
     <div>
       <div className="page-header">
         <h2>{heading}</h2>
-        <button className="primary" onClick={openAdd}>
-          {panel === 'add' ? 'Close' : '+ Add staff'}
-        </button>
+        <span style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => { setPanel(panel === 'import' ? null : 'import'); setMessage('') }}>
+            {panel === 'import' ? 'Close import' : 'Import CSV'}
+          </button>
+          <button className="primary" onClick={openAdd}>
+            {panel === 'add' ? 'Close' : '+ Add staff'}
+          </button>
+        </span>
       </div>
+
+      {panel === 'import' && (
+        <ImportCard
+          title="Import the staff room"
+          blurb={
+            'Teaching and non-teaching staff in one CSV — a Type column tells them '
+            + 'apart. Teaching rows can carry Subjects (semicolon-separated, matching '
+            + 'your learning areas) and a Class Teacher Of column like "G4 North". '
+            + 'Teaching staff get portal logins; the passwords are shown once after '
+            + 'the import.'
+          }
+          endpoint="/api/school/staff/bulk/"
+          templateName="staff_import_template.csv"
+          commitNoun="staff"
+          onDone={load}
+          columns={[
+            { key: 'name', label: 'Name' },
+            { key: 'kind', label: 'Type' },
+            { key: 'detail', label: 'Rank / Title' },
+            { key: 'subjects', label: 'Subjects' },
+            {
+              key: 'class_teacher_of', label: 'Class teacher of',
+              render: (v) => {
+                if (!v) return '—'
+                const [g, s] = v.split('|')
+                return `${gradeLabel(Number(g))}${s ? ` ${s}` : ''}`
+              },
+            },
+          ]}
+          extraResult={(result) =>
+            result.logins?.length > 0 && (
+              <div className="op-creds handover">
+                <b>Portal logins — shown once, hand them over now.</b> Each person
+                will be asked to choose their own password at first sign-in.
+                <table>
+                  <thead><tr><th>Name</th><th>Username</th><th>Password</th></tr></thead>
+                  <tbody>
+                    {result.logins.map((l) => (
+                      <tr key={l.username}>
+                        <td>{l.name}</td><td><b>{l.username}</b></td><td><b>{l.password}</b></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        />
+      )}
 
       <p className="muted">
         {data.totals.teaching} teaching staff · {data.totals.non_teaching} non-teaching staff{' '}

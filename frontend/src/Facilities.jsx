@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import ImportCard from './ImportCard.jsx'
 import { apiGet, apiWrite } from './api.js'
 
 const STATUS_BADGE = { IN_STOCK: 'online', LOW: 'queued', DEPLETED: 'offline' }
@@ -385,15 +386,41 @@ export default function Facilities({ facility, onNavRefresh }) {
         <span style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {/* Categories are managed from the All-facilities view only */}
           {!categoryScope && (
-            <button onClick={() => { setPanel(panel === 'category' ? null : 'category'); setMessage('') }}>
-              {panel === 'category' ? 'Close' : '+ Add category'}
-            </button>
+            <>
+              <button onClick={() => { setPanel(panel === 'import' ? null : 'import'); setMessage('') }}>
+                {panel === 'import' ? 'Close import' : 'Import CSV'}
+              </button>
+              <button onClick={() => { setPanel(panel === 'category' ? null : 'category'); setMessage('') }}>
+                {panel === 'category' ? 'Close' : '+ Add category'}
+              </button>
+            </>
           )}
           <button className="primary" onClick={() => { setPanel(panel === 'facility' ? null : 'facility'); setMessage('') }}>
             {panel === 'facility' ? 'Close' : '+ Add facility'}
           </button>
         </span>
       </div>
+
+      {panel === 'import' && (
+        <ImportCard
+          title="Import facilities"
+          blurb={
+            'The whole plant in one CSV — categories are created as they appear, '
+            + 'and a Staff Assigned column (names, semicolon-separated, matching the '
+            + 'staff register) posts people to each facility. Import staff first.'
+          }
+          endpoint="/api/facilities/bulk/"
+          templateName="facilities_import_template.csv"
+          commitNoun="facilities"
+          onDone={() => { load(); onNavRefresh?.() }}
+          columns={[
+            { key: 'name', label: 'Facility' },
+            { key: 'category', label: 'Category' },
+            { key: 'capacity', label: 'Capacity' },
+            { key: 'staff', label: 'Staff assigned' },
+          ]}
+        />
+      )}
       <p className="muted">
         {visible.length} facilities ·{' '}
         {visible.reduce((n, f) => n + (f.supply_summary?.depleted || 0), 0)} depleted items ·{' '}

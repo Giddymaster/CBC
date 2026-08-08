@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -366,6 +367,83 @@ class EditTeacherView(APIView):
                 "extra": teacher.extra,
             }
         )
+
+
+class StaffBulkImportView(APIView):
+    """GET/POST /api/school/staff/bulk/ — a spreadsheet of the whole staff room.
+
+    Same manners as the learner importer: GET returns a template; POST without
+    commit=true parses, validates and reports; POST with commit=true writes.
+    Teaching rows get portal logins — the generated passwords come back once.
+    """
+
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        from django.http import HttpResponse
+
+        from .bulk_import import template_csv
+
+        require_admin(request.user)
+        response = HttpResponse(template_csv(), content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="staff_import_template.csv"'
+        return response
+
+    def post(self, request):
+        require_admin(request.user)
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"detail": "Attach a CSV file."}, status=400)
+
+        from .bulk_import import check_against_register, commit, parse
+
+        rows, errors, mapping = parse(upload)
+        rows, clashes = check_against_register(rows, request.user.school)
+        errors = errors + clashes
+
+        wants_commit = str(request.data.get("commit", "")).lower() in ("true", "1", "yes")
+        body = {
+            "recognised_columns": sorted(set(mapping.values())),
+            "ready": len(rows),
+            "problems": errors,
+            "preview": [
+                {
+                    "row": r["_row"],
+                    "name": f"{r['first_name']} {r['last_name']}".strip(),
+                    "kind": "Teaching" if r["_teaching"] else "Non-teaching",
+                    "detail": (
+                        r.get("rank_title", "") or
+                        ("Teacher" if r["_teaching"] else "")
+                    ),
+                    "subjects": ", ".join(a.name for a in r.get("_areas", []) or []),
+                    "class_teacher_of": (
+                        f"{r['_class'][0]}|{r['_class'][1]}" if r.get("_class") else ""
+                    ),
+                }
+                for r in rows[:50]
+            ],
+            "committed": False,
+        }
+        if not wants_commit:
+            return Response(body)
+        if not rows:
+            return Response(
+                {**body, "detail": "Nothing to import — every row has a problem."},
+                status=400,
+            )
+        created, logins = commit(rows, school=request.user.school, user=request.user)
+        audit(
+            actor=request.user,
+            school=request.user.school,
+            action="STAFF_ADDED",
+            label=f"{created} staff imported from a spreadsheet",
+            detail={"created": created, "rows_skipped": len(errors)},
+        )
+        body["committed"] = True
+        body["created"] = created
+        # Shown once — the only time these passwords exist in the clear.
+        body["logins"] = logins
+        return Response(body, status=status.HTTP_201_CREATED)
 
 
 class StaffDirectoryView(APIView):

@@ -28,6 +28,7 @@ from apps.communication.parent_messages import (
 from apps.communication.views import AnnouncementViewSet, SmsMessageViewSet
 from apps.facilities.views import (
     FacilityAssignmentViewSet,
+    FacilityBulkImportView,
     FacilityCategoryViewSet,
     FacilityViewSet,
     NavSectionViewSet,
@@ -117,6 +118,7 @@ from apps.teachers.portal import TeacherSummaryView
 from apps.teachers.staff import (
     AddTeacherView,
     EditTeacherView,
+    StaffBulkImportView,
     StaffDirectoryView,
     StaffFieldViewSet,
     SupportStaffViewSet,
@@ -226,6 +228,8 @@ urlpatterns = [
     path("api/teachers/<int:teacher_id>/analysis/", TeacherAnalysisView.as_view()),
     path("api/peer-review/queue/", PeerReviewQueueView.as_view()),
     path("api/school/staff/add-teacher/", AddTeacherView.as_view()),
+    path("api/school/staff/bulk/", StaffBulkImportView.as_view()),
+    path("api/facilities/bulk/", FacilityBulkImportView.as_view()),
     path("api/school/staff/teachers/<int:teacher_id>/", EditTeacherView.as_view()),
     path("api/school/grades/<grade>/", GradeDetailView.as_view()),
     path("api/admissions/", AdmissionView.as_view()),
