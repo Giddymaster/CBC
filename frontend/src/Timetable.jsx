@@ -4,6 +4,19 @@ import { gradeLabel, gradeParam } from './format.js'
 
 const DAYS = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
 
+/** Follow DRF pagination until every row is in hand — a full school week is
+ * bigger than any single page. */
+async function fetchAllLessons(query) {
+  const rows = []
+  let url = `/api/timetable/lessons/?page_size=500${query ? `&${query}` : ''}`
+  while (url) {
+    const d = await apiGet(url)
+    rows.push(...(d.results || d))
+    url = d.next ? d.next.slice(d.next.indexOf('/api/')) : null
+  }
+  return rows
+}
+
 export default function Timetable({ grade }) {
   const [lessons, setLessons] = useState([])
   const [periods, setPeriods] = useState([])
@@ -11,9 +24,7 @@ export default function Timetable({ grade }) {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
-    const q = gradeParam(grade)
-    apiGet(`/api/timetable/lessons/?page_size=200${q ? `&${q}` : ''}`)
-      .then((d) => setLessons(d.results || d))
+    fetchAllLessons(gradeParam(grade)).then(setLessons).catch(() => setLessons([]))
     apiGet('/api/timetable/periods/').then((d) => setPeriods(d.results || d))
   }, [grade])
   useEffect(load, [load])
@@ -86,13 +97,20 @@ export default function Timetable({ grade }) {
     load()
   }
 
-  // grid[periodId][day] = label
-  const grid = {}
-  for (const lesson of lessons) {
-    grid[lesson.period] = grid[lesson.period] || {}
-    grid[lesson.period][lesson.day] = lesson
+  // The classes on the chart — every grade+stream that has lessons, in order.
+  const classes = [...new Set(lessons.map((l) => `${l.grade}|${l.stream}`))]
+    .map((key) => {
+      const [g, s] = key.split('|')
+      return { grade: Number(g), stream: s }
+    })
+    .sort((a, b) => a.grade - b.grade || a.stream.localeCompare(b.stream))
+
+  // cell[day|grade|stream|period] -> lesson
+  const cell = {}
+  for (const l of lessons) {
+    cell[`${l.day}|${l.grade}|${l.stream}|${l.period}`] = l
   }
-  const areaName = (lesson) => `${lesson.learning_area_name || lesson.learning_area}`
+  const classLabel = (c) => `${gradeLabel(c.grade)}${c.stream ? ` ${c.stream}` : ''}`
 
   return (
     <div className="card">
@@ -121,13 +139,14 @@ export default function Timetable({ grade }) {
         </p>
       )}
       {periods.length > 0 && lessons.length === 0 && (
-        <p className="muted">No lessons scheduled for this class yet.</p>
+        <p className="muted">No lessons scheduled yet.</p>
       )}
-      {periods.length > 0 && (
+      {periods.length > 0 && classes.length > 0 && (
         <table>
           <thead>
             <tr>
               <th>Day</th>
+              <th>Class</th>
               {periods.map((p) => (
                 <th key={p.id}>
                   P{p.number}
@@ -139,15 +158,25 @@ export default function Timetable({ grade }) {
             </tr>
           </thead>
           <tbody>
-            {Object.entries(DAYS).map(([day, label]) => (
-              <tr key={day}>
-                <td><b>{label}</b></td>
-                {periods.map((p) => {
-                  const lesson = grid[p.id]?.[day]
-                  return <td key={p.id}>{lesson ? areaName(lesson) : ''}</td>
-                })}
-              </tr>
-            ))}
+            {Object.entries(DAYS).map(([day, label]) =>
+              classes.map((c, i) => (
+                <tr key={`${day}-${c.grade}-${c.stream}`}
+                  className={i === 0 ? 'day-start' : undefined}>
+                  {i === 0 && (
+                    <td rowSpan={classes.length} className="day-cell"><b>{label}</b></td>
+                  )}
+                  <td style={{ whiteSpace: 'nowrap' }}>{classLabel(c)}</td>
+                  {periods.map((p) => {
+                    const l = cell[`${day}|${c.grade}|${c.stream}|${p.id}`]
+                    return (
+                      <td key={p.id} title={l?.teacher_name || ''}>
+                        {l ? (l.learning_area_name || l.learning_area) : ''}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )),
+            )}
           </tbody>
         </table>
       )}

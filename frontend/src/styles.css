@@ -1120,6 +1120,10 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 .pick-hint { color: #718096; font-size: 0.78rem; }
 .pick-arrow { margin-left: auto; color: #2b6cb0; font-weight: 700; }
 
+/* Master timetable: a heavier rule where each day's block begins. */
+tr.day-start td { border-top: 2px solid #a0aec0; }
+td.day-cell { background: #edf2f7; vertical-align: top; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 

@@ -44,11 +44,20 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
     requirements = list(
         all_requirements.filter(grade__gte=4, grade__lte=9)
         .select_related("teacher", "learning_area")
-        .order_by("-lessons_per_week")
     )
     lower_grades_skipped = all_requirements.exclude(
         grade__gte=4, grade__lte=9
     ).count()
+
+    # Most-constrained first: a teacher carrying 30 lessons across six classes
+    # (the school's only Social Studies teacher, say) must place before staff
+    # with slack, or the free slots they need are gone by the time they play.
+    teacher_total = defaultdict(int)
+    for req in requirements:
+        teacher_total[req.teacher_id] += req.lessons_per_week
+    requirements.sort(
+        key=lambda r: (-teacher_total[r.teacher_id], -r.lessons_per_week, r.id)
+    )
 
     placed, unplaced = 0, []
     for req in requirements:
