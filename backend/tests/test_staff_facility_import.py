@@ -64,13 +64,41 @@ class StaffImportTests(APITestCase):
         self.assertEqual(esther.category, "KITCHEN")
         self.assertEqual(esther.title, "Head Cook")
 
-    def test_a_duplicate_tsc_number_is_reported_not_written(self):
-        make_teacher(self.school, tsc_number="412001")
+    def test_a_matching_tsc_updates_the_existing_teacher(self):
+        """Re-importing the same file applies changes (a new Phase column, a
+        corrected rank) to the people already registered, instead of rejecting
+        them as duplicates."""
+        existing = make_teacher(self.school, tsc_number="412001")
+        existing.user.is_active = False  # was deactivated in the meantime
+        existing.user.save(update_fields=["is_active"])
+        self.client.force_authenticate(self.admin)
+
+        dry = upload(self.client, "/api/school/staff/bulk/", STAFF_CSV)
+        row = next(p for p in dry.data["preview"] if p["row"] == 2)
+        self.assertEqual(row["action"], "Update")
+
+        res = upload(self.client, "/api/school/staff/bulk/", STAFF_CSV, commit=True)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["created"], 2)
+        self.assertEqual(res.data["updated"], 1)
+        # Updated teachers keep their login — a password is issued only for the
+        # one newly created teaching row (Paul).
+        self.assertEqual(len(res.data["logins"]), 1)
+        existing.refresh_from_db()
+        existing.user.refresh_from_db()
+        self.assertEqual(existing.phase, "PRIMARY")
+        self.assertEqual(existing.rank, "SENIOR")
+        self.assertTrue(existing.user.is_active)  # the file reactivates them
+        self.assertEqual(Teacher.objects.count(), 2)  # Jane updated, not duplicated
+
+    def test_a_tsc_registered_at_another_school_is_still_blocked(self):
+        other = make_school()
+        make_teacher(other, tsc_number="412001")
         self.client.force_authenticate(self.admin)
         res = upload(self.client, "/api/school/staff/bulk/", STAFF_CSV, commit=True)
         self.assertEqual(res.data["created"], 2)
         self.assertTrue(
-            any("already on the register" in p["errors"][0] for p in res.data["problems"])
+            any("another school" in p["errors"][0] for p in res.data["problems"])
         )
 
     def test_an_unknown_subject_blocks_the_row_with_advice(self):

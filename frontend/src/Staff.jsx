@@ -636,10 +636,12 @@ export default function Staff({ view }) {
           title="Import the staff room"
           blurb={
             'Teaching and non-teaching staff in one CSV — a Type column tells them '
-            + 'apart. Teaching rows can carry Subjects (semicolon-separated, matching '
-            + 'your learning areas) and a Class Teacher Of column like "G4 North". '
-            + 'Teaching staff get portal logins; the passwords are shown once after '
-            + 'the import.'
+            + 'apart. Teaching rows can carry Phase (Pre-Primary / Primary / JSS), '
+            + 'Subjects (semicolon-separated, matching your learning areas) and a '
+            + 'Class Teacher Of column like "G4 North". A row matching someone '
+            + 'already on the register (by TSC number, or name for non-teaching) '
+            + 'UPDATES that person — and reactivates them — instead of duplicating. '
+            + 'New teaching staff get portal logins; passwords are shown once.'
           }
           endpoint="/api/school/staff/bulk/"
           templateName="staff_import_template.csv"
@@ -648,6 +650,14 @@ export default function Staff({ view }) {
           columns={[
             { key: 'name', label: 'Name' },
             { key: 'kind', label: 'Type' },
+            {
+              key: 'action', label: 'Action',
+              render: (v) => (
+                <span className={`badge ${v === 'Update' ? 'queued' : 'online'}`}>
+                  {v}
+                </span>
+              ),
+            },
             { key: 'detail', label: 'Rank / Title' },
             { key: 'subjects', label: 'Subjects' },
             {

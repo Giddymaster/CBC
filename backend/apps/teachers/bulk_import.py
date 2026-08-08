@@ -217,26 +217,36 @@ def parse(file_obj):
 
 
 def check_against_register(rows, school):
-    """Flag duplicates against existing staff and within the file itself."""
-    existing_tsc = {
-        t.lower()
-        for t in Teacher.objects.values_list("tsc_number", flat=True)
+    """Match rows against the register: a row whose TSC (teaching) or name
+    (non-teaching) is already at THIS school becomes an update of that person,
+    not a duplicate. Only cross-school TSC clashes and repeats within the file
+    itself are errors."""
+    own_teachers = {
+        t.tsc_number.lower(): t
+        for t in Teacher.objects.filter(school=school).select_related("user")
     }
-    existing_support = {
-        n.lower()
-        for n in SupportStaff.objects.filter(school=school).values_list(
-            "full_name", flat=True
+    foreign_tsc = {
+        t.lower()
+        for t in Teacher.objects.exclude(school=school).values_list(
+            "tsc_number", flat=True
         )
+    }
+    own_support = {
+        s.full_name.lower(): s
+        for s in SupportStaff.objects.filter(school=school)
     }
     clean, clashes, seen_tsc = [], [], set()
     for r in rows:
         name = f"{r['first_name']} {r['last_name']}".strip()
         if r["_teaching"]:
             tsc = r["tsc_number"].lower()
-            if tsc in existing_tsc:
+            if tsc in foreign_tsc:
+                message = (
+                    f"TSC/payroll no {r['tsc_number']} is registered at "
+                    f"another school"
+                )
                 clashes.append({
-                    "row": r["_row"], "name": name,
-                    "errors": [f"TSC/payroll no {r['tsc_number']} is already on the register"],
+                    "row": r["_row"], "name": name, "errors": [message],
                 })
                 continue
             if tsc in seen_tsc:
@@ -246,12 +256,9 @@ def check_against_register(rows, school):
                 })
                 continue
             seen_tsc.add(tsc)
-        elif name.lower() in existing_support:
-            clashes.append({
-                "row": r["_row"], "name": name,
-                "errors": ["a non-teaching staff member with this name is already on the register"],
-            })
-            continue
+            r["_existing"] = own_teachers.get(tsc)
+        else:
+            r["_existing"] = own_support.get(name.lower())
         clean.append(r)
     return clean, clashes
 
@@ -266,33 +273,64 @@ def _unique_username(base):
 
 
 def commit(rows, *, school, user):
-    """Write everything in one transaction. Returns (created_count, logins)."""
+    """Write everything in one transaction.
+
+    A row matched to an existing person UPDATES them — non-blank values from
+    the file win, blanks leave the record alone — and reactivates them if they
+    were deactivated. New teaching rows get a login; updated ones keep theirs.
+    Returns (created, updated, logins).
+    """
+    created = updated = 0
     logins = []
     with transaction.atomic():
         for r in rows:
             if r["_teaching"]:
-                username = _unique_username(r["first_name"])
-                password = secrets.token_urlsafe(8)
-                account = User.objects.create_user(
-                    username=username,
-                    password=password,
-                    first_name=r["first_name"],
-                    last_name=r["last_name"],
-                    role="TEACHER",
-                    school=school,
-                    phone=r.get("phone", ""),
-                )
-                account.must_change_password = True
-                account.save(update_fields=["must_change_password"])
-                teacher = Teacher.objects.create(
-                    school=school,
-                    user=account,
-                    tsc_number=r["tsc_number"],
-                    employment_type=r["employment_type"],
-                    rank=r["rank"],
-                    phase=r.get("phase", ""),
-                    gender=r["gender"],
-                )
+                teacher = r.get("_existing")
+                if teacher is None:
+                    username = _unique_username(r["first_name"])
+                    password = secrets.token_urlsafe(8)
+                    account = User.objects.create_user(
+                        username=username,
+                        password=password,
+                        first_name=r["first_name"],
+                        last_name=r["last_name"],
+                        role="TEACHER",
+                        school=school,
+                        phone=r.get("phone", ""),
+                    )
+                    account.must_change_password = True
+                    account.save(update_fields=["must_change_password"])
+                    teacher = Teacher.objects.create(
+                        school=school,
+                        user=account,
+                        tsc_number=r["tsc_number"],
+                        employment_type=r["employment_type"],
+                        rank=r["rank"],
+                        phase=r.get("phase", ""),
+                        gender=r["gender"],
+                    )
+                    logins.append({
+                        "name": account.get_full_name(),
+                        "username": username,
+                        "password": password,
+                    })
+                    created += 1
+                else:
+                    teacher.employment_type = r["employment_type"]
+                    teacher.rank = r["rank"]
+                    if r.get("phase"):
+                        teacher.phase = r["phase"]
+                    if r.get("gender"):
+                        teacher.gender = r["gender"]
+                    teacher.save()
+                    account = teacher.user
+                    account.first_name = r["first_name"]
+                    account.last_name = r["last_name"]
+                    if r.get("phone"):
+                        account.phone = r["phone"]
+                    account.is_active = True  # the file says they are on staff
+                    account.save()
+                    updated += 1
                 if r["_areas"]:
                     teacher.learning_areas.set(r["_areas"])
                 if r["_class"] is not None:
@@ -301,22 +339,32 @@ def commit(rows, *, school, user):
                         school=school, grade=grade, stream=stream,
                         defaults={"class_teacher": teacher},
                     )
-                logins.append({
-                    "name": account.get_full_name(),
-                    "username": username,
-                    "password": password,
-                })
             else:
-                SupportStaff.objects.create(
-                    school=school,
-                    full_name=f"{r['first_name']} {r['last_name']}".strip(),
-                    gender=r["gender"],
-                    category=r["support_category"],
-                    title=r.get("rank_title", ""),
-                    employment_type=r["employment_type"],
-                    phone=r.get("phone", ""),
-                )
-    return len(rows), logins
+                staff = r.get("_existing")
+                if staff is None:
+                    SupportStaff.objects.create(
+                        school=school,
+                        full_name=f"{r['first_name']} {r['last_name']}".strip(),
+                        gender=r["gender"],
+                        category=r["support_category"],
+                        title=r.get("rank_title", ""),
+                        employment_type=r["employment_type"],
+                        phone=r.get("phone", ""),
+                    )
+                    created += 1
+                else:
+                    staff.category = r["support_category"]
+                    staff.employment_type = r["employment_type"]
+                    if r.get("rank_title"):
+                        staff.title = r["rank_title"]
+                    if r.get("gender"):
+                        staff.gender = r["gender"]
+                    if r.get("phone"):
+                        staff.phone = r["phone"]
+                    staff.active = True
+                    staff.save()
+                    updated += 1
+    return created, updated, logins
 
 
 def template_csv():

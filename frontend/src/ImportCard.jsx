@@ -31,7 +31,11 @@ export default function ImportCard({
     }
     setResult(res.data)
     if (res.data?.committed) {
-      setMessage(`${res.data.created} ${commitNoun} added.`)
+      setMessage(
+        res.data.updated
+          ? `${res.data.created} ${commitNoun} added, ${res.data.updated} updated.`
+          : `${res.data.created} ${commitNoun} added.`,
+      )
       setFile(null)
       if (inputRef.current) inputRef.current.value = ''
       onDone?.()
@@ -123,7 +127,7 @@ export default function ImportCard({
               </table>
               <p>
                 <button className="primary" onClick={() => send(true)} disabled={busy}>
-                  Add {result.ready} {commitNoun}
+                  Import {result.ready} row{result.ready === 1 ? '' : 's'}
                 </button>
               </p>
             </>

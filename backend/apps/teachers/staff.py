@@ -418,6 +418,7 @@ class StaffBulkImportView(APIView):
                     "row": r["_row"],
                     "name": f"{r['first_name']} {r['last_name']}".strip(),
                     "kind": "Teaching" if r["_teaching"] else "Non-teaching",
+                    "action": "Update" if r.get("_existing") else "Create",
                     "detail": (
                         r.get("rank_title", "") or
                         ("Teacher" if r["_teaching"] else "")
@@ -438,16 +439,22 @@ class StaffBulkImportView(APIView):
                 {**body, "detail": "Nothing to import — every row has a problem."},
                 status=400,
             )
-        created, logins = commit(rows, school=request.user.school, user=request.user)
+        created, updated, logins = commit(
+            rows, school=request.user.school, user=request.user
+        )
         audit(
             actor=request.user,
             school=request.user.school,
             action="STAFF_ADDED",
-            label=f"{created} staff imported from a spreadsheet",
-            detail={"created": created, "rows_skipped": len(errors)},
+            label=f"{created + updated} staff imported from a spreadsheet",
+            detail={
+                "created": created, "updated": updated,
+                "rows_skipped": len(errors),
+            },
         )
         body["committed"] = True
         body["created"] = created
+        body["updated"] = updated
         # Shown once — the only time these passwords exist in the clear.
         body["logins"] = logins
         return Response(body, status=status.HTTP_201_CREATED)
