@@ -27,6 +27,23 @@ from .models import AdmissionRight, Guardian, Learner, can_admit
 from .serializers import LearnerSerializer
 
 
+def allowed_grades(user):
+    """The grades this user may admit into. None means every grade — admins,
+    and grants made without a grade restriction."""
+    if user.is_superuser or user.role == "ADMIN":
+        return None
+    right = AdmissionRight.objects.filter(school=user.school, user=user).first()
+    if right and right.is_current() and right.grades:
+        return list(right.grades)
+    return None
+
+
+def _grade_names(grades):
+    from apps.schools.moe import GRADE_LABELS
+
+    return ", ".join(GRADE_LABELS.get(g, str(g)) for g in grades)
+
+
 def next_admission_number(school, prefix="ADM"):
     """Continue the school's own numbering rather than imposing a scheme.
 
@@ -116,6 +133,12 @@ class AdmissionView(APIView):
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
         guardians = data.pop("guardians", [])
+
+        grades = allowed_grades(user)
+        if grades is not None and data.get("grade") not in grades:
+            raise PermissionDenied(
+                f"Your admission rights cover {_grade_names(grades)} only."
+            )
 
         admission_number = (data.get("admission_number") or "").strip()
         if not admission_number:
@@ -288,6 +311,8 @@ class MyAdmissionAccessView(APIView):
                 ),
                 "note": right.note if right else "",
                 "expires_on": right.expires_on if right else None,
+                # null = every grade; a list = only these.
+                "grades": allowed_grades(user),
                 "next_admission_number": (
                     next_admission_number(user.school) if can_admit(user) and user.school else None
                 ),
@@ -330,6 +355,22 @@ class BulkImportView(APIView):
         rows, errors, mapping = parse(upload)
         rows, clashes = check_against_register(rows, user.school)
         errors = errors + clashes
+
+        # A grade-restricted grant restricts the spreadsheet too.
+        grades = allowed_grades(user)
+        if grades is not None:
+            kept = []
+            for r in rows:
+                if r["grade"] in grades:
+                    kept.append(r)
+                else:
+                    errors.append({
+                        "row": r["_row"],
+                        "errors": [
+                            f"your admission rights cover {_grade_names(grades)} only"
+                        ],
+                    })
+            rows = kept
 
         wants_commit = str(request.data.get("commit", "")).lower() in ("true", "1", "yes")
         body = {

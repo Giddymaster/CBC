@@ -28,6 +28,10 @@ class Teacher(SchoolScopedModel):
         max_length=4, choices=EmploymentType.choices, default=EmploymentType.TSC
     )
     rank = models.CharField(max_length=10, choices=Rank.choices, default=Rank.TEACHER)
+    gender = models.CharField(
+        max_length=1, blank=True,
+        choices=[("M", "Male"), ("F", "Female"), ("O", "Other")],
+    )
     learning_areas = models.ManyToManyField(
         "assessments.LearningArea", related_name="teachers", blank=True
     )
@@ -90,6 +94,10 @@ class SupportStaff(SchoolScopedModel):
     )
     photo = models.ImageField(upload_to="staff_photos/", null=True, blank=True)
     full_name = models.CharField(max_length=150)
+    gender = models.CharField(
+        max_length=1, blank=True,
+        choices=[("M", "Male"), ("F", "Female"), ("O", "Other")],
+    )
     category = models.CharField(max_length=10, choices=Category.choices)
     title = models.CharField(
         max_length=100, blank=True, help_text="Rank/title, e.g. Head Cook, Chief Security Officer"
@@ -241,11 +249,20 @@ class StaffField(SchoolScopedModel):
         TEACHING = "TEACHING", "Teaching staff"
         NON_TEACHING = "NON_TEACHING", "Non-teaching staff"
 
+    class FieldType(models.TextChoices):
+        TEXT = "TEXT", "Free text"
+        CHOICE = "CHOICE", "Pick from choices"
+
     label = models.CharField(max_length=50)
     key = models.SlugField(max_length=50)
     applies_to = models.CharField(
         max_length=12, choices=AppliesTo.choices, default=AppliesTo.ALL
     )
+    field_type = models.CharField(
+        max_length=6, choices=FieldType.choices, default=FieldType.TEXT
+    )
+    # For CHOICE fields: the options offered, e.g. ["Male", "Female", "Other"].
+    options = models.JSONField(default=list, blank=True)
     order = models.PositiveSmallIntegerField(default=0)
 
     class Meta:

@@ -88,6 +88,10 @@ class StaffFieldViewSet(SchoolScopedViewSet):
 
 class SupportStaffSerializer(serializers.ModelSerializer):
     category_label = serializers.CharField(source="get_category_display", read_only=True)
+    gender_label = serializers.SerializerMethodField()
+
+    def get_gender_label(self, obj):
+        return obj.get_gender_display() if obj.gender else ""
     employment_label = serializers.CharField(
         source="get_employment_type_display", read_only=True
     )
@@ -182,6 +186,9 @@ class AddTeacherSerializer(serializers.Serializer):
         choices=Teacher.Rank.choices, default=Teacher.Rank.TEACHER
     )
     phone = serializers.CharField(max_length=15, allow_blank=True, default="")
+    gender = serializers.ChoiceField(
+        choices=["M", "F", "O"], allow_blank=True, default=""
+    )
     username = serializers.CharField(max_length=150, allow_blank=True, default="")
     password = serializers.CharField(allow_blank=True, default="", write_only=True)
     supervisor = serializers.IntegerField(required=False, allow_null=True)
@@ -239,6 +246,7 @@ class AddTeacherView(APIView):
             tsc_number=data["tsc_number"],
             employment_type=data["employment_type"],
             rank=data["rank"],
+            gender=data.get("gender", ""),
             supervisor_id=_valid_supervisor(
                 data.get("supervisor"), school=user.school, exclude_user_id=account.id
             ),
@@ -279,6 +287,9 @@ class EditTeacherSerializer(serializers.Serializer):
         choices=Teacher.EmploymentType.choices, required=False
     )
     rank = serializers.ChoiceField(choices=Teacher.Rank.choices, required=False)
+    gender = serializers.ChoiceField(
+        choices=["M", "F", "O"], allow_blank=True, required=False
+    )
     phone = serializers.CharField(max_length=15, allow_blank=True, required=False)
     active = serializers.BooleanField(required=False)
     extra = serializers.DictField(required=False)
@@ -320,7 +331,7 @@ class EditTeacherView(APIView):
                 )
             teacher.tsc_number = data["tsc_number"]
 
-        for field in ("employment_type", "rank"):
+        for field in ("employment_type", "rank", "gender"):
             if field in data:
                 setattr(teacher, field, data[field])
         if "extra" in data:
@@ -396,6 +407,8 @@ class StaffDirectoryView(APIView):
                 "employment_label": t.get_employment_type_display(),
                 "rank": t.rank,
                 "rank_label": t.get_rank_display(),
+                "gender": t.gender,
+                "gender_label": t.get_gender_display() if t.gender else "",
                 "phone": t.user.phone,
                 # What they teach: the subjects set on their record, plus any the
                 # timetable already assigns them.

@@ -233,6 +233,17 @@ export default function Admission({ scope, onAdmitted }) {
   }, [])
   useEffect(loadAccess, [loadAccess])
 
+  // A grade-scoped grant (access.grades) narrows the Grade dropdown, and the
+  // form starts on a grade the person may actually admit into.
+  const grantGrades = access?.grades?.length ? access.grades : null
+  const gradeChoices = grantGrades || ALL_GRADES
+  useEffect(() => {
+    if (grantGrades && !grantGrades.includes(Number(form.grade))) {
+      setForm((f) => ({ ...f, grade: grantGrades[0] }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- align once per grant
+  }, [access])
+
   // Streams defined for the chosen grade (School (Grades) → Streams). Offered
   // as suggestions; a school without them can still type one.
   const [streams, setStreams] = useState([])
@@ -424,9 +435,10 @@ export default function Admission({ scope, onAdmitted }) {
               <option value="F">Female</option>
             </select>
           </Field>
-          <Field label="Grade">
+          <Field label="Grade"
+            hint={grantGrades ? 'Limited by your admission rights' : undefined}>
             <select value={form.grade} onChange={set('grade')}>
-              {ALL_GRADES.map((g) => (
+              {gradeChoices.map((g) => (
                 <option key={g} value={g}>{gradeLabel(g)}</option>
               ))}
             </select>

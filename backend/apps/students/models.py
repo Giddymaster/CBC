@@ -81,6 +81,9 @@ class AdmissionRight(SchoolScopedModel):
     note = models.CharField(
         max_length=200, blank=True, help_text="e.g. Grade 1 intake, January 2027"
     )
+    # Which grades they may admit into. Empty means every grade — the common
+    # case; a class teacher running one intake gets just their grade(s).
+    grades = models.JSONField(default=list, blank=True)
     expires_on = models.DateField(
         null=True, blank=True, help_text="Leave blank for no expiry"
     )

@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { AddColumnHeader, ColumnHeader, columnApi, useAnchoredMenu } from './columns.jsx'
+import { ALL_GRADES, gradeLabel } from './format.js'
 
 const PRESENT_LABEL = { P: 'Present', A: 'Absent', L: 'On leave' }
 const PRESENT_BADGE = { P: 'online', A: 'offline', L: 'queued' }
+const GENDER_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'M', label: 'Male' },
+  { value: 'F', label: 'Female' },
+  { value: 'O', label: 'Other' },
+]
 
 const EMPTY_SUPPORT = {
-  full_name: '', category: 'KITCHEN', title: '', phone: '', employment_type: 'BOM',
-  supervisor: '', extra: {},
+  full_name: '', category: 'KITCHEN', title: '', phone: '', gender: '',
+  employment_type: 'BOM', supervisor: '', extra: {},
 }
 const EMPTY_TEACHER = {
   first_name: '', last_name: '', tsc_number: '', employment_type: 'TSC',
-  rank: 'TEACHER', phone: '', username: '', password: '', supervisor: '',
+  rank: 'TEACHER', phone: '', gender: '', username: '', password: '', supervisor: '',
   learning_areas: [], extra: {},
 }
 
@@ -108,6 +115,68 @@ function CellSubjects({ ids, subjects, choices, onSave }) {
   )
 }
 
+// "This form is missing a field my school records" — define it on the spot:
+// name it, choose free text or a fixed set of choices, and it becomes an input
+// here plus a column on the register.
+function NewFieldButton({ appliesTo, onCreated, onMessage }) {
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({ label: '', field_type: 'TEXT', options: '' })
+
+  async function create() {
+    if (!form.label.trim()) {
+      onMessage('Give the new field a name.')
+      return
+    }
+    const options = form.options.split(',').map((s) => s.trim()).filter(Boolean)
+    if (form.field_type === 'CHOICE' && options.length < 2) {
+      onMessage('A choices field needs at least two options, comma-separated.')
+      return
+    }
+    const res = await apiWrite('/api/staff-fields/', {
+      label: form.label.trim(),
+      applies_to: appliesTo,
+      field_type: form.field_type,
+      options: form.field_type === 'CHOICE' ? options : [],
+    })
+    if (res.ok) {
+      onMessage(`Field "${form.label.trim()}" added — it is now a column on the register.`)
+      setForm({ label: '', field_type: 'TEXT', options: '' })
+      setOpen(false)
+      onCreated()
+    } else {
+      onMessage(`Could not add the field: ${JSON.stringify(res.data)}`)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="grade-chip" onClick={() => setOpen(true)}>
+        + New field
+      </button>
+    )
+  }
+  return (
+    <span style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center',
+                   border: '1px dashed #cbd5e0', borderRadius: '6px', padding: '0.4rem' }}>
+      <input autoFocus placeholder="Field name e.g. NSSF number" value={form.label}
+        onChange={(e) => setForm({ ...form, label: e.target.value })}
+        style={{ padding: '0.35rem' }} />
+      <select value={form.field_type}
+        onChange={(e) => setForm({ ...form, field_type: e.target.value })}>
+        <option value="TEXT">Free text</option>
+        <option value="CHOICE">Choices</option>
+      </select>
+      {form.field_type === 'CHOICE' && (
+        <input placeholder="Options, comma-separated" value={form.options}
+          onChange={(e) => setForm({ ...form, options: e.target.value })}
+          style={{ padding: '0.35rem', minWidth: '14rem' }} />
+      )}
+      <button type="button" className="primary" onClick={create}>Add field</button>
+      <button type="button" onClick={() => setOpen(false)}>×</button>
+    </span>
+  )
+}
+
 // Everything the register holds about one person, in one card. Read-only —
 // edits happen in the cells; this is the admin's full view.
 function StaffProfile({ kind, row, fields, onClose }) {
@@ -120,6 +189,7 @@ function StaffProfile({ kind, row, fields, onClose }) {
         ['Username', row.username],
         ['TSC / Payroll no', row.tsc_number],
         ['Phone', row.phone],
+        ['Gender', row.gender_label],
         ['Category', row.employment_label],
         ['Rank', row.rank_label],
         ['Supervisor', row.supervisor_name],
@@ -131,6 +201,7 @@ function StaffProfile({ kind, row, fields, onClose }) {
         ['Category', row.category_label],
         ['Rank / title', row.title],
         ['Phone', row.phone],
+        ['Gender', row.gender_label],
         ['Employment', row.employment_label],
         ['Supervisor', row.supervisor_name],
       ]
@@ -187,7 +258,7 @@ function SupervisorSelect({ value, onChange, choices, excludeUserId }) {
 // detail, so it stays with the admin unless deliberately handed out.
 function AdmissionRights({ supervisorChoices, onMessage }) {
   const [rights, setRights] = useState([])
-  const [form, setForm] = useState({ user: '', note: '', expires_on: '' })
+  const [form, setForm] = useState({ user: '', note: '', expires_on: '', grades: [] })
   const [open, setOpen] = useState(false)
 
   const load = useCallback(() => {
@@ -203,7 +274,7 @@ function AdmissionRights({ supervisorChoices, onMessage }) {
       onMessage('Choose a staff member.')
       return
     }
-    const body = { user: Number(form.user), note: form.note }
+    const body = { user: Number(form.user), note: form.note, grades: form.grades }
     if (form.expires_on) body.expires_on = form.expires_on
     const res = await apiWrite('/api/admission-rights/', body)
     onMessage(
@@ -212,10 +283,18 @@ function AdmissionRights({ supervisorChoices, onMessage }) {
         : `Failed: ${JSON.stringify(res.data)}`,
     )
     if (res.ok) {
-      setForm({ user: '', note: '', expires_on: '' })
+      setForm({ user: '', note: '', expires_on: '', grades: [] })
       load()
     }
   }
+
+  const toggleGrade = (g) =>
+    setForm((f) => ({
+      ...f,
+      grades: f.grades.includes(g)
+        ? f.grades.filter((x) => x !== g)
+        : [...f.grades, g].sort((a, b) => a - b),
+    }))
 
   async function revoke(right) {
     const res = await apiWrite(`/api/admission-rights/${right.id}/`, {}, { method: 'DELETE' })
@@ -276,6 +355,20 @@ function AdmissionRights({ supervisorChoices, onMessage }) {
                 onChange={(e) => setForm({ ...form, expires_on: e.target.value })}
               />
             </label>
+            <div style={{ flexBasis: '100%' }}>
+              <span className="muted">Grades they may admit into — none ticked = all grades:</span>{' '}
+              {ALL_GRADES.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`grade-chip${form.grades.includes(g) ? ' on' : ''}`}
+                  style={{ margin: '0.12rem 0.15rem' }}
+                  onClick={() => toggleGrade(g)}
+                >
+                  {gradeLabel(g)}
+                </button>
+              ))}
+            </div>
             <button className="primary" type="submit">Grant</button>
           </form>
 
@@ -285,7 +378,7 @@ function AdmissionRights({ supervisorChoices, onMessage }) {
             <table>
               <thead>
                 <tr>
-                  <th>Staff</th><th>For</th><th>Expires</th><th>Status</th>
+                  <th>Staff</th><th>For</th><th>Grades</th><th>Expires</th><th>Status</th>
                   <th>Granted by</th><th></th>
                 </tr>
               </thead>
@@ -294,6 +387,11 @@ function AdmissionRights({ supervisorChoices, onMessage }) {
                   <tr key={r.id} style={r.current ? undefined : { opacity: 0.55 }}>
                     <td>{r.staff_name || r.username}</td>
                     <td className="muted">{r.note || '—'}</td>
+                    <td className="muted">
+                      {(r.grades || []).length
+                        ? r.grades.map(gradeLabel).join(', ')
+                        : 'All grades'}
+                    </td>
                     <td className="muted">{r.expires_on || 'No expiry'}</td>
                     <td>
                       {r.current
@@ -573,6 +671,14 @@ export default function Staff({ view }) {
                 </select>
                 <input placeholder="Phone 2547XXXXXXXX" value={teacherForm.phone}
                   onChange={setTeacherField('phone')} style={{ padding: '0.4rem' }} />
+                <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  Gender
+                  <select value={teacherForm.gender} onChange={setTeacherField('gender')}>
+                    {GENDER_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <SupervisorSelect
                   value={teacherForm.supervisor}
                   onChange={setTeacherField('supervisor')}
@@ -620,6 +726,14 @@ export default function Staff({ view }) {
                   onChange={setField('title')} style={{ padding: '0.4rem' }} />
                 <input placeholder="Phone 2547XXXXXXXX" value={form.phone}
                   onChange={setField('phone')} style={{ padding: '0.4rem' }} />
+                <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  Gender
+                  <select value={form.gender} onChange={setField('gender')}>
+                    {GENDER_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <select value={form.employment_type} onChange={setField('employment_type')}>
                   {data.employment_choices.non_teaching.map((c) => (
                     <option key={c.value} value={c.value}>{c.label}</option>
@@ -633,17 +747,38 @@ export default function Staff({ view }) {
                 />
               </>
             )}
-            {activeFields.map((f) => (
-              <input
-                key={f.id}
-                placeholder={f.label}
-                value={
-                  (staffType === 'TEACHING' ? teacherForm.extra : form.extra)?.[f.key] || ''
-                }
-                onChange={setExtra(f.key)}
-                style={{ padding: '0.4rem' }}
-              />
-            ))}
+            {activeFields.map((f) =>
+              f.field_type === 'CHOICE' ? (
+                <label key={f.id} className="muted"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  {f.label}
+                  <select
+                    value={
+                      (staffType === 'TEACHING' ? teacherForm.extra : form.extra)?.[f.key] || ''
+                    }
+                    onChange={setExtra(f.key)}
+                  >
+                    <option value="">—</option>
+                    {(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <input
+                  key={f.id}
+                  placeholder={f.label}
+                  value={
+                    (staffType === 'TEACHING' ? teacherForm.extra : form.extra)?.[f.key] || ''
+                  }
+                  onChange={setExtra(f.key)}
+                  style={{ padding: '0.4rem' }}
+                />
+              ),
+            )}
+            <NewFieldButton
+              appliesTo={staffType}
+              onCreated={() => load()}
+              onMessage={setMessage}
+            />
             <button className="primary" type="submit">Add</button>
           </form>
           {message && <p className="muted">{message}</p>}
@@ -681,8 +816,8 @@ export default function Staff({ view }) {
           <table>
             <thead>
               <tr>
-                <th>Name</th><th>TSC / Payroll No</th><th>Phone</th><th>Category</th>
-                <th>Rank</th><th>Supervisor</th><th>Subjects</th>
+                <th>Name</th><th>TSC / Payroll No</th><th>Phone</th><th>Gender</th>
+                <th>Category</th><th>Rank</th><th>Supervisor</th><th>Subjects</th>
                 {teachingFields.map((f) => (
                   <ColumnHeader
                     key={f.id}
@@ -720,6 +855,11 @@ export default function Staff({ view }) {
                       onSave={(v) => patchTeacher(t.id, { phone: v })} />
                   </td>
                   <td>
+                    <CellSelect value={t.gender} display={t.gender_label}
+                      options={GENDER_OPTIONS}
+                      onSave={(v) => patchTeacher(t.id, { gender: v })} />
+                  </td>
+                  <td>
                     <CellSelect value={t.employment_type} display={t.employment_label}
                       options={data.employment_choices.teaching}
                       onSave={(v) => patchTeacher(t.id, { employment_type: v })} />
@@ -743,8 +883,16 @@ export default function Staff({ view }) {
                   </td>
                   {teachingFields.map((f) => (
                     <td key={f.id}>
-                      <CellText value={t.extra?.[f.key] || ''}
-                        onSave={(v) => patchTeacher(t.id, { extra: { [f.key]: v } })} />
+                      {f.field_type === 'CHOICE' ? (
+                        <CellSelect value={t.extra?.[f.key] || ''}
+                          display={t.extra?.[f.key] || ''}
+                          options={[{ value: '', label: '—' },
+                            ...(f.options || []).map((o) => ({ value: o, label: o }))]}
+                          onSave={(v) => patchTeacher(t.id, { extra: { [f.key]: v } })} />
+                      ) : (
+                        <CellText value={t.extra?.[f.key] || ''}
+                          onSave={(v) => patchTeacher(t.id, { extra: { [f.key]: v } })} />
+                      )}
                     </td>
                   ))}
                   <td><PresenceBadge status={t.present_today} /></td>
@@ -779,7 +927,7 @@ export default function Staff({ view }) {
             <thead>
               <tr>
                 <th>Name</th><th>Category</th><th>Rank / Title</th><th>Phone</th>
-                <th>Employment</th><th>Supervisor</th>
+                <th>Gender</th><th>Employment</th><th>Supervisor</th>
                 {nonTeachingFields.map((f) => (
                   <ColumnHeader
                     key={f.id}
@@ -822,6 +970,11 @@ export default function Staff({ view }) {
                       onSave={(v) => patchSupport(s.id, { phone: v })} />
                   </td>
                   <td>
+                    <CellSelect value={s.gender} display={s.gender_label}
+                      options={GENDER_OPTIONS}
+                      onSave={(v) => patchSupport(s.id, { gender: v })} />
+                  </td>
+                  <td>
                     <CellSelect value={s.employment_type} display={s.employment_label}
                       options={data.employment_choices.non_teaching}
                       onSave={(v) => patchSupport(s.id, { employment_type: v })} />
@@ -835,8 +988,16 @@ export default function Staff({ view }) {
                   </td>
                   {nonTeachingFields.map((f) => (
                     <td key={f.id}>
-                      <CellText value={s.extra?.[f.key] || ''}
-                        onSave={(v) => patchSupport(s.id, { extra: { ...s.extra, [f.key]: v } })} />
+                      {f.field_type === 'CHOICE' ? (
+                        <CellSelect value={s.extra?.[f.key] || ''}
+                          display={s.extra?.[f.key] || ''}
+                          options={[{ value: '', label: '—' },
+                            ...(f.options || []).map((o) => ({ value: o, label: o }))]}
+                          onSave={(v) => patchSupport(s.id, { extra: { ...s.extra, [f.key]: v } })} />
+                      ) : (
+                        <CellText value={s.extra?.[f.key] || ''}
+                          onSave={(v) => patchSupport(s.id, { extra: { ...s.extra, [f.key]: v } })} />
+                      )}
                     </td>
                   ))}
                   <td style={{ whiteSpace: 'nowrap' }}>
