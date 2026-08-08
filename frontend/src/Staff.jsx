@@ -178,10 +178,45 @@ function NewFieldButton({ appliesTo, onCreated, onMessage }) {
   )
 }
 
-// Everything the register holds about one person, in one card. Read-only —
-// edits happen in the cells; this is the admin's full view.
-function StaffProfile({ kind, row, fields, onClose }) {
+// Everything the register holds about one person, in one card — plus the
+// account actions (reset password, deactivate), so their results appear right
+// here rather than somewhere below a long table.
+function StaffProfile({ kind, row, fields, onClose, onChanged }) {
   const teaching = kind === 'TEACHING'
+  const [creds, setCreds] = useState(null)
+  const [note, setNote] = useState('')
+  const userId = teaching ? row.user_id : row.user
+  const isActive = teaching ? row.active !== false : Boolean(row.active)
+
+  async function resetPassword() {
+    if (!userId) {
+      setNote('This person has no portal login to reset.')
+      return
+    }
+    const displayName = teaching ? row.name : row.full_name
+    if (!window.confirm(`Issue a new password for ${displayName}? Their current one stops working.`)) return
+    const res = await apiWrite(`/api/school/staff/${userId}/reset-password/`, {})
+    if (res.ok) {
+      setCreds(res.data)
+      setNote('')
+    } else {
+      setNote(res.data?.detail || 'Could not reset that password.')
+    }
+  }
+
+  async function toggleActive() {
+    const path = teaching
+      ? `/api/school/staff/teachers/${row.id}/`
+      : `/api/support-staff/${row.id}/`
+    const res = await apiWrite(path, { active: !isActive }, { method: 'PATCH' })
+    if (res.ok) {
+      setNote('')
+      onChanged?.()
+    } else {
+      setNote(res.data?.detail || 'Could not update this account.')
+    }
+  }
+
   const name = teaching ? row.name : row.full_name
   const initials = (name || '')
     .split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('')
@@ -208,7 +243,6 @@ function StaffProfile({ kind, row, fields, onClose }) {
         ['Supervisor', row.supervisor_name],
       ]
   ).concat(fields.map((f) => [f.label, row.extra?.[f.key]]))
-  const active = teaching ? row.active !== false : Boolean(row.active)
 
   return (
     <div className="card profile-card">
@@ -220,13 +254,32 @@ function StaffProfile({ kind, row, fields, onClose }) {
             {teaching ? row.rank_label : row.title || row.category_label}
           </p>
           <p className="muted" style={{ margin: 0 }}>
-            {active
+            {isActive
               ? <span className="badge online">Active</span>
               : <span className="badge offline">Deactivated</span>}
           </p>
         </div>
-        <button onClick={onClose} style={{ marginLeft: 'auto' }}>Close</button>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <button onClick={resetPassword}>Reset password</button>
+          <button onClick={toggleActive}>
+            {isActive ? 'Deactivate' : 'Reactivate'}
+          </button>
+          <button onClick={onClose}>Close</button>
+        </span>
       </div>
+
+      {creds && (
+        <div className="op-creds handover">
+          <b>{creds.name}</b> — username <b>{creds.username}</b> · new password{' '}
+          <b>{creds.generated_password}</b>
+          <div className="muted">
+            Hand both over now — they are not shown again. They will choose
+            their own password at first sign-in.
+          </div>
+        </div>
+      )}
+      {note && <p className="error">{note}</p>}
+
       <div className="profile-grid">
         {items.map(([label, value]) => (
           <div className="profile-field" key={label}>
@@ -483,22 +536,6 @@ export default function Staff({ view }) {
     setPanel(panel === 'add' ? null : 'add')
   }
 
-  async function resetPassword(userId, name) {
-    if (!userId) {
-      setMessage(`${name} has no portal login to reset.`)
-      return
-    }
-    const res = await apiWrite(`/api/school/staff/${userId}/reset-password/`, {})
-    setMessage(
-      res.ok
-        ? `${res.data.name} — username: ${res.data.username}, new password: ` +
-          `${res.data.generated_password} — hand both over now, they are not` +
-          ' shown again. They will be asked to choose their own password when' +
-          ' they sign in.'
-        : res.data?.detail || 'Could not reset that password.',
-    )
-  }
-
   // Inline cell edits — save one field, then reload the register.
   async function patchTeacher(id, body) {
     const res = await apiWrite(`/api/school/staff/teachers/${id}/`, body, { method: 'PATCH' })
@@ -514,21 +551,6 @@ export default function Staff({ view }) {
   const splitName = (full) => {
     const [first, ...rest] = (full || '').trim().split(/\s+/)
     return { first_name: first || '', last_name: rest.join(' ') }
-  }
-
-  async function setActive(kind, id, active, name) {
-    const path =
-      kind === 'TEACHING' ? `/api/school/staff/teachers/${id}/` : `/api/support-staff/${id}/`
-    const result = await apiWrite(path, { active }, { method: 'PATCH' })
-    setMessage(
-      result.ok
-        ? `${name} ${active ? 'reactivated' : 'deactivated'}.`
-        : `Could not update ${name}: ${JSON.stringify(result.data)}`,
-    )
-    if (result.ok) {
-      setPanel(null)
-      load()
-    }
   }
 
   async function submitStaff(e) {
@@ -876,6 +898,7 @@ export default function Staff({ view }) {
             row={row}
             fields={profile.kind === 'TEACHING' ? teachingFields : nonTeachingFields}
             onClose={() => setProfile(null)}
+            onChanged={load}
           />
         ) : null
       })()}
@@ -983,14 +1006,6 @@ export default function Staff({ view }) {
                       window.scrollTo(0, 0)
                     }}>
                       Profile
-                    </button>{' '}
-                    <button onClick={() => resetPassword(t.user_id, t.name)}>
-                      Reset password
-                    </button>{' '}
-                    <button
-                      onClick={() => setActive('TEACHING', t.id, t.active === false, t.name)}
-                    >
-                      {t.active === false ? 'Reactivate' : 'Deactivate'}
                     </button>
                   </td>
                   <td />{/* spacer under the "+" column */}
@@ -1087,14 +1102,6 @@ export default function Staff({ view }) {
                       window.scrollTo(0, 0)
                     }}>
                       Profile
-                    </button>{' '}
-                    <button onClick={() => resetPassword(s.user, s.full_name)}>
-                      Reset password
-                    </button>{' '}
-                    <button
-                      onClick={() => setActive('NON_TEACHING', s.id, !s.active, s.full_name)}
-                    >
-                      {s.active ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </td>
                   <td />{/* spacer under the "+" column */}
