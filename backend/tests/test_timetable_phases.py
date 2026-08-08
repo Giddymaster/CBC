@@ -108,6 +108,40 @@ class GeneratorScopeTests(APITestCase):
         self.assertEqual(seed_standard_day(self.school), 0)  # nothing new
         self.assertEqual(Period.objects.filter(school=self.school).count(), 9)
 
+    def test_a_subject_moves_around_the_day_not_one_fixed_slot(self):
+        """Five lessons a week must not sit at the same period all five days —
+        a Monday identical to Friday is not a timetable."""
+        teacher = make_teacher(self.school, phase="JUNIOR")
+        LessonRequirement.objects.create(
+            school=self.school, teacher=teacher, learning_area=self.maths,
+            grade=7, lessons_per_week=5,
+        )
+        generate_timetable(self.school)
+        period_numbers = {
+            lesson.period.number
+            for lesson in Lesson.objects.filter(school=self.school)
+        }
+        self.assertGreater(len(period_numbers), 1)
+
+    def test_a_full_class_week_fills_completely(self):
+        """Nine subjects x five lessons = all 45 slots of one class, across
+        nine different teachers — nothing may be left unplaced."""
+        for i in range(9):
+            area = make_learning_area(f"Area {i}", f"AR{i}", grades=[7])
+            teacher = make_teacher(self.school, phase="JUNIOR")
+            LessonRequirement.objects.create(
+                school=self.school, teacher=teacher, learning_area=area,
+                grade=7, stream="North", lessons_per_week=5,
+            )
+        report = generate_timetable(self.school)
+        self.assertEqual(report["placed"], 45)
+        self.assertEqual(report["unplaced"], [])
+        # Every day carries all nine periods for this class.
+        for day in range(1, 6):
+            self.assertEqual(
+                Lesson.objects.filter(school=self.school, day=day).count(), 9
+            )
+
     def test_only_grades_4_to_9_are_scheduled(self):
         upper = make_teacher(self.school, phase="PRIMARY")
         lower = make_teacher(self.school, phase="PRE_PRIMARY")

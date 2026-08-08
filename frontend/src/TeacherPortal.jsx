@@ -4,7 +4,7 @@ import { PdRecords, PeerReview, TeacherDetail } from './Analysis.jsx'
 import { StaffParentThreads } from './ParentMessages.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
-import { gradeLabel } from './format.js'
+import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
 import SchoolStructure from './SchoolStructure.jsx'
@@ -44,7 +44,8 @@ function MyTimetable({ timetable }) {
             {periods.map((p) => {
               const lesson = grid[p]?.[day]
               return (
-                <td key={p}>
+                <td key={p}
+                  style={lesson ? { background: subjectColor(lesson.learning_area) } : undefined}>
                   {lesson && (
                     <>
                       {lesson.learning_area}

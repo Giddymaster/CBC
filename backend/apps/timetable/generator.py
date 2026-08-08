@@ -59,7 +59,68 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
         key=lambda r: (-teacher_total[r.teacher_id], -r.lessons_per_week, r.id)
     )
 
-    placed, unplaced = 0, []
+    # Who is teaching where, as live Lesson objects — the swap pass moves them.
+    lesson_at = {}  # (day, period_id, teacher_id) -> Lesson
+    for lesson in Lesson.objects.filter(school=school):
+        lesson_at[(lesson.day, lesson.period_id, lesson.teacher_id)] = lesson
+
+    def record(lesson):
+        slot = (lesson.day, lesson.period_id)
+        teacher_busy[slot].add(lesson.teacher_id)
+        class_busy[slot].add((lesson.grade, lesson.stream))
+        if lesson.room_id:
+            lab_busy[slot].add(lesson.room_id)
+        lesson_at[(lesson.day, lesson.period_id, lesson.teacher_id)] = lesson
+
+    def erase(lesson):
+        slot = (lesson.day, lesson.period_id)
+        teacher_busy[slot].discard(lesson.teacher_id)
+        class_busy[slot].discard((lesson.grade, lesson.stream))
+        if lesson.room_id:
+            lab_busy[slot].discard(lesson.room_id)
+        lesson_at.pop((lesson.day, lesson.period_id, lesson.teacher_id), None)
+
+    def fits(teacher_id, grade, stream, day, period):
+        slot = (day, period.id)
+        return (
+            teacher_id not in teacher_busy[slot]
+            and (grade, stream) not in class_busy[slot]
+        )
+
+    def scan_order(req_id, day):
+        # Rotate where the scan starts per requirement and day, so the same
+        # subject doesn't sit at the same time every single day — a Monday
+        # that equals Tuesday equals Friday is not a timetable.
+        offset = (req_id * 3 + day * 2) % len(periods) if periods else 0
+        return periods[offset:] + periods[:offset]
+
+    def try_swap(req, day_load):
+        """The class is free somewhere but the teacher is booked everywhere the
+        class is free. Move one of the teacher's other lessons aside — same day,
+        different period first, so nobody's weekly spread is disturbed."""
+        for day in sorted(days, key=lambda d: (day_load[d], d)):
+            for period in scan_order(req.id, day):
+                slot = (day, period.id)
+                if (req.grade, req.stream) in class_busy[slot]:
+                    continue
+                blocker = lesson_at.get((day, period.id, req.teacher_id))
+                if blocker is None:
+                    continue
+                for new_period in scan_order(blocker.id, day):
+                    if new_period.id == period.id:
+                        continue
+                    if not fits(blocker.teacher_id, blocker.grade, blocker.stream,
+                                day, new_period):
+                        continue
+                    erase(blocker)
+                    blocker.period = new_period
+                    blocker.save(update_fields=["period"])
+                    record(blocker)
+                    return (day, period, None)
+        return None
+
+    placed = 0
+    missed = defaultdict(int)  # requirement -> lessons that found no slot
     for req in requirements:
         day_load = defaultdict(int)  # lessons of THIS requirement already on each day
         for _ in range(req.lessons_per_week):
@@ -67,7 +128,7 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
             candidate_days = sorted(days, key=lambda d: (day_load[d], d))
             slot_found = None
             for day in candidate_days:
-                for period in periods:
+                for period in scan_order(req.id, day):
                     slot = (day, period.id)
                     if req.teacher_id in teacher_busy[slot]:
                         continue
@@ -83,23 +144,25 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
                 if slot_found:
                     break
 
+            if slot_found is None and not req.needs_lab:
+                slot_found = try_swap(req, day_load)
             if slot_found is None:
-                unplaced.append(str(req))
-                break
+                missed[req] += 1
+                continue
 
             day, period, room = slot_found
-            Lesson.objects.create(
+            lesson = Lesson.objects.create(
                 school=school, day=day, period=period, teacher=req.teacher,
                 learning_area=req.learning_area, grade=req.grade, stream=req.stream, room=room,
             )
-            slot = (day, period.id)
-            teacher_busy[slot].add(req.teacher_id)
-            class_busy[slot].add((req.grade, req.stream))
-            if room:
-                lab_busy[slot].add(room.id)
+            record(lesson)
             day_load[day] += 1
             placed += 1
 
+    unplaced = [
+        f"{req} ({count} of {req.lessons_per_week})"
+        for req, count in missed.items()
+    ]
     return {
         "placed": placed,
         "unplaced": unplaced,

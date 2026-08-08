@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { useAnchoredMenu } from './columns.jsx'
-import { ALL_GRADES, gradeLabel } from './format.js'
+import { ALL_GRADES, gradeLabel, subjectColor } from './format.js'
 
 const DAY_NAMES = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
 const TODAY_LABEL = { P: 'Present', A: 'Absent', L: 'Late', E: 'Excused' }
@@ -38,7 +38,8 @@ function TimetableGrid({ lessons, showTeacher }) {
             {periods.map((p) => {
               const l = grid[p]?.[day]
               return (
-                <td key={p}>
+                <td key={p}
+                  style={l ? { background: subjectColor(l.learning_area) } : undefined}>
                   {l && (
                     <>
                       {l.learning_area}

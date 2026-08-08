@@ -1124,6 +1124,17 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 tr.day-start td { border-top: 2px solid #a0aec0; }
 td.day-cell { background: #edf2f7; vertical-align: top; }
 
+/* Timetable break/lunch columns: narrow shaded separators. */
+th.tt-gap, td.tt-gap {
+  background: repeating-linear-gradient(
+    -45deg, #edf2f7, #edf2f7 6px, #e2e8f0 6px, #e2e8f0 12px
+  );
+  min-width: 3.2rem;
+  font-size: 0.72rem;
+  color: #4a5568;
+  text-align: center;
+}
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 

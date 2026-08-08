@@ -1,8 +1,32 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
-import { gradeLabel, gradeParam } from './format.js'
+import { gradeLabel, gradeParam, subjectColor } from './format.js'
 
 const DAYS = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' }
+
+/** Periods interleaved with the gaps between them: a 30-minute gap is a
+ * break, an hour is lunch — read straight off the period times, so custom
+ * school days get their gaps too. */
+function buildColumns(periods) {
+  const minutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  const columns = []
+  periods.forEach((p, i) => {
+    columns.push({ type: 'period', period: p })
+    const next = periods[i + 1]
+    if (next) {
+      const gap = minutes(next.start_time) - minutes(p.end_time)
+      if (gap >= 10) {
+        columns.push({
+          type: 'gap',
+          label: gap >= 45 ? 'Lunch' : 'Break',
+          time: `${p.end_time.slice(0, 5)}–${next.start_time.slice(0, 5)}`,
+          key: `gap-${p.id}`,
+        })
+      }
+    }
+  })
+  return columns
+}
 
 /** Follow DRF pagination until every row is in hand — a full school week is
  * bigger than any single page. */
@@ -141,45 +165,63 @@ export default function Timetable({ grade }) {
       {periods.length > 0 && lessons.length === 0 && (
         <p className="muted">No lessons scheduled yet.</p>
       )}
-      {periods.length > 0 && classes.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Day</th>
-              <th>Class</th>
-              {periods.map((p) => (
-                <th key={p.id}>
-                  P{p.number}
-                  <div className="muted">
-                    {p.start_time.slice(0, 5)}–{p.end_time.slice(0, 5)}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(DAYS).map(([day, label]) =>
-              classes.map((c, i) => (
-                <tr key={`${day}-${c.grade}-${c.stream}`}
-                  className={i === 0 ? 'day-start' : undefined}>
-                  {i === 0 && (
-                    <td rowSpan={classes.length} className="day-cell"><b>{label}</b></td>
-                  )}
-                  <td style={{ whiteSpace: 'nowrap' }}>{classLabel(c)}</td>
-                  {periods.map((p) => {
-                    const l = cell[`${day}|${c.grade}|${c.stream}|${p.id}`]
-                    return (
-                      <td key={p.id} title={l?.teacher_name || ''}>
-                        {l ? (l.learning_area_name || l.learning_area) : ''}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
-      )}
+      {periods.length > 0 && classes.length > 0 && (() => {
+        const columns = buildColumns(periods)
+        return (
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Class</th>
+                {columns.map((col) =>
+                  col.type === 'period' ? (
+                    <th key={col.period.id}>
+                      P{col.period.number}
+                      <div className="muted">
+                        {col.period.start_time.slice(0, 5)}–{col.period.end_time.slice(0, 5)}
+                      </div>
+                    </th>
+                  ) : (
+                    <th key={col.key} className="tt-gap">
+                      {col.label}
+                      <div className="muted">{col.time}</div>
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(DAYS).map(([day, label]) =>
+                classes.map((c, i) => (
+                  <tr key={`${day}-${c.grade}-${c.stream}`}
+                    className={i === 0 ? 'day-start' : undefined}>
+                    {i === 0 && (
+                      <td rowSpan={classes.length} className="day-cell"><b>{label}</b></td>
+                    )}
+                    <td style={{ whiteSpace: 'nowrap' }}>{classLabel(c)}</td>
+                    {columns.map((col) => {
+                      if (col.type === 'gap') {
+                        return <td key={col.key} className="tt-gap" />
+                      }
+                      const l = cell[`${day}|${c.grade}|${c.stream}|${col.period.id}`]
+                      const name = l ? (l.learning_area_name || l.learning_area) : ''
+                      return (
+                        <td
+                          key={col.period.id}
+                          title={l?.teacher_name || ''}
+                          style={name ? { background: subjectColor(String(name)) } : undefined}
+                        >
+                          {name}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
+        )
+      })()}
     </div>
   )
 }

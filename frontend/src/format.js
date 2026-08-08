@@ -21,3 +21,14 @@ export function todayLocal() {
 export function gradeParam(grade, key = 'grade') {
   return grade === null || grade === undefined ? '' : `${key}=${grade}`
 }
+
+// A stable light background per learning area, so a timetable reads by colour
+// the way a wall chart does. Same name → same hue, on every grid.
+export function subjectColor(name) {
+  if (!name) return undefined
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  }
+  return `hsl(${hash % 360}, 60%, 88%)`
+}
