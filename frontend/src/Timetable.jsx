@@ -91,9 +91,12 @@ export default function Timetable({ grade }) {
       setMessage(res.data?.detail || 'Could not auto-assign.')
       return
     }
-    const { created, skipped_existing, unfilled } = res.data
+    const { created, skipped_existing, rebalanced, unfilled } = res.data
     let text = `Created ${created} assignment${created === 1 ? '' : 's'}`
-    if (skipped_existing) text += ` (${skipped_existing} already existed)`
+    if (rebalanced) {
+      text += `, rebalanced ${rebalanced} so every class's week is full`
+    }
+    if (skipped_existing) text += ` (${skipped_existing} already right)`
     text += '.'
     if (unfilled.length) {
       const sample = unfilled.slice(0, 5)

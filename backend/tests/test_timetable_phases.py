@@ -43,55 +43,91 @@ class PhaseRulesTests(APITestCase):
 
 
 class AutoAssignTests(APITestCase):
+    """Auto-assign shares the WHOLE week out: periods x 5 days across the
+    class's teachable subjects, cores absorbing the extras."""
+
     def setUp(self):
         from apps.students.models import ClassGroup
 
         self.school = make_school()
         self.admin = make_user(self.school, "ADMIN")
-        self.maths = make_learning_area("Mathematics", "MATH", grades=[7, 8, 9])
-        self.english = make_learning_area("English", "ENG", grades=[7, 8, 9])
         ClassGroup.objects.create(school=self.school, grade=7, stream="North")
-        ClassGroup.objects.create(school=self.school, grade=7, stream="South")
-        self.mary = make_teacher(self.school, phase="JUNIOR")
-        self.mary.learning_areas.set([self.maths])
-        self.eric = make_teacher(self.school, phase="JUNIOR")
-        self.eric.learning_areas.set([self.english])
 
-    def test_assignments_come_from_subjects_and_phases(self):
+    def _areas(self, names):
+        out = []
+        for i, name in enumerate(names):
+            area = make_learning_area(name, f"A{i}", grades=[7])
+            teacher = make_teacher(self.school, phase="JUNIOR")
+            teacher.learning_areas.set([area])
+            out.append(area)
+        return out
+
+    def _run(self):
         self.client.force_authenticate(self.admin)
-        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
-        self.assertEqual(res.status_code, 200, res.data)
-        # G7 North + G7 South, Maths + English (G8/G9 have no class groups →
-        # one streamless class each): 2 areas × (2 + 1 + 1) classes = 8.
-        self.assertEqual(res.data["created"], 8)
+        return self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+
+    def test_nine_subjects_get_five_lessons_each(self):
+        self._areas([f"Subject {i}" for i in range(9)])
+        res = self._run()
+        self.assertEqual(res.data["created"], 9)
         self.assertEqual(res.data["unfilled"], [])
-        for req in LessonRequirement.objects.filter(learning_area=self.maths):
-            self.assertEqual(req.teacher_id, self.mary.id)
-        self.assertEqual(
-            LessonRequirement.objects.filter(teacher=self.eric).count(), 4
+        for req in LessonRequirement.objects.all():
+            self.assertEqual(req.lessons_per_week, 5)
+
+    def test_eight_subjects_still_fill_all_45_slots_cores_first(self):
+        self._areas(["English", "Kiswahili", "Mathematics",
+                     "Science", "Social", "Agriculture", "Creative", "Religious"])
+        res = self._run()
+        self.assertEqual(res.data["unfilled"], [])
+        reqs = {r.learning_area.name: r.lessons_per_week
+                for r in LessonRequirement.objects.select_related("learning_area")}
+        self.assertEqual(sum(reqs.values()), 45)
+        self.assertEqual(reqs["English"], 6)
+        self.assertEqual(reqs["Kiswahili"], 6)
+        self.assertEqual(reqs["Mathematics"], 6)
+        self.assertEqual(sorted(reqs.values()), [5, 5, 5, 6, 6, 6, 6, 6])
+
+    def test_rerunning_rebalances_a_flat_five_week(self):
+        areas = self._areas(["English", "Kiswahili", "Mathematics", "Science"])
+        # An earlier hand-made assignment at the old flat 5.
+        old = LessonRequirement.objects.create(
+            school=self.school,
+            teacher=make_teacher(self.school, phase="JUNIOR"),
+            learning_area=areas[0], grade=7, stream="North", lessons_per_week=5,
         )
+        old.teacher.learning_areas.set([areas[0]])
+        res = self._run()
+        old.refresh_from_db()
+        # 45 over 4 subjects: base 11, remainder 1 → English carries 12.
+        self.assertEqual(old.lessons_per_week, 12)
+        self.assertGreaterEqual(res.data["rebalanced"], 1)
+        total = sum(r.lessons_per_week for r in LessonRequirement.objects.all())
+        self.assertEqual(total, 45)
 
-    def test_rerunning_creates_nothing_new(self):
-        self.client.force_authenticate(self.admin)
-        self.client.post("/api/timetable/assignments/auto/", {}, format="json")
-        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+    def test_rerunning_a_settled_school_changes_nothing(self):
+        self._areas([f"Subject {i}" for i in range(9)])
+        self._run()
+        res = self._run()
         self.assertEqual(res.data["created"], 0)
-        self.assertEqual(res.data["skipped_existing"], 8)
+        self.assertEqual(res.data["rebalanced"], 0)
 
-    def test_an_area_nobody_can_teach_is_reported_not_guessed(self):
-        kis = make_learning_area("Kiswahili", "KIS", grades=[7])
-        self.client.force_authenticate(self.admin)
-        res = self.client.post("/api/timetable/assignments/auto/", {}, format="json")
-        unfilled = [u for u in res.data["unfilled"] if u["area"] == "Kiswahili"]
-        self.assertEqual(len(unfilled), 2)  # G7 North and South
-        self.assertFalse(LessonRequirement.objects.filter(learning_area=kis).exists())
+    def test_an_unstaffed_area_is_reported_and_the_rest_absorb_its_slots(self):
+        self._areas([f"Subject {i}" for i in range(8)])
+        make_learning_area("Kiswahili", "KIS", grades=[7])  # nobody teaches it
+        res = self._run()
+        self.assertEqual(
+            [u["area"] for u in res.data["unfilled"]], ["Kiswahili"]
+        )
+        total = sum(r.lessons_per_week for r in LessonRequirement.objects.all())
+        self.assertEqual(total, 45)  # the eight staffed subjects fill the week
 
     def test_a_primary_phase_teacher_is_not_pulled_into_jss(self):
+        maths = make_learning_area("Mathematics", "MATH", grades=[7])
         primary = make_teacher(self.school, phase="PRIMARY")
-        primary.learning_areas.set([self.maths])
-        self.client.force_authenticate(self.admin)
-        self.client.post("/api/timetable/assignments/auto/", {}, format="json")
+        primary.learning_areas.set([maths])
+        res = self._run()
         self.assertFalse(LessonRequirement.objects.filter(teacher=primary).exists())
+        self.assertEqual([u["area"] for u in res.data["unfilled"]], ["Mathematics"])
 
 
 class GeneratorScopeTests(APITestCase):
