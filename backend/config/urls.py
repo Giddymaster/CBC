@@ -7,6 +7,11 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.views import MeView
+from apps.assessments.broadsheet import (
+    BroadsheetView,
+    BroadsheetXlsxView,
+    ClassReportPdfView,
+)
 from apps.assessments.subject_analysis import SubjectAnalysisView
 from apps.assessments.views import (
     AssessmentViewSet,
@@ -17,7 +22,11 @@ from apps.assessments.views import (
     ScoreBulkView,
     ScoreViewSet,
 )
-from apps.attendance.views import AttendanceBulkView, AttendanceViewSet
+from apps.attendance.views import (
+    AttendanceBulkView,
+    AttendanceMonthView,
+    AttendanceViewSet,
+)
 from apps.common.audit_views import AuditEntryViewSet, AuditSummaryView
 from apps.communication.parent_messages import (
     LearnerContactsView,
@@ -251,10 +260,14 @@ urlpatterns = [
     path("api/my-team/", MyTeamView.as_view()),
     path("api/my-team/<int:user_id>/", TeamMemberView.as_view()),
     path("api/attendance/bulk/", AttendanceBulkView.as_view()),
+    path("api/attendance/month/", AttendanceMonthView.as_view()),
     path("api/scores/bulk/", ScoreBulkView.as_view()),
     path("api/report-card/<int:learner_id>/", ReportCardView.as_view()),
     path("api/report-card/<int:learner_id>/pdf/", ReportCardPdfView.as_view()),
     path("api/report-cards/generate-class/", GenerateClassReportCardsView.as_view()),
+    path("api/report-cards/broadsheet/", BroadsheetView.as_view()),
+    path("api/report-cards/broadsheet.xlsx", BroadsheetXlsxView.as_view()),
+    path("api/report-cards/class.pdf", ClassReportPdfView.as_view()),
     path("api/timetable/generate/", GenerateTimetableView.as_view()),
     path("api/timetable/assignments/auto/", AutoAssignView.as_view()),
     path("api/payments/stk-push/", StkPushView.as_view()),

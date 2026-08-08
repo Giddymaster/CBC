@@ -7,6 +7,7 @@ class AttendanceRecord(SchoolScopedModel):
     class Status(models.TextChoices):
         PRESENT = "P", "Present"
         ABSENT = "A", "Absent"
+        HALF_DAY = "H", "Half day"
         LATE = "L", "Late"
         EXCUSED = "E", "Excused"
 

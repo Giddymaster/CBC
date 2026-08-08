@@ -13,6 +13,7 @@ import {
 } from './api.js'
 import Admission from './Admission.jsx'
 import Analysis from './Analysis.jsx'
+import Broadsheet from './Broadsheet.jsx'
 import Audit from './Audit.jsx'
 import Attendance from './Attendance.jsx'
 import Curriculum from './Curriculum.jsx'
@@ -279,78 +280,8 @@ function Learners({ grade }) {
   )
 }
 
-function ReportCard({ grade }) {
-  const [learners, setLearners] = useState([])
-  const [selected, setSelected] = useState('')
-  const [report, setReport] = useState(null)
-
-  useEffect(() => {
-    const q = gradeParam(grade)
-    apiGet(`/api/learners/?page_size=200${q ? `&${q}` : ''}`).then((data) => {
-      setLearners(data.results || data)
-      setSelected('')
-      setReport(null)
-    })
-  }, [grade])
-
-  useEffect(() => {
-    if (!selected) return
-    apiGet(`/api/report-card/${selected}/`).then(setReport)
-  }, [selected])
-
-  async function downloadPdf() {
-    const res = await fetch(`/api/report-card/${selected}/pdf/`, {
-      headers: { Authorization: `Token ${getToken()}` },
-    })
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `report_${report.learner.admission_number}.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  return (
-    <div className="card">
-      <p>
-        <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-          <option value="">Select learner…</option>
-          {learners.map((l) => (
-            <option key={l.id} value={l.id}>{l.full_name}</option>
-          ))}
-        </select>{' '}
-        {report && (
-          <button className="primary" onClick={downloadPdf}>Download PDF</button>
-        )}
-      </p>
-      {report && (
-        <>
-          <h3>
-            {report.learner.name} — {gradeLabel(report.learner.grade)} {report.learner.stream}
-          </h3>
-          <table>
-            <thead>
-              <tr><th>Learning area</th><th>Assessment</th><th>Marks</th><th>Level</th></tr>
-            </thead>
-            <tbody>
-              {Object.entries(report.learning_areas).flatMap(([area, kinds]) =>
-                Object.entries(kinds).map(([kind, s]) => (
-                  <tr key={area + kind}>
-                    <td>{area}</td>
-                    <td>{kind}</td>
-                    <td>{s.marks} / {s.max_marks}</td>
-                    <td><span className={`level ${s.competency_level}`}>{s.competency_level}</span></td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-    </div>
-  )
-}
+// The Report Card page is the class broadsheet — the whole class on one grid,
+// with Excel and printable report-form sets. See Broadsheet.jsx.
 
 function Fees({ grade }) {
   const [invoices, setInvoices] = useState([])
@@ -485,7 +416,7 @@ const TABS = {
   Admissions: Admission,
   Promotions: Promotions,
   Attendance: Attendance,
-  'Report Card': ReportCard,
+  'Report Card': Broadsheet,
   Fees: Fees,
   Timetable: Timetable,
   'Schemes Review': SchemesReview,

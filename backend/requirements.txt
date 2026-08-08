@@ -11,6 +11,7 @@ redis==8.1.0
 requests==2.34.2
 python-dotenv==1.2.2
 reportlab==5.0.0
+openpyxl==3.1.5
 anthropic==0.120.2
 Pillow==12.3.0
 whitenoise==6.12.0

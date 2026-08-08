@@ -1124,6 +1124,19 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 tr.day-start td { border-top: 2px solid #a0aec0; }
 td.day-cell { background: #edf2f7; vertical-align: top; }
 
+/* Attendance month calendar: tiny day cells, weeks in alternating shades. */
+.att-month th, .att-month td { padding: 0.25rem 0.35rem; text-align: center; }
+.att-month th { font-size: 0.7rem; }
+.att-month td:first-child, .att-month th:first-child,
+.att-month td:nth-child(2), .att-month th:nth-child(2) { text-align: left; }
+.att-cell { font-weight: 700; font-size: 0.85rem; }
+.att-p { color: #2f855a; }
+.att-a { color: #c53030; }
+.att-h { color: #b7791f; }
+.att-o { color: #4a5568; font-weight: 600; font-size: 0.75rem; }
+.att-week-a { background: #ebf4ff; }
+.att-week-b { background: #e6f7ec; }
+
 /* Timetable break/lunch columns: narrow shaded separators. */
 th.tt-gap, td.tt-gap {
   background: repeating-linear-gradient(

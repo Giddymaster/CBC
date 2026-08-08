@@ -6,7 +6,14 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from .models import CompetencyLevel
 
@@ -21,11 +28,27 @@ ASSESSMENT_ORDER = ["CAT1", "CAT2", "ENDTERM", "FORMATIVE"]
 
 
 def render_report_card_pdf(data: dict) -> bytes:
+    return render_report_cards_pdf([data])
+
+
+def render_report_cards_pdf(reports: list) -> bytes:
+    """One PDF, one learner per page — a class set (or the whole school)
+    prints as a single document."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4, topMargin=18 * mm, bottomMargin=18 * mm,
         leftMargin=18 * mm, rightMargin=18 * mm,
     )
+    story = []
+    for i, data in enumerate(reports):
+        if i:
+            story.append(PageBreak())
+        story.extend(_report_story(data))
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def _report_story(data: dict) -> list:
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("SchoolTitle", parent=styles["Title"], fontSize=16, spaceAfter=2)
     subtitle = ParagraphStyle("Subtitle", parent=styles["Normal"], fontSize=10,
@@ -99,5 +122,4 @@ def render_report_card_pdf(data: dict) -> bytes:
     legend = " • ".join(f"{code}: {label}" for code, label in CompetencyLevel.choices)
     story.append(Paragraph(f"<b>Competency levels</b> — {legend}", subtitle))
 
-    doc.build(story)
-    return buffer.getvalue()
+    return story

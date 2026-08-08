@@ -4,6 +4,7 @@ import { PdRecords, PeerReview, TeacherDetail } from './Analysis.jsx'
 import { StaffParentThreads } from './ParentMessages.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
+import Broadsheet from './Broadsheet.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
@@ -364,6 +365,9 @@ const TEACHER_ACTIONS = [
   { tab: 'School (Grades)', icon: 'grid', tone: 'blue', title: 'School (Grades)',
     desc: 'Classes, streams, learning areas and teaching assignments.',
     cta: 'Open school', when: (ctx) => ctx.rankLevel >= 4 },
+  { tab: 'Report Cards', icon: 'file', tone: 'red', title: 'Report Cards',
+    desc: 'Class broadsheets, Excel exports and printable report forms.',
+    cta: 'Open broadsheets', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Peer Review', icon: 'star', tone: 'purple', title: 'Peer Review',
     desc: 'Observe colleagues and read feedback on your teaching.', cta: 'Open reviews' },
   { tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
@@ -460,6 +464,7 @@ export default function TeacherPortal({ onQueueChange }) {
       )}
       {tab === 'My Team' && <MyTeam />}
       {tab === 'School (Grades)' && <SchoolStructure grade={null} />}
+      {tab === 'Report Cards' && <Broadsheet grade={null} />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
         <>
@@ -484,7 +489,7 @@ export default function TeacherPortal({ onQueueChange }) {
         <ScoreEntry assessments={summary.assessments} onQueueChange={onQueueChange} />
       )}
 
-      {tab === 'Attendance' && <Attendance onQueueChange={onQueueChange} />}
+      {tab === 'Attendance' && <Attendance onQueueChange={onQueueChange} canMark />}
 
       {tab === 'Schemes of Work' && (
         <>
