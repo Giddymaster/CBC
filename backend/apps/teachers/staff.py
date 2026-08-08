@@ -186,6 +186,9 @@ class AddTeacherSerializer(serializers.Serializer):
     rank = serializers.ChoiceField(
         choices=Teacher.Rank.choices, default=Teacher.Rank.TEACHER
     )
+    phase = serializers.ChoiceField(
+        choices=Teacher.Phase.choices, allow_blank=True, default=""
+    )
     phone = serializers.CharField(max_length=15, allow_blank=True, default="")
     gender = serializers.ChoiceField(
         choices=["M", "F", "O"], allow_blank=True, default=""
@@ -247,6 +250,7 @@ class AddTeacherView(APIView):
             tsc_number=data["tsc_number"],
             employment_type=data["employment_type"],
             rank=data["rank"],
+            phase=data.get("phase", ""),
             gender=data.get("gender", ""),
             supervisor_id=_valid_supervisor(
                 data.get("supervisor"), school=user.school, exclude_user_id=account.id
@@ -288,6 +292,9 @@ class EditTeacherSerializer(serializers.Serializer):
         choices=Teacher.EmploymentType.choices, required=False
     )
     rank = serializers.ChoiceField(choices=Teacher.Rank.choices, required=False)
+    phase = serializers.ChoiceField(
+        choices=Teacher.Phase.choices, allow_blank=True, required=False
+    )
     gender = serializers.ChoiceField(
         choices=["M", "F", "O"], allow_blank=True, required=False
     )
@@ -332,7 +339,7 @@ class EditTeacherView(APIView):
                 )
             teacher.tsc_number = data["tsc_number"]
 
-        for field in ("employment_type", "rank", "gender"):
+        for field in ("employment_type", "rank", "gender", "phase"):
             if field in data:
                 setattr(teacher, field, data[field])
         if "extra" in data:
@@ -485,6 +492,8 @@ class StaffDirectoryView(APIView):
                 "employment_label": t.get_employment_type_display(),
                 "rank": t.rank,
                 "rank_label": t.get_rank_display(),
+                "phase": t.phase,
+                "phase_label": t.get_phase_display() if t.phase else "",
                 "gender": t.gender,
                 "gender_label": t.get_gender_display() if t.gender else "",
                 "phone": t.user.phone,
@@ -563,6 +572,9 @@ class StaffDirectoryView(APIView):
                     ],
                 },
                 "rank_choices": [{"value": v, "label": l} for v, l in Teacher.Rank.choices],
+                "phase_choices": [
+                    {"value": v, "label": l} for v, l in Teacher.Phase.choices
+                ],
                 # National list, for the subjects picker on teaching staff.
                 "learning_area_choices": [
                     {"id": la.id, "name": la.name}

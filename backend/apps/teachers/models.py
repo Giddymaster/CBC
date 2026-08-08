@@ -18,6 +18,11 @@ class Teacher(SchoolScopedModel):
         TEACHER = "TEACHER", "Teacher"
         INTERN = "INTERN", "Intern Teacher"
 
+    class Phase(models.TextChoices):
+        PRE_PRIMARY = "PRE_PRIMARY", "Pre-Primary"
+        PRIMARY = "PRIMARY", "Primary"
+        JUNIOR = "JUNIOR", "Junior School"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="teacher_profile"
     )
@@ -28,10 +33,26 @@ class Teacher(SchoolScopedModel):
         max_length=4, choices=EmploymentType.choices, default=EmploymentType.TSC
     )
     rank = models.CharField(max_length=10, choices=Rank.choices, default=Rank.TEACHER)
+    # The section a teacher belongs to. Junior School teachers do not teach
+    # primary classes and vice versa — teaching assignments enforce this.
+    # Blank = unassigned, usable anywhere (leadership, floaters).
+    phase = models.CharField(max_length=12, choices=Phase.choices, blank=True)
     gender = models.CharField(
         max_length=1, blank=True,
         choices=[("M", "Male"), ("F", "Female"), ("O", "Other")],
     )
+
+    # Grade bands per phase: pre-primary is PG-PP2, primary G1-G6, junior G7-G9.
+    PHASE_GRADES = {
+        Phase.PRE_PRIMARY: range(-2, 1),
+        Phase.PRIMARY: range(1, 7),
+        Phase.JUNIOR: range(7, 10),
+    }
+
+    def may_teach_grade(self, grade):
+        if not self.phase:
+            return True
+        return grade in self.PHASE_GRADES[self.phase]
     learning_areas = models.ManyToManyField(
         "assessments.LearningArea", related_name="teachers", blank=True
     )

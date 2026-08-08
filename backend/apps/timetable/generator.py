@@ -36,11 +36,19 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
         if lesson.room_id:
             lab_busy[slot].add(lesson.room_id)
 
+    # The generator schedules Grade 4 to Grade 9 only. Below that, the class
+    # teacher takes their class through every learning area whole-day — a
+    # timetable would be noise. Assignments for lower grades still exist (they
+    # power the teacher's portal); they are just not scheduled.
+    all_requirements = LessonRequirement.objects.filter(school=school)
     requirements = list(
-        LessonRequirement.objects.filter(school=school)
+        all_requirements.filter(grade__gte=4, grade__lte=9)
         .select_related("teacher", "learning_area")
         .order_by("-lessons_per_week")
     )
+    lower_grades_skipped = all_requirements.exclude(
+        grade__gte=4, grade__lte=9
+    ).count()
 
     placed, unplaced = 0, []
     for req in requirements:
@@ -87,4 +95,41 @@ def generate_timetable(school, clear_existing: bool = True) -> dict:
         "placed": placed,
         "unplaced": unplaced,
         "slots_available": len(periods) * len(days),
+        "lower_grades_skipped": lower_grades_skipped,
     }
+
+
+# The standard Kenyan school day the user-facing button loads:
+# two lessons, break, two lessons, break, two lessons, lunch, three lessons,
+# then preps (not a lesson slot, so not a period).
+STANDARD_DAY = [
+    (1, "07:30", "08:15"),
+    (2, "08:15", "09:00"),
+    # 09:00-09:30 break
+    (3, "09:30", "10:15"),
+    (4, "10:15", "11:00"),
+    # 11:00-11:30 break
+    (5, "11:30", "12:15"),
+    (6, "12:15", "13:00"),
+    # 13:00-14:00 lunch
+    (7, "14:00", "14:40"),
+    (8, "14:40", "15:20"),
+    (9, "15:20", "16:00"),
+    # 16:00-17:00 preps
+]
+
+
+def seed_standard_day(school):
+    """Create or align the school's periods to the standard day. Idempotent."""
+    from datetime import time
+
+    created = 0
+    for number, start, end in STANDARD_DAY:
+        start_t = time(*map(int, start.split(":")))
+        end_t = time(*map(int, end.split(":")))
+        _, was_created = Period.objects.update_or_create(
+            school=school, number=number,
+            defaults={"start_time": start_t, "end_time": end_t},
+        )
+        created += int(was_created)
+    return created

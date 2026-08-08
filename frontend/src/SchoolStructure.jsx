@@ -295,6 +295,13 @@ function TeachingAssignments({ grade, streams, onMessage }) {
   // Only the areas this grade actually teaches (School (Grades) overview).
   const gradeAreas = areas.filter((a) => a.grades.includes(grade))
 
+  // A phased teacher stays in their section: pre-primary PG-PP2, primary
+  // G1-G6, junior G7-G9. Unphased staff (leadership, floaters) appear always.
+  const phaseFor = grade <= 0 ? 'PRE_PRIMARY' : grade <= 6 ? 'PRIMARY' : 'JUNIOR'
+  const eligibleTeachers = teachers.filter(
+    (t) => !t.phase || t.phase === phaseFor,
+  )
+
   async function add(e) {
     e.preventDefault()
     if (!form.learning_area || !form.teacher) {
@@ -332,6 +339,13 @@ function TeachingAssignments({ grade, streams, onMessage }) {
       <p className="muted">
         Who teaches what in this class. The timetable is generated from these, and
         each teacher's portal — score entry, schemes, lesson plans — follows them.
+        {grade <= 3 && (
+          <>
+            {' '}In {gradeLabel(grade)} the class teacher takes the class through
+            every learning area, so assign them to each — the timetable generator
+            covers G4–G9 only.
+          </>
+        )}
       </p>
       <form onSubmit={add}
         style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center',
@@ -344,7 +358,7 @@ function TeachingAssignments({ grade, streams, onMessage }) {
         <select value={form.teacher}
           onChange={(e) => setForm({ ...form, teacher: e.target.value })}>
           <option value="">Teacher…</option>
-          {teachers.map((t) => (
+          {eligibleTeachers.map((t) => (
             <option key={t.id} value={t.id}>{t.name || t.user} (TSC {t.tsc_number})</option>
           ))}
         </select>

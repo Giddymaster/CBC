@@ -11,11 +11,11 @@ from tests.factories import make_learning_area, make_school, make_teacher, make_
 
 STAFF_CSV = (
     "Type,First Name,Last Name,Gender,TSC / Payroll No,Phone,Employment,"
-    "Category,Rank / Title,Subjects,Class Teacher Of\n"
-    "Teaching,Jane,Wanjiku,F,412001,254700000001,TSC,,Senior Teacher,"
+    "Category,Rank / Title,Phase,Subjects,Class Teacher Of\n"
+    "Teaching,Jane,Wanjiku,F,412001,254700000001,TSC,,Senior Teacher,Primary,"
     "Mathematics; Kiswahili,G4 North\n"
-    "Teaching,Paul,Otieno,M,412002,254700000002,BOM,,Teacher,Mathematics,\n"
-    "Non-teaching,Esther,Nafula,F,,254700000003,BOM,Kitchen staff,Head Cook,,\n"
+    "Teaching,Paul,Otieno,M,412002,254700000002,BOM,,Teacher,JSS,Mathematics,\n"
+    "Non-teaching,Esther,Nafula,F,,254700000003,BOM,Kitchen staff,Head Cook,,,\n"
 )
 
 
@@ -51,6 +51,8 @@ class StaffImportTests(APITestCase):
         jane = Teacher.objects.get(tsc_number="412001")
         self.assertEqual(jane.rank, "SENIOR")
         self.assertEqual(jane.gender, "F")
+        self.assertEqual(jane.phase, "PRIMARY")
+        self.assertEqual(Teacher.objects.get(tsc_number="412002").phase, "JUNIOR")
         self.assertEqual(
             sorted(jane.learning_areas.values_list("name", flat=True)),
             ["Kiswahili", "Mathematics"],

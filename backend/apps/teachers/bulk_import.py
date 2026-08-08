@@ -38,6 +38,7 @@ COLUMNS = {
     "employment": ["employment", "employment type", "employer", "terms"],
     "category": ["category", "department", "section"],
     "rank_title": ["rank", "title", "rank / title", "rank/title", "position"],
+    "phase": ["phase", "section", "level", "school section"],
     "subjects": ["subjects", "learning areas", "subject"],
     "class_teacher_of": [
         "class teacher of", "class teacher", "class", "class assigned",
@@ -45,6 +46,13 @@ COLUMNS = {
 }
 
 GENDERS = {"m": "M", "male": "M", "f": "F", "female": "F", "o": "O", "other": "O"}
+
+PHASES = {
+    "pre-primary": "PRE_PRIMARY", "pre primary": "PRE_PRIMARY", "pp": "PRE_PRIMARY",
+    "ecd": "PRE_PRIMARY", "ecde": "PRE_PRIMARY",
+    "primary": "PRIMARY", "lower primary": "PRIMARY", "upper primary": "PRIMARY",
+    "junior": "JUNIOR", "junior school": "JUNIOR", "jss": "JUNIOR", "js": "JUNIOR",
+}
 
 TEACHING_WORDS = ("teaching", "teacher", "tsc")
 RANKS = {
@@ -156,6 +164,13 @@ def parse(file_obj):
                 problems.append("teaching staff need a TSC / payroll number")
             rank_text = record.get("rank_title", "").strip().lower()
             record["rank"] = RANKS.get(rank_text, "TEACHER")
+            phase_text = record.get("phase", "").strip().lower()
+            record["phase"] = PHASES.get(phase_text, "")
+            if phase_text and not record["phase"]:
+                problems.append(
+                    f"'{record['phase'] or phase_text}' is not a phase — use "
+                    "Pre-Primary, Primary or JSS"
+                )
             emp_text = record.get("employment", "").strip().lower()
             record["employment_type"] = TEACHING_EMPLOYMENT.get(emp_text, "TSC")
             # Subjects: semicolon- or comma-separated learning-area names.
@@ -275,6 +290,7 @@ def commit(rows, *, school, user):
                     tsc_number=r["tsc_number"],
                     employment_type=r["employment_type"],
                     rank=r["rank"],
+                    phase=r.get("phase", ""),
                     gender=r["gender"],
                 )
                 if r["_areas"]:
@@ -308,16 +324,16 @@ def template_csv():
     writer = csv.writer(out)
     writer.writerow([
         "Type", "First Name", "Last Name", "Gender", "TSC / Payroll No",
-        "Phone", "Employment", "Category", "Rank / Title", "Subjects",
-        "Class Teacher Of",
+        "Phone", "Employment", "Category", "Rank / Title", "Phase",
+        "Subjects", "Class Teacher Of",
     ])
     writer.writerow([
         "Teaching", "Jane", "Wanjiku", "F", "412001", "254700000001",
-        "TSC", "", "Senior Teacher", "Mathematics; Integrated Science",
-        "G4 North",
+        "TSC", "", "Senior Teacher", "Primary",
+        "Mathematics; Science and Technology", "G4 North",
     ])
     writer.writerow([
         "Non-teaching", "Esther", "Nafula", "F", "", "254700000002",
-        "BOM", "Kitchen staff", "Head Cook", "", "",
+        "BOM", "Kitchen staff", "Head Cook", "", "", "",
     ])
     return out.getvalue()

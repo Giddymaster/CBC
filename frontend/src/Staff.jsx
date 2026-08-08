@@ -19,8 +19,8 @@ const EMPTY_SUPPORT = {
 }
 const EMPTY_TEACHER = {
   first_name: '', last_name: '', tsc_number: '', employment_type: 'TSC',
-  rank: 'TEACHER', phone: '', gender: '', username: '', password: '', supervisor: '',
-  learning_areas: [], extra: {},
+  rank: 'TEACHER', phase: '', phone: '', gender: '', username: '', password: '',
+  supervisor: '', learning_areas: [], extra: {},
 }
 
 function PresenceBadge({ status }) {
@@ -191,6 +191,7 @@ function StaffProfile({ kind, row, fields, onClose }) {
         ['TSC / Payroll no', row.tsc_number],
         ['Phone', row.phone],
         ['Gender', row.gender_label],
+        ['Phase', row.phase_label],
         ['Category', row.employment_label],
         ['Rank', row.rank_label],
         ['Supervisor', row.supervisor_name],
@@ -734,6 +735,15 @@ export default function Staff({ view }) {
                     ))}
                   </select>
                 </label>
+                <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  Phase
+                  <select value={teacherForm.phase} onChange={setTeacherField('phase')}>
+                    <option value="">—</option>
+                    {(data.phase_choices || []).map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <SupervisorSelect
                   value={teacherForm.supervisor}
                   onChange={setTeacherField('supervisor')}
@@ -872,7 +882,8 @@ export default function Staff({ view }) {
             <thead>
               <tr>
                 <th>Name</th><th>TSC / Payroll No</th><th>Phone</th><th>Gender</th>
-                <th>Category</th><th>Rank</th><th>Supervisor</th><th>Subjects</th>
+                <th>Phase</th><th>Category</th><th>Rank</th><th>Supervisor</th>
+                <th>Subjects</th>
                 {teachingFields.map((f) => (
                   <ColumnHeader
                     key={f.id}
@@ -913,6 +924,11 @@ export default function Staff({ view }) {
                     <CellSelect value={t.gender} display={t.gender_label}
                       options={GENDER_OPTIONS}
                       onSave={(v) => patchTeacher(t.id, { gender: v })} />
+                  </td>
+                  <td>
+                    <CellSelect value={t.phase} display={t.phase_label}
+                      options={[{ value: '', label: '—' }, ...(data.phase_choices || [])]}
+                      onSave={(v) => patchTeacher(t.id, { phase: v })} />
                   </td>
                   <td>
                     <CellSelect value={t.employment_type} display={t.employment_label}
