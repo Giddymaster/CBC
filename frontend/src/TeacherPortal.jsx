@@ -209,20 +209,22 @@ function ScoreEntry({ assessments, onQueueChange }) {
       (!ungradedOnly || r.marks === ''),
   )
 
-  // Drill-down derivations. classKey is "grade|stream".
+  // The class bar: grade + stream selects over the classes this teacher has
+  // assessments for. classKey stays "grade|stream" underneath.
   const keyOf = (a) => `${a.grade}|${a.stream || ''}`
-  const classLabel = (a) => `${gradeLabel(a.grade)}${a.stream ? ` ${a.stream}` : ''}`
-  const classes = []
-  for (const a of assessments) {
-    if (!classes.some((c) => c.key === keyOf(a))) {
-      const inIt = assessments.filter((x) => keyOf(x) === keyOf(a))
-      classes.push({
-        key: keyOf(a),
-        label: classLabel(a),
-        hint: count(new Set(inIt.map((x) => x.learning_area)).size, 'learning area'),
-      })
-    }
+  const grades = [...new Set(assessments.map((a) => a.grade))].sort((x, y) => x - y)
+  const [pickedGrade, pickedStream] = classKey
+    ? [Number(classKey.split('|')[0]), classKey.split('|')[1]]
+    : [null, '']
+  const streamsFor = (g) =>
+    [...new Set(assessments.filter((a) => a.grade === g).map((a) => a.stream || ''))]
+      .sort()
+  const setClass = (g, s) => {
+    setClassKey(g === null ? '' : `${g}|${s}`)
+    setAreaName('')
+    setSelectedId('')
   }
+
   const inClass = assessments.filter((a) => keyOf(a) === classKey)
   const areas = [...new Set(inClass.map((a) => a.learning_area))].map((name) => ({
     key: name,
@@ -232,14 +234,12 @@ function ScoreEntry({ assessments, onQueueChange }) {
   const inArea = inClass.filter((a) => a.learning_area === areaName)
 
   const crumbs = [
-    'Classes',
-    ...(classKey ? [classes.find((c) => c.key === classKey)?.label] : []),
+    'Areas',
     ...(areaName ? [areaName] : []),
     ...(assessment ? [KIND_LABEL[assessment.kind] || assessment.kind] : []),
   ]
   const backTo = (i) => {
-    if (i < 1) setClassKey('')
-    if (i < 2) setAreaName('')
+    if (i < 1) setAreaName('')
     setSelectedId('')
   }
 
@@ -256,11 +256,32 @@ function ScoreEntry({ assessments, onQueueChange }) {
 
   return (
     <div className="card">
-      {crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
-      {!classKey && (
-        <PickList prompt="Choose a class you teach." options={classes}
-          onPick={setClassKey} />
-      )}
+      <p style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <select
+          value={pickedGrade ?? ''}
+          onChange={(e) => {
+            const g = e.target.value === '' ? null : Number(e.target.value)
+            setClass(g, g === null ? '' : streamsFor(g)[0] ?? '')
+          }}
+        >
+          <option value="">Grade…</option>
+          {grades.map((g) => (
+            <option key={g} value={g}>{gradeLabel(g)}</option>
+          ))}
+        </select>
+        {pickedGrade !== null && streamsFor(pickedGrade).some((s) => s !== '') && (
+          <select
+            value={pickedStream}
+            onChange={(e) => setClass(pickedGrade, e.target.value)}
+          >
+            {streamsFor(pickedGrade).map((s) => (
+              <option key={s} value={s}>{s || 'Whole grade'}</option>
+            ))}
+          </select>
+        )}
+        {!classKey && <span className="muted">Pick the class you are marking.</span>}
+      </p>
+      {classKey && crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
       {classKey && !areaName && (
         <PickList prompt="Choose the learning area." options={areas}
           onPick={setAreaName} />
@@ -489,7 +510,11 @@ export default function TeacherPortal({ onQueueChange }) {
         <ScoreEntry assessments={summary.assessments} onQueueChange={onQueueChange} />
       )}
 
-      {tab === 'Attendance' && <Attendance onQueueChange={onQueueChange} canMark />}
+      {/* Head and deputy see the marked register like the office does —
+          marking belongs to the class teachers. */}
+      {tab === 'Attendance' && (
+        <Attendance onQueueChange={onQueueChange} canMark={ctx.rankLevel < 4} />
+      )}
 
       {tab === 'Schemes of Work' && (
         <>

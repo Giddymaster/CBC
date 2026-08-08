@@ -163,11 +163,40 @@ class MyTeamView(APIView):
             person["pending_reports"] = pending_reports.get(account.id, 0)
             groups.setdefault(category_of(account), []).append(person)
 
+        # Non-teaching staff without a portal login are still on the team —
+        # a cook or watchman with no account must not vanish from the head
+        # teacher's list. They just carry no tasks/reports/thread here.
+        from .models import SupportStaff
+        from .my_portal import _initials
+        from .supervision import SCOPE_WHOLE_SCHOOL
+
+        extra = SupportStaff.objects.filter(
+            school=user.school, active=True, user__isnull=True
+        )
+        if rank_level(user) < SCOPE_WHOLE_SCHOOL:
+            extra = extra.filter(supervisor=user)
+        extra = list(extra.order_by("full_name"))
+        for staff in extra:
+            groups.setdefault(staff.get_category_display(), []).append({
+                "id": None,
+                "name": staff.full_name,
+                "initials": _initials(staff.full_name),
+                "title": staff.title or staff.get_category_display(),
+                "role": "SUPPORT",
+                "phone": staff.phone,
+                "email": "",
+                "photo": None,
+                "direct": staff.supervisor_id == user.id,
+                "open_tasks": 0,
+                "pending_reports": 0,
+                "no_login": True,
+            })
+
         return Response(
             {
                 "scope": scope_label(user),
                 "rank_level": rank_level(user),
-                "total": len(ids),
+                "total": len(ids) + len(extra),
                 "groups": [
                     {"category": name, "staff": people}
                     for name, people in sorted(groups.items())

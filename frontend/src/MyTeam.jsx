@@ -213,7 +213,7 @@ export default function MyTeam() {
             </thead>
             <tbody>
               {group.staff.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id ?? `nl-${p.name}`}>
                   <td>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Avatar person={p} size="sm" />
@@ -228,7 +228,11 @@ export default function MyTeam() {
                       ? <span className="badge queued">{p.pending_reports} to review</span>
                       : <span className="muted">—</span>}
                   </td>
-                  <td><button onClick={() => setSelected(p.id)}>Open</button></td>
+                  <td>
+                    {p.id
+                      ? <button onClick={() => setSelected(p.id)}>Open</button>
+                      : <span className="muted">No portal login</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

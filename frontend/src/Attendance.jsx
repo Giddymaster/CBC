@@ -130,18 +130,33 @@ function MonthView({ grade: fixedGrade }) {
   const now = todayLocal()
   const [month, setMonth] = useState(now.slice(0, 7)) // YYYY-MM
   const [grade, setGrade] = useState(fixedGrade ?? 4)
+  const [stream, setStream] = useState('')
+  const [streams, setStreams] = useState([])
   const [data, setData] = useState(null)
 
   useEffect(() => {
     if (fixedGrade !== null && fixedGrade !== undefined) setGrade(fixedGrade)
   }, [fixedGrade])
 
+  // The streams this grade runs, for the filter bar.
+  useEffect(() => {
+    setStream('')
+    apiGet(`/api/class-groups/?grade=${grade}&page_size=100`)
+      .then((d) => setStreams(
+        [...new Set((d.results || d).map((c) => c.stream).filter(Boolean))].sort(),
+      ))
+      .catch(() => setStreams([]))
+  }, [grade])
+
   const load = useCallback(() => {
     const [y, m] = month.split('-')
-    apiGet(`/api/attendance/month/?year=${y}&month=${Number(m)}&grade=${grade}`)
+    apiGet(
+      `/api/attendance/month/?year=${y}&month=${Number(m)}&grade=${grade}`
+      + (stream ? `&stream=${encodeURIComponent(stream)}` : ''),
+    )
       .then(setData)
       .catch(() => setData(null))
-  }, [month, grade])
+  }, [month, grade, stream])
   useEffect(load, [load])
 
   const shift = (delta) => {
@@ -164,6 +179,12 @@ function MonthView({ grade: fixedGrade }) {
             {ALL_GRADES.map((g) => (
               <option key={g} value={g}>{gradeLabel(g)}</option>
             ))}
+          </select>
+        )}
+        {streams.length > 0 && (
+          <select value={stream} onChange={(e) => setStream(e.target.value)}>
+            <option value="">All streams</option>
+            {streams.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         <button onClick={() => shift(-1)} title="Previous month">←</button>

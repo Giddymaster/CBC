@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
-import { PickList, Trail, count } from './portalUi.jsx'
+import { PickList, count } from './portalUi.jsx'
 
 const BLANK = {
   week: 1, lesson_number: 1, strand: '', sub_strand: '',
@@ -69,49 +69,62 @@ export default function LessonPlans({ summary }) {
     )
   }
 
-  // The drill: class → learning area → scheme.
+  // The class bar: grade + learning-area selects over this teacher's schemes;
+  // then pick the scheme (term) the plans belong under.
   const scheme = schemes.find((s) => s.id === Number(schemeId))
   const grades = [...new Set(schemes.map((s) => s.grade))].sort((a, b) => a - b)
   const inGrade = schemes.filter((s) => s.grade === grade)
-  const areaNames = [...new Set(inGrade.map((s) => s.learning_area))]
+  const areaNames = [...new Set(inGrade.map((s) => s.learning_area))].sort()
   const inArea = inGrade.filter((s) => s.learning_area === areaName)
 
-  const crumbs = [
-    'Classes',
-    ...(grade ? [gradeLabel(grade)] : []),
-    ...(areaName ? [areaName] : []),
-    ...(scheme ? [`Term ${scheme.term} ${scheme.year}`] : []),
-  ]
-  const backTo = (i) => {
-    if (i < 1) setGrade(null)
-    if (i < 2) setAreaName(null)
-    setSchemeId('')
-    setMessage('')
-  }
+  const bar = (
+    <p style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <select
+        value={grade ?? ''}
+        onChange={(e) => {
+          setGrade(e.target.value === '' ? null : Number(e.target.value))
+          setAreaName(null)
+          setSchemeId('')
+          setMessage('')
+        }}
+      >
+        <option value="">Grade…</option>
+        {grades.map((g) => (
+          <option key={g} value={g}>{gradeLabel(g)}</option>
+        ))}
+      </select>
+      {grade !== null && (
+        <select
+          value={areaName ?? ''}
+          onChange={(e) => {
+            setAreaName(e.target.value || null)
+            setSchemeId('')
+            setMessage('')
+          }}
+        >
+          <option value="">Learning area…</option>
+          {areaNames.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+      )}
+      {!scheme && (
+        <span className="muted">
+          {grade === null
+            ? 'Pick the class.'
+            : areaName === null
+              ? `${count(inGrade.length, 'scheme')} in ${gradeLabel(grade)}.`
+              : ''}
+        </span>
+      )}
+    </p>
+  )
 
   if (!scheme) {
     return (
       <div className="card">
-        {crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
-        {!grade && (
-          <PickList prompt="Choose the class."
-            options={grades.map((g) => ({
-              key: String(g),
-              label: gradeLabel(g),
-              hint: count(schemes.filter((s) => s.grade === g).length, 'scheme'),
-            }))}
-            onPick={(k) => setGrade(Number(k))} />
-        )}
-        {grade && !areaName && (
-          <PickList prompt="Choose the learning area."
-            options={areaNames.map((name) => ({
-              key: name,
-              label: name,
-              hint: count(inGrade.filter((s) => s.learning_area === name).length, 'scheme'),
-            }))}
-            onPick={setAreaName} />
-        )}
-        {grade && areaName && (
+        {bar}
+        {grade !== null && areaName && (
           <PickList prompt="Choose the scheme of work to plan under."
             options={inArea.map((s) => ({
               key: String(s.id),
@@ -127,7 +140,7 @@ export default function LessonPlans({ summary }) {
   return (
     <div>
       <div className="card">
-        <Trail crumbs={crumbs} onCrumb={backTo} />
+        {bar}
         <h3>Lesson plans — {scheme.learning_area}, {gradeLabel(scheme.grade)}</h3>
 
         <form onSubmit={save} className="adm-grid">
