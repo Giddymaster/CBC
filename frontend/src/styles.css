@@ -1124,6 +1124,17 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 tr.day-start td { border-top: 2px solid #a0aec0; }
 td.day-cell { background: #edf2f7; vertical-align: top; }
 
+/* Task Hub: the inline assign flow — task → category → person. */
+.taskhub-assign {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px dashed #cbd5e0;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
 /* Marks spreadsheet: compact numeric cells; unsaved edits glow amber. */
 .mark-cell {
   width: 4.2rem;

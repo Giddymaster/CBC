@@ -117,6 +117,7 @@ from apps.teachers.development import (
     TeacherAnalysisView,
 )
 from apps.teachers.my_portal import (
+    DutyCatalogView,
     DutyViewSet,
     MyPhotoView,
     MyPortalView,
@@ -229,6 +230,7 @@ urlpatterns = [
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
     path("api/school/subject-analysis/", SubjectAnalysisView.as_view()),
+    path("api/duties/catalog/", DutyCatalogView.as_view()),
     path("api/staff/roll-call/", StaffRollCallView.as_view()),
     path("api/staff/roll-call/history/", StaffRollCallHistoryView.as_view()),
     path(

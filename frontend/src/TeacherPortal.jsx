@@ -5,6 +5,7 @@ import { StaffParentThreads } from './ParentMessages.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
 import Broadsheet from './Broadsheet.jsx'
+import TaskHub from './TaskHub.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
@@ -473,6 +474,9 @@ const TEACHER_ACTIONS = [
   { tab: 'Report Cards', icon: 'file', tone: 'red', title: 'Report Cards',
     desc: 'Class broadsheets, Excel exports and printable report forms.',
     cta: 'Open broadsheets', when: (ctx) => ctx.rankLevel >= 4 },
+  { tab: 'Task Hub', icon: 'star', tone: 'orange', title: 'Task Hub',
+    desc: 'Every duty the school hands out — class teachers, games master, HODs, TOD, cooks, security — assigned in one place.',
+    cta: 'Assign tasks', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Peer Review', icon: 'star', tone: 'purple', title: 'Peer Review',
     desc: 'Observe colleagues and read feedback on your teaching.', cta: 'Open reviews' },
   { tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
@@ -570,6 +574,7 @@ export default function TeacherPortal({ onQueueChange }) {
       {tab === 'My Team' && <MyTeam />}
       {tab === 'School (Grades)' && <SchoolStructure grade={null} />}
       {tab === 'Report Cards' && <Broadsheet grade={null} />}
+      {tab === 'Task Hub' && <TaskHub />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
         <>

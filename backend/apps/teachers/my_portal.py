@@ -178,15 +178,58 @@ class DutySerializer(serializers.ModelSerializer):
         read_only_fields = ["school"]
 
 
+# Every hat a school hands out, for the Task Hub. Not a cage — leadership can
+# assign any custom title too — but the common ones should be one click away.
+TASK_CATALOG = {
+    "teaching": [
+        "Games Master", "Games Teacher", "Teacher on Duty (TOD)",
+        "Exams Coordinator", "Timetable Master",
+        "HOD Languages", "HOD Mathematics", "HOD Sciences",
+        "HOD Humanities", "HOD Creative Arts", "HOD Pre-Technical",
+        "Guidance and Counselling", "Library In-charge",
+        "Laboratory In-charge", "ICT Champion", "Environment Master",
+        "Sanitation Master", "Clubs and Societies Patron",
+        "Drama and Music Patron", "Scouts and Guides Patron",
+        "CU / Chaplaincy Patron", "First Aid Coordinator", "Fire Marshal",
+        "School Meals Coordinator", "Boarding Master", "Sports Coach",
+    ],
+    "non_teaching": [
+        "Head Cook", "Cook", "Kitchen Hand",
+        "Day Security - Main Gate", "Day Security - Back Gate",
+        "Night Security", "Bus Driver", "Van Driver",
+        "Store Keeper", "Cashier", "Groundsman", "Cleaner In-charge",
+        "Maintenance / Electrician", "Copy Typist",
+    ],
+}
+
+
+class DutyCatalogView(APIView):
+    """GET /api/duties/catalog/ — the school's task list for the Task Hub.
+    Class Teacher is listed as special: it seats through the class group,
+    not a duty row."""
+
+    def get(self, request):
+        return Response({
+            **TASK_CATALOG,
+            "special": [{
+                "key": "class_teacher",
+                "title": "Class Teacher",
+                "note": "Seated per class (grade and stream); drives the "
+                        "attendance register.",
+            }],
+        })
+
+
 class DutyViewSet(SchoolScopedViewSet):
     queryset = Duty.objects.select_related("user").all()
     serializer_class = DutySerializer
     filterset_fields = ["user"]
 
     def _require_admin(self):
-        user = self.request.user
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Only the school admin can assign duties.")
+        # Leadership hands out the hats: the office, head teacher or deputy.
+        from .daily import _require_office
+
+        _require_office(self.request.user)
 
     def perform_create(self, serializer):
         self._require_admin()

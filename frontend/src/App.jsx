@@ -14,6 +14,7 @@ import {
 import Admission from './Admission.jsx'
 import Analysis from './Analysis.jsx'
 import Broadsheet from './Broadsheet.jsx'
+import TaskHub from './TaskHub.jsx'
 import Audit from './Audit.jsx'
 import Attendance from './Attendance.jsx'
 import Curriculum from './Curriculum.jsx'
@@ -358,6 +359,7 @@ const NAV_SECTIONS = [
       // the generic one.
       { name: 'Staff', label: 'Staff (Teaching / Non-teaching)', ownHeading: true, ...STAFF_NAV },
       { name: 'Staff Register', label: 'Staff Register (Roll-call)', ownHeading: true },
+      { name: 'Task Hub', label: 'Task Hub (Duties & Roles)' },
     ],
   },
   {
@@ -417,6 +419,7 @@ const TABS = {
   Promotions: Promotions,
   Attendance: Attendance,
   'Report Card': Broadsheet,
+  'Task Hub': TaskHub,
   Fees: Fees,
   Timetable: Timetable,
   'Schemes Review': SchemesReview,
