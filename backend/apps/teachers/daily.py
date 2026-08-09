@@ -22,7 +22,7 @@ def _require_office(user):
 
     if rank_level(user) < SCOPE_WHOLE_SCHOOL:
         raise PermissionDenied(
-            "Staff attendance is taken by the head teacher, deputy or admin."
+            "This is for the head teacher, the deputy or the school admin."
         )
 
 

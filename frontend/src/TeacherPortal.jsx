@@ -338,24 +338,39 @@ function ScoreEntry({ classes, assessments, onQueueChange, onRefresh }) {
             <input placeholder="Search learners…" value={search}
               onChange={(e) => setSearch(e.target.value)} style={{ padding: '0.35rem' }} />
             {!adding ? (
-              <button type="button" className="grade-chip" onClick={() => setAdding(true)}>
+              <button type="button" className="grade-chip"
+                onClick={() => {
+                  // The select must start on a kind that is actually free —
+                  // defaulting to CAT 1 when CAT 1 exists posts a duplicate.
+                  const free = KIND_ORDER.filter((k) => !usedKinds.has(k))
+                  setNewKind(free[0] || '')
+                  setAdding(true)
+                }}>
                 + Add assessment
               </button>
             ) : (
               <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center',
                              border: '1px dashed #cbd5e0', borderRadius: '6px',
                              padding: '0.3rem 0.5rem' }}>
-                <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
-                  {KIND_ORDER.filter((k) => !usedKinds.has(k)).map((k) => (
-                    <option key={k} value={k}>{KIND_LABEL[k]}</option>
-                  ))}
-                </select>
-                <label className="muted">
-                  Out of{' '}
-                  <input type="number" min="1" value={newMax} style={{ width: '4rem' }}
-                    onChange={(e) => setNewMax(e.target.value)} />
-                </label>
-                <button type="button" className="primary" onClick={addAssessment}>Add</button>
+                {newKind ? (
+                  <>
+                    <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+                      {KIND_ORDER.filter((k) => !usedKinds.has(k)).map((k) => (
+                        <option key={k} value={k}>{KIND_LABEL[k]}</option>
+                      ))}
+                    </select>
+                    <label className="muted">
+                      Out of{' '}
+                      <input type="number" min="1" value={newMax} style={{ width: '4rem' }}
+                        onChange={(e) => setNewMax(e.target.value)} />
+                    </label>
+                    <button type="button" className="primary" onClick={addAssessment}>Add</button>
+                  </>
+                ) : (
+                  <span className="muted">
+                    Every assessment kind already exists for this term.
+                  </span>
+                )}
                 <button type="button" onClick={() => setAdding(false)}>×</button>
               </span>
             )}

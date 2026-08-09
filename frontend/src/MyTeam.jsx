@@ -207,7 +207,7 @@ export default function MyTeam() {
           <table>
             <thead>
               <tr>
-                <th>Name</th><th>Position</th><th>Line</th>
+                <th>Name</th><th>Position</th><th>Role</th><th>Line</th>
                 <th>Open work</th><th>Reports pending</th><th></th>
               </tr>
             </thead>
@@ -221,6 +221,18 @@ export default function MyTeam() {
                     </span>
                   </td>
                   <td>{p.title}</td>
+                  <td>
+                    {p.class_teacher_of?.length > 0 && (
+                      <b>Class teacher {p.class_teacher_of.join(', ')}</b>
+                    )}
+                    {p.class_teacher_of?.length > 0 && p.subjects?.length > 0 && <br />}
+                    {p.subjects?.length > 0 && (
+                      <span className="muted">{p.subjects.join(', ')}</span>
+                    )}
+                    {!p.class_teacher_of?.length && !p.subjects?.length && (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td className="muted">{p.direct ? 'Direct report' : 'Below my line'}</td>
                   <td>{p.open_tasks || <span className="muted">—</span>}</td>
                   <td>

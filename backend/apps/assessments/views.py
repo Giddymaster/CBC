@@ -28,14 +28,21 @@ from .tasks import generate_class_report_cards
 class LearningAreaViewSet(AdminWriteMixin, viewsets.ModelViewSet):
     """Learning areas are national — shared by every school on the platform.
 
-    A school admin may add or correct one, but deletion is reserved for a
-    platform superuser: the FK from Assessment cascades, so deleting a
-    learning area would take every school's assessments and scores in that
-    subject with it."""
+    School leadership (the office, head teacher or deputy) may add or correct
+    one, but deletion is reserved for a platform superuser: the FK from
+    Assessment cascades, so deleting a learning area would take every
+    school's assessments and scores in that subject with it."""
 
     queryset = LearningArea.objects.all()
     serializer_class = LearningAreaSerializer
     search_fields = ["name", "code"]
+
+    def _require_admin_write(self):
+        # Leadership, not only the office: the head teacher curates the
+        # subject list alongside streams and teaching assignments.
+        from apps.teachers.daily import _require_office
+
+        _require_office(self.request.user)
 
     def perform_destroy(self, instance):
         if not self.request.user.is_superuser:

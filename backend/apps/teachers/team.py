@@ -153,14 +153,35 @@ class MyTeamView(APIView):
         accounts = (
             User.objects.filter(id__in=ids)
             .select_related("teacher_profile", "support_profile")
+            .prefetch_related("teacher_profile__learning_areas")
             .order_by("first_name", "username")
         )
+
+        # What each teacher actually carries: the class they are seated over
+        # and the subjects on their record — the principal's at-a-glance roles.
+        from apps.schools.moe import GRADE_LABELS
+        from apps.students.models import ClassGroup
+
+        seats = {}
+        for g in ClassGroup.objects.filter(
+            school=user.school, class_teacher__isnull=False
+        ).select_related("class_teacher"):
+            label = f"{GRADE_LABELS.get(g.grade, g.grade)} {g.stream}".strip()
+            seats.setdefault(g.class_teacher.user_id, []).append(label)
+
         groups = {}
         for account in accounts:
             person = _person(account, request)
             person["direct"] = account.id in direct
             person["open_tasks"] = open_tasks.get(account.id, 0)
             person["pending_reports"] = pending_reports.get(account.id, 0)
+            teacher = getattr(account, "teacher_profile", None)
+            if teacher is not None:
+                person["class_teacher_of"] = sorted(seats.get(account.id, []))
+                person["subjects"] = sorted(
+                    a.name for a in teacher.learning_areas.all()
+                )
+                person["phase"] = teacher.get_phase_display() if teacher.phase else ""
             groups.setdefault(category_of(account), []).append(person)
 
         # Non-teaching staff without a portal login are still on the team —

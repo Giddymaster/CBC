@@ -44,27 +44,29 @@ class LearnerFieldViewSet(SchoolScopedViewSet):
 
 
 class ClassGroupViewSet(SchoolScopedViewSet):
-    """Classes (grade + stream) and their class teacher. Admin-only to change."""
+    """Classes (grade + stream) and their class teacher. Seating a class
+    teacher is school leadership's job — the office, the head teacher or the
+    deputy — not only the office's."""
 
     queryset = ClassGroup.objects.select_related("class_teacher__user").all()
     serializer_class = ClassGroupSerializer
     filterset_fields = ["grade", "stream", "class_teacher"]
 
-    def _require_admin(self):
-        user = self.request.user
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Only the school admin can assign class teachers.")
+    def _require_leadership(self):
+        from apps.teachers.daily import _require_office
+
+        _require_office(self.request.user)
 
     def perform_create(self, serializer):
-        self._require_admin()
+        self._require_leadership()
         super().perform_create(serializer)
 
     def perform_update(self, serializer):
-        self._require_admin()
+        self._require_leadership()
         serializer.save()
 
     def perform_destroy(self, instance):
-        self._require_admin()
+        self._require_leadership()
         instance.delete()
 
 
