@@ -312,7 +312,16 @@ class MyPortalView(APIView):
         from .team import StaffTaskSerializer
 
         my_tasks = StaffTask.objects.filter(assigned_to=user).select_related("assigned_by")
-        team_size = len(visible_staff_ids(user))
+        # The team is people, not accounts: non-teaching staff without a
+        # portal login still count (the team page lists them too).
+        from .supervision import SCOPE_WHOLE_SCHOOL
+
+        no_login = SupportStaff.objects.filter(
+            school=school, active=True, user__isnull=True
+        )
+        if rank_level(user) < SCOPE_WHOLE_SCHOOL:
+            no_login = no_login.filter(supervisor=user)
+        team_size = len(visible_staff_ids(user)) + no_login.count()
 
         return Response(
             {

@@ -197,9 +197,14 @@ class MyTeamView(APIView):
                 "scope": scope_label(user),
                 "rank_level": rank_level(user),
                 "total": len(ids) + len(extra),
+                # Teaching staff first, then the non-teaching categories
+                # alphabetically — the order a school reads its staff room.
                 "groups": [
                     {"category": name, "staff": people}
-                    for name, people in sorted(groups.items())
+                    for name, people in sorted(
+                        groups.items(),
+                        key=lambda kv: (kv[0] != "Teaching staff", kv[0]),
+                    )
                 ],
             }
         )

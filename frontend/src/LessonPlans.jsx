@@ -13,7 +13,6 @@ const BLANK = {
 export default function LessonPlans({ summary }) {
   const schemes = summary?.schemes_of_work || []
   const [grade, setGrade] = useState(null)
-  const [areaName, setAreaName] = useState(null)
   const [schemeId, setSchemeId] = useState('')
   const [data, setData] = useState(null)
   const [form, setForm] = useState(BLANK)
@@ -69,13 +68,11 @@ export default function LessonPlans({ summary }) {
     )
   }
 
-  // The class bar: grade + learning-area selects over this teacher's schemes;
-  // then pick the scheme (term) the plans belong under.
+  // Grade first, then the class's schemes (subject · term) directly, then
+  // that scheme's lesson plans.
   const scheme = schemes.find((s) => s.id === Number(schemeId))
   const grades = [...new Set(schemes.map((s) => s.grade))].sort((a, b) => a - b)
   const inGrade = schemes.filter((s) => s.grade === grade)
-  const areaNames = [...new Set(inGrade.map((s) => s.learning_area))].sort()
-  const inArea = inGrade.filter((s) => s.learning_area === areaName)
 
   const bar = (
     <p style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -83,7 +80,6 @@ export default function LessonPlans({ summary }) {
         value={grade ?? ''}
         onChange={(e) => {
           setGrade(e.target.value === '' ? null : Number(e.target.value))
-          setAreaName(null)
           setSchemeId('')
           setMessage('')
         }}
@@ -93,28 +89,16 @@ export default function LessonPlans({ summary }) {
           <option key={g} value={g}>{gradeLabel(g)}</option>
         ))}
       </select>
-      {grade !== null && (
-        <select
-          value={areaName ?? ''}
-          onChange={(e) => {
-            setAreaName(e.target.value || null)
-            setSchemeId('')
-            setMessage('')
-          }}
-        >
-          <option value="">Learning area…</option>
-          {areaNames.map((name) => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
-      )}
       {!scheme && (
         <span className="muted">
           {grade === null
             ? 'Pick the class.'
-            : areaName === null
-              ? `${count(inGrade.length, 'scheme')} in ${gradeLabel(grade)}.`
-              : ''}
+            : count(inGrade.length, 'scheme of work')}
+        </span>
+      )}
+      {scheme && (
+        <span className="muted">
+          {scheme.learning_area} · Term {scheme.term} {scheme.year}
         </span>
       )}
     </p>
@@ -124,13 +108,16 @@ export default function LessonPlans({ summary }) {
     return (
       <div className="card">
         {bar}
-        {grade !== null && areaName && (
-          <PickList prompt="Choose the scheme of work to plan under."
-            options={inArea.map((s) => ({
-              key: String(s.id),
-              label: `Term ${s.term} ${s.year}`,
-              hint: s.status === 'APPROVED' ? 'Approved' : 'Awaiting review',
-            }))}
+        {grade !== null && (
+          <PickList prompt="Choose the class's scheme of work to plan under."
+            options={[...inGrade]
+              .sort((a, b) => a.learning_area.localeCompare(b.learning_area)
+                || a.term - b.term)
+              .map((s) => ({
+                key: String(s.id),
+                label: `${s.learning_area} · Term ${s.term} ${s.year}`,
+                hint: s.status === 'APPROVED' ? 'Approved' : 'Awaiting review',
+              }))}
             onPick={setSchemeId} />
         )}
       </div>

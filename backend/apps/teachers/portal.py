@@ -38,14 +38,42 @@ class TeacherSummaryView(APIView):
             for lesson in lessons
         ]
 
-        # Classes this teacher owns (from requirements; lessons as fallback),
-        # then the assessments they can enter scores for.
+        # Classes this teacher owns — what the timetable says they teach
+        # (requirements; placed lessons as fallback). The head teacher and
+        # deputy run the school, so they see every class-subject, not only
+        # their own.
+        from .supervision import SCOPE_WHOLE_SCHOOL, rank_level
+
+        whole_school = rank_level(request.user) >= SCOPE_WHOLE_SCHOOL
+        req_qs = LessonRequirement.objects.filter(school=teacher.school)
+        if not whole_school:
+            req_qs = req_qs.filter(teacher=teacher)
         combos = set(
-            LessonRequirement.objects.filter(teacher=teacher)
-            .values_list("learning_area_id", "grade", "stream")
+            req_qs.values_list("learning_area_id", "grade", "stream")
         ) | set(lessons.values_list("learning_area_id", "grade", "stream"))
         # A stream-blank assessment covers the whole grade.
         grade_combos = {(la, grade) for la, grade, _ in combos}
+
+        # The same combos with names, for the score-entry class bar.
+        from apps.assessments.models import LearningArea
+
+        area_names = dict(
+            LearningArea.objects.filter(
+                id__in={la for la, _, _ in combos}
+            ).values_list("id", "name")
+        )
+        teaching_classes = sorted(
+            (
+                {
+                    "grade": grade,
+                    "stream": stream,
+                    "learning_area_id": la,
+                    "learning_area": area_names.get(la, ""),
+                }
+                for la, grade, stream in combos
+            ),
+            key=lambda c: (c["grade"], c["stream"], c["learning_area"]),
+        )
 
         assessments = []
         for assessment in (
@@ -118,6 +146,7 @@ class TeacherSummaryView(APIView):
                     "school": teacher.school.name,
                 },
                 "timetable": timetable,
+                "teaching_classes": teaching_classes,
                 "assessments": assessments,
                 "taught_learning_areas": taught_learning_areas,
                 "schemes_of_work": schemes,

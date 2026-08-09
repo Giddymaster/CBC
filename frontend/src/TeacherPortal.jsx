@@ -127,7 +127,7 @@ const KIND_LABEL = {
   FORMATIVE: 'Formative assessment',
 }
 
-function ScoreEntry({ assessments, onQueueChange }) {
+function ScoreEntry({ classes, assessments, onQueueChange }) {
   // The drill: class → learning area → assessment. A teacher thinks in
   // classes first, so the picker does too.
   const [classKey, setClassKey] = useState('')
@@ -209,15 +209,15 @@ function ScoreEntry({ assessments, onQueueChange }) {
       (!ungradedOnly || r.marks === ''),
   )
 
-  // The class bar: grade + stream selects over the classes this teacher has
-  // assessments for. classKey stays "grade|stream" underneath.
-  const keyOf = (a) => `${a.grade}|${a.stream || ''}`
-  const grades = [...new Set(assessments.map((a) => a.grade))].sort((x, y) => x - y)
+  // The class bar comes from the TIMETABLE — the classes this teacher is
+  // assigned (all classes, for the head and deputy) — not from whichever
+  // assessments happen to exist. classKey stays "grade|stream" underneath.
+  const grades = [...new Set(classes.map((c) => c.grade))].sort((x, y) => x - y)
   const [pickedGrade, pickedStream] = classKey
     ? [Number(classKey.split('|')[0]), classKey.split('|')[1]]
     : [null, '']
   const streamsFor = (g) =>
-    [...new Set(assessments.filter((a) => a.grade === g).map((a) => a.stream || ''))]
+    [...new Set(classes.filter((c) => c.grade === g).map((c) => c.stream || ''))]
       .sort()
   const setClass = (g, s) => {
     setClassKey(g === null ? '' : `${g}|${s}`)
@@ -225,13 +225,25 @@ function ScoreEntry({ assessments, onQueueChange }) {
     setSelectedId('')
   }
 
-  const inClass = assessments.filter((a) => keyOf(a) === classKey)
-  const areas = [...new Set(inClass.map((a) => a.learning_area))].map((name) => ({
+  // An assessment matches the class when its stream is the class's stream or
+  // blank (a stream-blank assessment covers the whole grade).
+  const assessmentsFor = (g, s, area) =>
+    assessments.filter(
+      (a) => a.grade === g && a.learning_area === area
+        && (!a.stream || a.stream === s),
+    )
+  const areas = [...new Set(
+    classes
+      .filter((c) => c.grade === pickedGrade && (c.stream || '') === pickedStream)
+      .map((c) => c.learning_area),
+  )].sort().map((name) => ({
     key: name,
     label: name,
-    hint: count(inClass.filter((a) => a.learning_area === name).length, 'assessment'),
+    hint: count(assessmentsFor(pickedGrade, pickedStream, name).length, 'assessment'),
   }))
-  const inArea = inClass.filter((a) => a.learning_area === areaName)
+  const inArea = classKey && areaName
+    ? assessmentsFor(pickedGrade, pickedStream, areaName)
+    : []
 
   const crumbs = [
     'Areas',
@@ -243,12 +255,12 @@ function ScoreEntry({ assessments, onQueueChange }) {
     setSelectedId('')
   }
 
-  if (assessments.length === 0) {
+  if (classes.length === 0) {
     return (
       <div className="card">
         <p className="muted">
-          No assessments for your classes yet — the admin creates them, then they
-          appear here for marking.
+          You have no classes on the timetable yet — the head teacher assigns
+          who teaches what under School (Grades) → Teaching assignments.
         </p>
       </div>
     )
@@ -287,15 +299,22 @@ function ScoreEntry({ assessments, onQueueChange }) {
           onPick={setAreaName} />
       )}
       {classKey && areaName && !assessment && (
-        <PickList
-          prompt="Choose the assessment."
-          options={inArea.map((a) => ({
-            key: String(a.id),
-            label: KIND_LABEL[a.kind] || a.kind,
-            hint: `Term ${a.term} · ${a.year} · out of ${a.max_marks}`,
-          }))}
-          onPick={setSelectedId}
-        />
+        inArea.length > 0 ? (
+          <PickList
+            prompt="Choose the assessment."
+            options={inArea.map((a) => ({
+              key: String(a.id),
+              label: KIND_LABEL[a.kind] || a.kind,
+              hint: `Term ${a.term} · ${a.year} · out of ${a.max_marks}`,
+            }))}
+            onPick={setSelectedId}
+          />
+        ) : (
+          <p className="muted">
+            No assessment exists yet for {areaName} in this class — the office
+            creates assessments (CAT 1, End of Term…) under Assessments.
+          </p>
+        )
       )}
       {assessment && (
         <>
@@ -507,7 +526,11 @@ export default function TeacherPortal({ onQueueChange }) {
       )}
 
       {tab === 'Score Entry' && (
-        <ScoreEntry assessments={summary.assessments} onQueueChange={onQueueChange} />
+        <ScoreEntry
+          classes={summary.teaching_classes || []}
+          assessments={summary.assessments}
+          onQueueChange={onQueueChange}
+        />
       )}
 
       {/* Head and deputy see the marked register like the office does —
