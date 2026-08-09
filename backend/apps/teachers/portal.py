@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from apps.assessments.models import Assessment
 from apps.communication.models import Announcement
+from apps.students.models import ClassGroup
 from apps.timetable.models import Lesson, LessonRequirement
 
 
@@ -147,6 +148,14 @@ class TeacherSummaryView(APIView):
                 },
                 "timetable": timetable,
                 "teaching_classes": teaching_classes,
+                # The class(es) this teacher is seated over as CLASS teacher —
+                # the only classes whose attendance register they may mark.
+                "class_teacher_of": [
+                    {"grade": g, "stream": s}
+                    for g, s in ClassGroup.objects.filter(
+                        class_teacher=teacher
+                    ).values_list("grade", "stream")
+                ],
                 "assessments": assessments,
                 "taught_learning_areas": taught_learning_areas,
                 "schemes_of_work": schemes,

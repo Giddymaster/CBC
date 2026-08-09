@@ -24,7 +24,7 @@ LEVEL_COLORS = {
     "BE": colors.HexColor("#822727"),
 }
 
-ASSESSMENT_ORDER = ["CAT1", "CAT2", "ENDTERM", "FORMATIVE"]
+ASSESSMENT_ORDER = ["CAT1", "CAT2", "RAT", "MIDTERM", "ENDTERM", "FORMATIVE"]
 
 
 def render_report_card_pdf(data: dict) -> bytes:

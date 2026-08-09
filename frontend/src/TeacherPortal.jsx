@@ -11,7 +11,7 @@ import TeacherSchemes from './Schemes.jsx'
 import SchoolStructure from './SchoolStructure.jsx'
 import MyTeam from './MyTeam.jsx'
 import {
-  ActionCard, ActionGrid, BackBar, BottomNav, PickList, PortalHero, Trail, count,
+  ActionCard, ActionGrid, BackBar, BottomNav, PortalHero,
 } from './portalUi.jsx'
 import { MyRolePanel, ReportsPanel } from './StaffPortal.jsx'
 
@@ -123,95 +123,50 @@ function ScoreRow({ row, index, assessment, onMarks }) {
 const KIND_LABEL = {
   CAT1: 'CAT 1',
   CAT2: 'CAT 2',
-  ENDTERM: 'End of Term Exam',
-  FORMATIVE: 'Formative assessment',
+  RAT: 'RAT',
+  MIDTERM: 'Midterm Exam',
+  ENDTERM: 'Final Exam',
+  FORMATIVE: 'Formative',
+}
+const KIND_ORDER = ['CAT1', 'CAT2', 'RAT', 'MIDTERM', 'ENDTERM', 'FORMATIVE']
+
+function currentTerm() {
+  const m = new Date().getMonth() + 1
+  return m <= 4 ? 1 : m <= 8 ? 2 : 3
 }
 
-function ScoreEntry({ classes, assessments, onQueueChange }) {
-  // The drill: class → learning area → assessment. A teacher thinks in
-  // classes first, so the picker does too.
+/** Every learner, not just the first page. */
+async function fetchAllLearners(query) {
+  const rows = []
+  let url = `/api/learners/?page_size=500${query ? `&${query}` : ''}`
+  while (url) {
+    const d = await apiGet(url)
+    rows.push(...(d.results || d))
+    url = d.next ? d.next.slice(d.next.indexOf('/api/')) : null
+  }
+  return rows
+}
+
+/** Marks entry as the sheet a staff room knows: pick the class and subject,
+ * and the whole class appears — ADM, name, one column per assessment — every
+ * cell waiting to be filled. Columns come and go with "+ Add assessment". */
+function ScoreEntry({ classes, assessments, onQueueChange, onRefresh }) {
   const [classKey, setClassKey] = useState('')
   const [areaName, setAreaName] = useState('')
-  const [selectedId, setSelectedId] = useState('')
-  const [rows, setRows] = useState([])
+  const [term, setTerm] = useState(currentTerm())
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [learners, setLearners] = useState([])
+  const [marks, setMarks] = useState({})   // `${assessmentId}|${learnerId}` -> string
+  const [orig, setOrig] = useState({})
+  const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [search, setSearch] = useState('')
-  const [ungradedOnly, setUngradedOnly] = useState(false)
-
-  const assessment = assessments.find((a) => a.id === Number(selectedId))
-
-  const load = useCallback(async () => {
-    if (!assessment) return
-    const params = `grade=${assessment.grade}` +
-      (assessment.stream ? `&stream=${encodeURIComponent(assessment.stream)}` : '')
-    const [learnersData, scoresData] = await Promise.all([
-      apiGet(`/api/learners/?${params}`),
-      apiGet(`/api/scores/?assessment=${assessment.id}`),
-    ])
-    const learners = learnersData.results || learnersData
-    const scores = scoresData.results || scoresData
-    const byLearner = Object.fromEntries(scores.map((s) => [s.learner, s]))
-    setRows(
-      learners.map((l) => ({
-        learner: l.id,
-        name: l.full_name,
-        marks: byLearner[l.id] ? String(Number(byLearner[l.id].marks)) : '',
-      })),
-    )
-    setMessage('')
-    setSearch('')
-    setUngradedOnly(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- identity by id:
-    // `assessments` is refetched wholesale, so a same-id object is same-data.
-  }, [assessment?.id])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const setMarks = (learnerId, value) =>
-    setRows((prev) =>
-      prev.map((r) => (r.learner === learnerId ? { ...r, marks: value } : r)),
-    )
-
-  async function save() {
-    setBusy(true)
-    const records = rows
-      .filter((r) => r.marks !== '')
-      .map((r) => ({ learner: r.learner, marks: Number(r.marks) }))
-    const result = await apiWrite('/api/scores/bulk/', {
-      assessment: assessment.id,
-      records,
-    })
-    setBusy(false)
-    onQueueChange()
-    if (result.queued) {
-      setMessage('Offline — marks queued locally, will sync when connection returns.')
-      return
-    }
-    if (!result.ok) {
-      setMessage('Rejected by server — check the marks.')
-      return
-    }
-    setMessage(
-      `Saved ${result.data.saved.length} scores.` +
-        (result.data.skipped.length ? ` Skipped: ${result.data.skipped.length} (blank/invalid).` : ''),
-    )
-  }
-
-  const graded = rows.filter((r) => r.marks !== '').length
-  const done = rows.length > 0 && graded === rows.length
-  const needle = search.trim().toLowerCase()
-  const shown = rows.filter(
-    (r) =>
-      (!needle || r.name.toLowerCase().includes(needle)) &&
-      (!ungradedOnly || r.marks === ''),
-  )
+  const [adding, setAdding] = useState(false)
+  const [newKind, setNewKind] = useState('CAT1')
+  const [newMax, setNewMax] = useState(30)
 
   // The class bar comes from the TIMETABLE — the classes this teacher is
-  // assigned (all classes, for the head and deputy) — not from whichever
-  // assessments happen to exist. classKey stays "grade|stream" underneath.
+  // assigned (all classes, for the head and deputy).
   const grades = [...new Set(classes.map((c) => c.grade))].sort((x, y) => x - y)
   const [pickedGrade, pickedStream] = classKey
     ? [Number(classKey.split('|')[0]), classKey.split('|')[1]]
@@ -222,37 +177,98 @@ function ScoreEntry({ classes, assessments, onQueueChange }) {
   const setClass = (g, s) => {
     setClassKey(g === null ? '' : `${g}|${s}`)
     setAreaName('')
-    setSelectedId('')
+    setMessage('')
   }
-
-  // An assessment matches the class when its stream is the class's stream or
-  // blank (a stream-blank assessment covers the whole grade).
-  const assessmentsFor = (g, s, area) =>
-    assessments.filter(
-      (a) => a.grade === g && a.learning_area === area
-        && (!a.stream || a.stream === s),
-    )
-  const areas = [...new Set(
+  const areaNames = [...new Set(
     classes
       .filter((c) => c.grade === pickedGrade && (c.stream || '') === pickedStream)
       .map((c) => c.learning_area),
-  )].sort().map((name) => ({
-    key: name,
-    label: name,
-    hint: count(assessmentsFor(pickedGrade, pickedStream, name).length, 'assessment'),
-  }))
-  const inArea = classKey && areaName
-    ? assessmentsFor(pickedGrade, pickedStream, areaName)
-    : []
+  )].sort()
+  const areaId = classes.find(
+    (c) => c.grade === pickedGrade && (c.stream || '') === pickedStream
+      && c.learning_area === areaName,
+  )?.learning_area_id
 
-  const crumbs = [
-    'Areas',
-    ...(areaName ? [areaName] : []),
-    ...(assessment ? [KIND_LABEL[assessment.kind] || assessment.kind] : []),
-  ]
-  const backTo = (i) => {
-    if (i < 1) setAreaName('')
-    setSelectedId('')
+  // The sheet's columns: this class-subject's assessments for the term.
+  const cols = assessments
+    .filter((a) =>
+      a.grade === pickedGrade && a.learning_area === areaName
+      && (!a.stream || a.stream === pickedStream)
+      && a.term === term && a.year === year)
+    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
+  const usedKinds = new Set(cols.map((a) => a.kind))
+
+  // Rows: the class list.
+  useEffect(() => {
+    if (!classKey) { setLearners([]); return }
+    const q = `grade=${pickedGrade}`
+      + (pickedStream ? `&stream=${encodeURIComponent(pickedStream)}` : '')
+    fetchAllLearners(q).then(setLearners).catch(() => setLearners([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by class
+  }, [classKey])
+
+  // Cell values: whatever is already recorded, per column.
+  const colIds = cols.map((a) => a.id).join(',')
+  useEffect(() => {
+    if (!colIds) { setMarks({}); setOrig({}); return }
+    Promise.all(cols.map((a) =>
+      apiGet(`/api/scores/?assessment=${a.id}&page_size=500`)
+        .then((d) => (d.results || d).map((s) => [`${a.id}|${s.learner}`, String(Number(s.marks))]))
+        .catch(() => []),
+    )).then((chunks) => {
+      const loaded = Object.fromEntries(chunks.flat())
+      setMarks(loaded)
+      setOrig(loaded)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by columns
+  }, [colIds])
+
+  async function save() {
+    setBusy(true)
+    let saved = 0
+    let queued = false
+    for (const a of cols) {
+      const records = learners
+        .filter((l) => {
+          const key = `${a.id}|${l.id}`
+          return (marks[key] ?? '') !== '' && marks[key] !== orig[key]
+        })
+        .map((l) => ({ learner: l.id, marks: Number(marks[`${a.id}|${l.id}`]) }))
+      if (!records.length) continue
+      const res = await apiWrite('/api/scores/bulk/', { assessment: a.id, records })
+      if (res.queued) queued = true
+      else if (res.ok) saved += res.data.saved.length
+    }
+    setBusy(false)
+    setOrig({ ...marks })
+    setMessage(
+      queued
+        ? 'Offline — marks queued locally, will sync when connection returns.'
+        : saved
+          ? `Saved ${saved} mark${saved === 1 ? '' : 's'}.`
+          : 'Nothing new to save.',
+    )
+    onQueueChange?.()
+  }
+
+  async function addAssessment() {
+    if (!areaId) return
+    const res = await apiWrite('/api/assessments/', {
+      kind: newKind,
+      learning_area: areaId,
+      grade: pickedGrade,
+      stream: pickedStream,
+      term,
+      year,
+      max_marks: Number(newMax) || 30,
+    })
+    if (res.ok) {
+      setAdding(false)
+      setMessage(`${KIND_LABEL[newKind] || newKind} added.`)
+      onRefresh?.()
+    } else {
+      setMessage(res.data ? JSON.stringify(res.data) : 'Could not add the assessment.')
+    }
   }
 
   if (classes.length === 0) {
@@ -265,6 +281,11 @@ function ScoreEntry({ classes, assessments, onQueueChange }) {
       </div>
     )
   }
+
+  const needle = search.trim().toLowerCase()
+  const shownLearners = learners.filter(
+    (l) => !needle || l.full_name.toLowerCase().includes(needle),
+  )
 
   return (
     <div className="card">
@@ -291,88 +312,117 @@ function ScoreEntry({ classes, assessments, onQueueChange }) {
             ))}
           </select>
         )}
+        {classKey && (
+          <select value={areaName} onChange={(e) => { setAreaName(e.target.value); setMessage('') }}>
+            <option value="">Learning area…</option>
+            {areaNames.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        )}
+        {areaName && (
+          <>
+            <select value={term} onChange={(e) => setTerm(Number(e.target.value))}>
+              {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
+            </select>
+            <input type="number" value={year} style={{ width: '5.5rem' }}
+              onChange={(e) => setYear(Number(e.target.value))} />
+          </>
+        )}
         {!classKey && <span className="muted">Pick the class you are marking.</span>}
       </p>
-      {classKey && crumbs.length > 1 && <Trail crumbs={crumbs} onCrumb={backTo} />}
-      {classKey && !areaName && (
-        <PickList prompt="Choose the learning area." options={areas}
-          onPick={setAreaName} />
-      )}
-      {classKey && areaName && !assessment && (
-        inArea.length > 0 ? (
-          <PickList
-            prompt="Choose the assessment."
-            options={inArea.map((a) => ({
-              key: String(a.id),
-              label: KIND_LABEL[a.kind] || a.kind,
-              hint: `Term ${a.term} · ${a.year} · out of ${a.max_marks}`,
-            }))}
-            onPick={setSelectedId}
-          />
-        ) : (
-          <p className="muted">
-            No assessment exists yet for {areaName} in this class — the office
-            creates assessments (CAT 1, End of Term…) under Assessments.
-          </p>
-        )
-      )}
-      {assessment && (
+
+      {classKey && areaName && (
         <>
-          <div className="score-head">
-            <div>
-              <b>{assessment.label}</b>
-              <div className="muted">Out of {assessment.max_marks} marks</div>
-            </div>
-            <span className={`badge ${done ? 'online' : 'queued'}`}>
-              {done ? 'All graded' : 'In progress'}
-            </span>
-          </div>
-
-          <div className="score-tools">
-            <input
-              className="score-search"
-              placeholder="Search learners…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <button
-              type="button"
-              className={`grade-chip${ungradedOnly ? ' on' : ''}`}
-              onClick={() => setUngradedOnly((v) => !v)}
-            >
-              Ungraded only
-            </button>
-          </div>
-          <p className="muted score-progress">
-            {graded}/{rows.length} graded
-            {shown.length !== rows.length && ` · showing ${shown.length} of ${rows.length}`}
-          </p>
-
-          <div className="score-list">
-            {shown.map((row) => (
-              <ScoreRow
-                key={row.learner}
-                row={row}
-                index={rows.findIndex((r) => r.learner === row.learner) + 1}
-                assessment={assessment}
-                onMarks={setMarks}
-              />
-            ))}
-            {shown.length === 0 && (
-              <p className="muted">
-                {ungradedOnly ? 'Everyone shown is graded.' : 'No learners match.'}
-              </p>
+          <p style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input placeholder="Search learners…" value={search}
+              onChange={(e) => setSearch(e.target.value)} style={{ padding: '0.35rem' }} />
+            {!adding ? (
+              <button type="button" className="grade-chip" onClick={() => setAdding(true)}>
+                + Add assessment
+              </button>
+            ) : (
+              <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center',
+                             border: '1px dashed #cbd5e0', borderRadius: '6px',
+                             padding: '0.3rem 0.5rem' }}>
+                <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+                  {KIND_ORDER.filter((k) => !usedKinds.has(k)).map((k) => (
+                    <option key={k} value={k}>{KIND_LABEL[k]}</option>
+                  ))}
+                </select>
+                <label className="muted">
+                  Out of{' '}
+                  <input type="number" min="1" value={newMax} style={{ width: '4rem' }}
+                    onChange={(e) => setNewMax(e.target.value)} />
+                </label>
+                <button type="button" className="primary" onClick={addAssessment}>Add</button>
+                <button type="button" onClick={() => setAdding(false)}>×</button>
+              </span>
             )}
-          </div>
-
-          <p>
-            <button className="primary" onClick={save} disabled={busy || !rows.length}>
-              {busy ? 'Saving…' : 'Save marks'}
-            </button>
+            <span className="muted">
+              {learners.length} learners · Term {term} {year}
+            </span>
           </p>
+
+          {cols.length === 0 ? (
+            <p className="muted">
+              No assessments yet for {areaName} this term — add one above
+              (CAT 1, Midterm, Final Exam…) and the marks columns appear here.
+            </p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Adm No</th>
+                  <th>Student Name</th>
+                  {cols.map((a) => (
+                    <th key={a.id}>
+                      {KIND_LABEL[a.kind] || a.kind}
+                      <div className="muted">/ {a.max_marks}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shownLearners.map((l) => (
+                  <tr key={l.id}>
+                    <td className="muted">{l.admission_number}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{l.full_name}</td>
+                    {cols.map((a) => {
+                      const key = `${a.id}|${l.id}`
+                      const dirty = (marks[key] ?? '') !== (orig[key] ?? '')
+                      return (
+                        <td key={a.id}>
+                          <input
+                            type="number"
+                            min="0"
+                            max={a.max_marks}
+                            value={marks[key] ?? ''}
+                            className={dirty ? 'mark-cell dirty' : 'mark-cell'}
+                            onChange={(e) =>
+                              setMarks((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                          />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {cols.length > 0 && (
+            <p>
+              <button className="primary" onClick={save} disabled={busy || !learners.length}>
+                {busy ? 'Saving…' : 'Save marks'}
+              </button>
+              {message && <span className="muted"> {message}</span>}
+            </p>
+          )}
+          {cols.length === 0 && message && <p className="muted">{message}</p>}
         </>
       )}
-      {message && <p className="muted">{message}</p>}
     </div>
   )
 }
@@ -530,13 +580,17 @@ export default function TeacherPortal({ onQueueChange }) {
           classes={summary.teaching_classes || []}
           assessments={summary.assessments}
           onQueueChange={onQueueChange}
+          onRefresh={load}
         />
       )}
 
-      {/* Head and deputy see the marked register like the office does —
-          marking belongs to the class teachers. */}
+      {/* Only the class teacher of a class marks its register; everyone
+          else — head, deputy, subject teachers — reads the month record. */}
       {tab === 'Attendance' && (
-        <Attendance onQueueChange={onQueueChange} canMark={ctx.rankLevel < 4} />
+        <Attendance
+          onQueueChange={onQueueChange}
+          classTeacherOf={summary.class_teacher_of || []}
+        />
       )}
 
       {tab === 'Schemes of Work' && (

@@ -100,8 +100,14 @@ class BulkScoreTests(APITestCase):
 
 class AttendanceAndIdempotencyTests(APITestCase):
     def setUp(self):
+        from apps.students.models import ClassGroup
+
         self.school = make_school()
         self.teacher = make_teacher(self.school)
+        # Marking is the class teacher's power — seat them over the class.
+        ClassGroup.objects.create(
+            school=self.school, grade=5, stream="", class_teacher=self.teacher
+        )
         self.learners = [make_learner(self.school, grade=5) for _ in range(3)]
         self.client.force_authenticate(self.teacher.user)
         self.today = timezone.localdate()

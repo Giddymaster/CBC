@@ -1124,6 +1124,16 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
 tr.day-start td { border-top: 2px solid #a0aec0; }
 td.day-cell { background: #edf2f7; vertical-align: top; }
 
+/* Marks spreadsheet: compact numeric cells; unsaved edits glow amber. */
+.mark-cell {
+  width: 4.2rem;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  font: inherit;
+}
+.mark-cell.dirty { border-color: #b7791f; background: #fffbea; }
+
 /* Attendance month calendar: tiny day cells, weeks in alternating shades. */
 .att-month th, .att-month td { padding: 0.25rem 0.35rem; text-align: center; }
 .att-month th { font-size: 0.7rem; }

@@ -95,14 +95,29 @@ class AttendanceBulkView(APIView):
     an Idempotency-Key header makes the request replay-safe, and each row is
     upserted on (learner, date) so partial retries converge instead of erroring.
 
-    Marking is the class teacher's job: only teaching-staff accounts may post.
-    The admin and the head teacher read the register; they do not write it."""
+    Marking is the CLASS teacher's job — not any teacher's, and not the
+    office's. Each learner's mark is accepted only from the teacher seated as
+    that class's class teacher; everyone else reads the register."""
 
     def post(self, request):
-        if getattr(request.user, "teacher_profile", None) is None:
+        from apps.students.models import ClassGroup
+
+        teacher = getattr(request.user, "teacher_profile", None)
+        if teacher is None:
             raise PermissionDenied(
                 "The register is marked by the class teacher. Admin accounts "
                 "can view attendance but not mark it."
+            )
+        my_classes = set(
+            ClassGroup.objects.filter(class_teacher=teacher).values_list(
+                "grade", "stream"
+            )
+        )
+        if not my_classes:
+            raise PermissionDenied(
+                "Only a class teacher marks the register — you are not seated "
+                "as any class's teacher. The head teacher assigns class "
+                "teachers under School (Grades)."
             )
         key = request.headers.get(IDEMPOTENCY_HEADER)
         if key:
@@ -120,17 +135,23 @@ class AttendanceBulkView(APIView):
         records = serializer.validated_data["records"]
 
         school = request.user.school
-        valid_ids = set(
-            Learner.objects.filter(school=school, pk__in=[r.get("learner") for r in records])
-            .values_list("pk", flat=True)
-        )
+        learner_class = {
+            pk: (grade, stream)
+            for pk, grade, stream in Learner.objects.filter(
+                school=school, pk__in=[r.get("learner") for r in records]
+            ).values_list("pk", "grade", "stream")
+        }
 
         valid_statuses = set(AttendanceRecord.Status.values)
         created, updated, skipped = 0, 0, []
         with transaction.atomic():
             for row in records:
                 learner_id = row.get("learner")
-                if learner_id not in valid_ids or row.get("status", "P") not in valid_statuses:
+                if (
+                    learner_id not in learner_class
+                    or learner_class[learner_id] not in my_classes
+                    or row.get("status", "P") not in valid_statuses
+                ):
                     skipped.append(learner_id)
                     continue
                 _, was_created = AttendanceRecord.objects.update_or_create(

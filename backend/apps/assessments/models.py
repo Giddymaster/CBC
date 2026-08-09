@@ -50,7 +50,9 @@ class Assessment(SchoolScopedModel):
     class Kind(models.TextChoices):
         CAT1 = "CAT1", "CAT 1"
         CAT2 = "CAT2", "CAT 2"
-        ENDTERM = "ENDTERM", "End of Term Exam"
+        RAT = "RAT", "RAT"
+        MIDTERM = "MIDTERM", "Midterm Exam"
+        ENDTERM = "ENDTERM", "Final Exam"
         FORMATIVE = "FORMATIVE", "Formative/Classroom Assessment"
 
     kind = models.CharField(max_length=10, choices=Kind.choices)

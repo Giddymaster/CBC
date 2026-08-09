@@ -9,9 +9,14 @@ from tests.factories import make_learner, make_school, make_teacher, make_user
 
 class MarkingRulesTests(APITestCase):
     def setUp(self):
+        from apps.students.models import ClassGroup
+
         self.school = make_school()
         self.admin = make_user(self.school, "ADMIN")
         self.teacher = make_teacher(self.school)
+        ClassGroup.objects.create(
+            school=self.school, grade=4, stream="", class_teacher=self.teacher
+        )
         self.learner = make_learner(self.school, grade=4)
         self.payload = {
             "date": timezone.localdate().isoformat(),
@@ -25,12 +30,35 @@ class MarkingRulesTests(APITestCase):
         self.assertIn("class teacher", res.data["detail"])
         self.assertFalse(AttendanceRecord.objects.exists())
 
-    def test_a_teacher_marks_and_half_day_is_a_real_status(self):
+    def test_the_class_teacher_marks_and_half_day_is_a_real_status(self):
         self.client.force_authenticate(self.teacher.user)
         res = self.client.post("/api/attendance/bulk/", self.payload, format="json")
         self.assertEqual(res.status_code, 200, res.data)
         record = AttendanceRecord.objects.get()
         self.assertEqual(record.status, "H")
+
+    def test_a_teacher_without_a_class_cannot_mark(self):
+        other = make_teacher(self.school)  # no class seat
+        self.client.force_authenticate(other.user)
+        res = self.client.post("/api/attendance/bulk/", self.payload, format="json")
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("class teacher", res.data["detail"])
+
+    def test_another_classs_learners_are_skipped_not_marked(self):
+        """A class teacher of G4 posting a G7 learner's mark: the row is
+        refused, not silently written."""
+        stranger = make_learner(self.school, grade=7)
+        self.client.force_authenticate(self.teacher.user)
+        res = self.client.post(
+            "/api/attendance/bulk/",
+            {
+                "date": timezone.localdate().isoformat(),
+                "records": [{"learner": stranger.id, "status": "P"}],
+            },
+            format="json",
+        )
+        self.assertEqual(res.data["skipped"], [stranger.id])
+        self.assertFalse(AttendanceRecord.objects.exists())
 
     def test_junk_statuses_are_skipped_not_stored(self):
         self.client.force_authenticate(self.teacher.user)

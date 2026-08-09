@@ -77,9 +77,34 @@ class LearningAreaViewSet(AdminWriteMixin, viewsets.ModelViewSet):
 
 
 class AssessmentViewSet(SchoolScopedViewSet):
+    """Assessments are created by staff — a teacher adds a CAT or exam for
+    the classes they mark; parents only ever read results."""
+
     queryset = Assessment.objects.select_related("learning_area").all()
     serializer_class = AssessmentSerializer
-    filterset_fields = ["kind", "learning_area", "grade", "term", "year"]
+    filterset_fields = ["kind", "learning_area", "grade", "stream", "term", "year"]
+
+    def _require_staff(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER")):
+            raise PermissionDenied("Assessments are managed by staff.")
+
+    def perform_create(self, serializer):
+        self._require_staff()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_staff()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # Deleting an assessment cascades into its scores — office only.
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied(
+                "Deleting an assessment removes its recorded marks — ask the office."
+            )
+        instance.delete()
 
 
 class ScoreViewSet(IdempotencyMixin, SchoolScopedViewSet):

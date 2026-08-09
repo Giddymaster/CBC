@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
-import { ALL_GRADES, gradeLabel, gradeParam, todayLocal } from './format.js'
+import { ALL_GRADES, gradeLabel, todayLocal } from './format.js'
 
 const STATUS_LABEL = { P: 'Present', A: 'Absent', H: 'Half day', L: 'Late', E: 'Excused' }
 
@@ -16,19 +16,26 @@ async function fetchAllLearners(query) {
   return rows
 }
 
-/** The day's register: the class teacher marks it. Each learner's control is
- * pre-set to whatever is already recorded, so re-opening the day corrects it
- * rather than starting over. */
-function Register({ onQueueChange, grade }) {
+/** The day's register: the class teacher marks THEIR class. Each learner's
+ * control is pre-set to whatever is already recorded, so re-opening the day
+ * corrects it rather than starting over. */
+function Register({ onQueueChange, myClasses }) {
+  const [classIdx, setClassIdx] = useState(0)
   const [learners, setLearners] = useState([])
   const [statuses, setStatuses] = useState({})
   const [date, setDate] = useState(todayLocal)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const klass = myClasses[classIdx] || myClasses[0]
+
   useEffect(() => {
-    fetchAllLearners(gradeParam(grade)).then(setLearners).catch(() => setLearners([]))
-  }, [grade])
+    if (!klass) return
+    const q = `grade=${klass.grade}`
+      + (klass.stream ? `&stream=${encodeURIComponent(klass.stream)}` : '')
+    fetchAllLearners(q).then(setLearners).catch(() => setLearners([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by class
+  }, [klass?.grade, klass?.stream])
 
   useEffect(() => {
     apiGet(`/api/attendance/?date=${date}&page_size=500`)
@@ -37,7 +44,7 @@ function Register({ onQueueChange, grade }) {
         setStatuses(Object.fromEntries(rows.map((r) => [r.learner, r.status])))
       })
       .catch(() => setStatuses({}))
-  }, [date, grade])
+  }, [date])
 
   async function submit() {
     setBusy(true)
@@ -64,6 +71,18 @@ function Register({ onQueueChange, grade }) {
   return (
     <>
       <p style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        {myClasses.length > 1 && (
+          <select value={classIdx} onChange={(e) => setClassIdx(Number(e.target.value))}>
+            {myClasses.map((c, i) => (
+              <option key={i} value={i}>
+                {gradeLabel(c.grade)}{c.stream ? ` ${c.stream}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {myClasses.length === 1 && klass && (
+          <b>{gradeLabel(klass.grade)}{klass.stream ? ` ${klass.stream}` : ''}</b>
+        )}
         Register for <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <button className="grade-chip"
           onClick={() => setStatuses(Object.fromEntries(learners.map((l) => [l.id, 'P'])))}>
@@ -229,10 +248,12 @@ function MonthView({ grade: fixedGrade }) {
 }
 
 /**
- * canMark: the class teacher's power. The admin and the head teacher open this
- * page read-only — marking is enforced server-side too.
+ * classTeacherOf: the class(es) this account is seated over as class teacher —
+ * the only classes whose register they mark. Everyone else (admin, head,
+ * subject teachers) opens the month record read-only; the server enforces it.
  */
-export default function Attendance({ onQueueChange, grade, canMark = false }) {
+export default function Attendance({ onQueueChange, grade, classTeacherOf = [] }) {
+  const canMark = classTeacherOf.length > 0
   const [view, setView] = useState(canMark ? 'REGISTER' : 'MONTH')
 
   return (
@@ -240,19 +261,19 @@ export default function Attendance({ onQueueChange, grade, canMark = false }) {
       {canMark && (
         <p style={{ display: 'flex', gap: '0.4rem' }}>
           <button className={`grade-chip${view === 'REGISTER' ? ' on' : ''}`}
-            onClick={() => setView('REGISTER')}>Mark the day</button>
+            onClick={() => setView('REGISTER')}>Mark my class</button>
           <button className={`grade-chip${view === 'MONTH' ? ' on' : ''}`}
             onClick={() => setView('MONTH')}>Month view</button>
         </p>
       )}
       {!canMark && (
         <p className="muted">
-          The register is marked by each class teacher; this is the month's
-          record.
+          The register is marked by each class's class teacher; this is the
+          month's record.
         </p>
       )}
       {view === 'REGISTER' && canMark && (
-        <Register onQueueChange={onQueueChange} grade={grade} />
+        <Register onQueueChange={onQueueChange} myClasses={classTeacherOf} />
       )}
       {view === 'MONTH' && <MonthView grade={grade ?? null} />}
     </div>
