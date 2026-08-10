@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from apps.common.images import downscale_photo
 from apps.common.views import SchoolScopedViewSet
+from apps.payments.access import can_handle_fees, can_view_fees
 
 from .models import Duty, StaffReport, SupportStaff, Teacher
 
@@ -398,6 +399,13 @@ class MyPortalView(APIView):
                     "size": team_size,
                     "scope": scope_label(user),
                     "rank_level": rank_level(user),
+                },
+                # What this person may do with the school's money, so the
+                # portal shows the fee register only to those who should see
+                # it — and the receipting controls only to those who handle it.
+                "fees": {
+                    "can_view": can_view_fees(user),
+                    "can_handle": can_handle_fees(user),
                 },
                 "my_tasks": StaffTaskSerializer(
                     my_tasks, many=True, context={"request": request}

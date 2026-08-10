@@ -217,6 +217,71 @@ class FeeRegisterTests(APITestCase):
         )
         self.assertEqual(res.status_code, 403)
 
+    def _register_status(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get("/api/payments/invoices/").status_code
+
+    def test_the_bursar_reads_the_register_and_receipts_payments(self):
+        from apps.teachers.models import SupportStaff
+
+        bursar = make_user(self.school, "SUPPORT")
+        SupportStaff.objects.create(
+            school=self.school, user=bursar, full_name="Josephine Muthoni",
+            category="BURSAR", title="Senior Bursar",
+        )
+        invoice = self._invoice()
+        self.client.force_authenticate(bursar)
+        self.assertEqual(self.client.get("/api/payments/invoices/").data["count"], 1)
+        res = self.client.post(
+            "/api/payments/payments/",
+            {"invoice": invoice.id, "amount": "1000", "method": "CASH",
+             "paid_on": "2026-05-04"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+
+    def test_the_head_teacher_reads_the_register_but_writes_no_receipts(self):
+        head = make_teacher(self.school, rank="HEAD")
+        invoice = self._invoice()
+        self.client.force_authenticate(head.user)
+        self.assertEqual(self.client.get("/api/payments/invoices/").data["count"], 1)
+        self.assertEqual(
+            self.client.get("/api/payments/register.xlsx").status_code, 200
+        )
+        res = self.client.post(
+            "/api/payments/payments/",
+            {"invoice": invoice.id, "amount": "1000", "method": "CASH",
+             "paid_on": "2026-05-04"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_an_ordinary_teacher_sees_no_fee_register(self):
+        self._invoice()
+        teacher = make_teacher(self.school)
+        self.client.force_authenticate(teacher.user)
+        self.assertEqual(self.client.get("/api/payments/invoices/").data["count"], 0)
+        self.assertEqual(
+            self.client.get("/api/payments/register.xlsx").status_code, 403
+        )
+
+    def test_a_parent_sees_only_their_own_children(self):
+        """The register must never show one family another family's fees."""
+        from tests.factories import make_guardian
+
+        mine = self._invoice()
+        other = make_learner(self.school, grade=5)
+        Invoice.objects.create(
+            school=self.school, learner=other,
+            fee_structure=self.structure, amount_due=Decimal("8000"),
+        )
+        parent = make_user(self.school, "PARENT")
+        make_guardian(self.school, learners=[self.amina], user=parent)
+        self.client.force_authenticate(parent)
+        res = self.client.get("/api/payments/invoices/")
+        self.assertEqual(res.data["count"], 1)
+        self.assertEqual(res.data["results"][0]["id"], mine.id)
+
     def test_the_excel_register_downloads(self):
         import io
 

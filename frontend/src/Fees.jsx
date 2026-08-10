@@ -77,7 +77,7 @@ function UpiCell({ learnerId, upi, onSaved }) {
 
 /** Record one instalment. Families pay what they can, when they can — this
  * takes any amount, any day, by any method, and the invoice re-totals. */
-function RecordPayment({ invoice, onDone, onClose }) {
+function RecordPayment({ invoice, canHandle = true, onDone, onClose }) {
   const [form, setForm] = useState({
     amount: String(Math.max(0, Number(invoice.balance))),
     method: 'CASH',
@@ -107,7 +107,9 @@ function RecordPayment({ invoice, onDone, onClose }) {
   return (
     <div className="card">
       <div className="page-header" style={{ marginBottom: '0.4rem' }}>
-        <h3 style={{ margin: 0 }}>Record a payment</h3>
+        <h3 style={{ margin: 0 }}>
+          {canHandle ? 'Record a payment' : 'Fee statement'}
+        </h3>
         <button onClick={onClose}>Close</button>
       </div>
       {/* Who is being receipted, in the terms the desk checks: the number the
@@ -120,7 +122,9 @@ function RecordPayment({ invoice, onDone, onClose }) {
           <dd>
             {/* The desk is the one moment a parent is standing there to
                 ask — so a missing UPI is captured here, not chased later. */}
-            <UpiCell learnerId={invoice.learner} upi={invoice.upi} onSaved={onDone} />
+            {canHandle
+              ? <UpiCell learnerId={invoice.learner} upi={invoice.upi} onSaved={onDone} />
+              : (invoice.upi || <span className="muted">Not recorded</span>)}
           </dd>
         </div>
         <div><dt>Class</dt><dd>{gradeLabel(invoice.grade)} {invoice.stream}</dd></div>
@@ -130,6 +134,7 @@ function RecordPayment({ invoice, onDone, onClose }) {
         {money(invoice.amount_due)} due · {money(invoice.amount_paid)} paid ·{' '}
         <b>{money(invoice.balance)} outstanding</b>
       </p>
+      {canHandle && (
       <form onSubmit={save} className="adm-grid" style={{ maxWidth: '44rem' }}>
         <label className="adm-field"><span className="adm-label">Amount received</span>
           <input type="number" min="1" step="1" value={form.amount}
@@ -153,6 +158,7 @@ function RecordPayment({ invoice, onDone, onClose }) {
           {message && <span className="error"> {message}</span>}
         </div>
       </form>
+      )}
 
       {invoice.payments?.length > 0 && (
         <>
@@ -171,11 +177,13 @@ function RecordPayment({ invoice, onDone, onClose }) {
                   <td className="muted">{p.reference || '—'}</td>
                   <td className="muted">{p.received_by_name || '—'}</td>
                   <td>
-                    <button onClick={async () => {
-                      if (!window.confirm(`Reverse ${money(p.amount)} of ${p.paid_on}?`)) return
-                      await apiWrite(`/api/payments/payments/${p.id}/`, {}, { method: 'DELETE' })
-                      onDone()
-                    }}>Reverse</button>
+                    {canHandle && (
+                      <button onClick={async () => {
+                        if (!window.confirm(`Reverse ${money(p.amount)} of ${p.paid_on}?`)) return
+                        await apiWrite(`/api/payments/payments/${p.id}/`, {}, { method: 'DELETE' })
+                        onDone()
+                      }}>Reverse</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -572,7 +580,11 @@ function AdmissionLookup({ value, onFound, onClear, onMessage }) {
   )
 }
 
-export default function Fees({ grade: fixedGrade }) {
+/**
+ * canHandle: the office and the bursar receipt payments and set the fee note.
+ * Without it — a head teacher or deputy — this is the register, read-only.
+ */
+export default function Fees({ grade: fixedGrade, canHandle = true }) {
   const [rows, setRows] = useState([])
   const [streams, setStreams] = useState([])
   const [open, setOpen] = useState(null) // invoice being paid
@@ -673,6 +685,7 @@ export default function Fees({ grade: fixedGrade }) {
     return (
       <RecordPayment
         invoice={open}
+        canHandle={canHandle}
         onDone={() => { setMessage(''); load() }}
         onClose={() => setOpen(null)}
       />
@@ -681,7 +694,9 @@ export default function Fees({ grade: fixedGrade }) {
 
   return (
     <div>
-      <FeeStructures grade={fixedGrade} onGenerated={load} onMessage={setMessage} />
+      {canHandle && (
+        <FeeStructures grade={fixedGrade} onGenerated={load} onMessage={setMessage} />
+      )}
 
       <div className="card">
         <AdmissionLookup
@@ -734,17 +749,21 @@ export default function Fees({ grade: fixedGrade }) {
               No invoices here yet. A fee structure says what a class is
               charged; invoices are what each learner actually owes.
             </p>
-            <p>
-              <button className="primary" onClick={raiseAll} disabled={raising}>
-                {raising
-                  ? 'Raising…'
-                  : `Raise Term ${filters.term || currentTerm()} `
-                    + `${filters.year || new Date().getFullYear()} invoices for every class`}
-              </button>{' '}
-              <span className="muted">
-                Every active learner in a class with a fee set is billed.
-              </span>
-            </p>
+            {canHandle ? (
+              <p>
+                <button className="primary" onClick={raiseAll} disabled={raising}>
+                  {raising
+                    ? 'Raising…'
+                    : `Raise Term ${filters.term || currentTerm()} `
+                      + `${filters.year || new Date().getFullYear()} invoices for every class`}
+                </button>{' '}
+                <span className="muted">
+                  Every active learner in a class with a fee set is billed.
+                </span>
+              </p>
+            ) : (
+              <p className="muted">The school office raises the term's invoices.</p>
+            )}
           </div>
         ) : (
           <table>
@@ -772,8 +791,9 @@ export default function Fees({ grade: fixedGrade }) {
                     </span>
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="primary" onClick={() => setOpen(r)}>
-                      {r.status === 'PAID' ? 'Statement' : 'Record payment'}
+                    <button className={canHandle ? 'primary' : ''}
+                      onClick={() => setOpen(r)}>
+                      {!canHandle || r.status === 'PAID' ? 'Statement' : 'Record payment'}
                     </button>
                   </td>
                 </tr>

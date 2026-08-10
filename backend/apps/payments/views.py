@@ -14,6 +14,7 @@ from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 from apps.schools.models import School
 
+from .access import can_handle_fees, can_view_fees
 from .models import (
     DEFAULT_VOTE_HEADS,
     FeeStructure,
@@ -42,9 +43,10 @@ class FeeStructureViewSet(SchoolScopedViewSet):
     filterset_fields = ["grade", "term", "year"]
 
     def _require_office(self):
-        user = self.request.user
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Only the school office sets fee structures.")
+        if not can_handle_fees(self.request.user):
+            raise PermissionDenied(
+                "The fee structure is set by the school office or the bursar."
+            )
 
     def perform_create(self, serializer):
         self._require_office()
@@ -60,6 +62,9 @@ class FeeStructureViewSet(SchoolScopedViewSet):
 
 
 class InvoiceViewSet(SchoolScopedViewSet):
+    """The fee register. Staff who handle or oversee money see the school's;
+    a parent sees only their own children's; nobody else sees any of it."""
+
     queryset = (
         Invoice.objects.select_related("learner", "fee_structure")
         .prefetch_related("payments")
@@ -77,9 +82,16 @@ class InvoiceViewSet(SchoolScopedViewSet):
                      "learner__admission_number"]
 
     def get_queryset(self):
-        return super().get_queryset().order_by(
+        qs = super().get_queryset().order_by(
             "learner__grade", "learner__stream", "learner__admission_number"
         )
+        user = self.request.user
+        if can_view_fees(user):
+            return qs
+        guardian = getattr(user, "guardian_profile", None)
+        if guardian is not None:
+            return qs.filter(learner__in=guardian.learners.all())
+        return qs.none()
 
 
 class PaymentViewSet(SchoolScopedViewSet):
@@ -93,9 +105,10 @@ class PaymentViewSet(SchoolScopedViewSet):
     filterset_fields = ["invoice", "method", "paid_on"]
 
     def _require_office(self):
-        user = self.request.user
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Fee payments are recorded by the school office.")
+        if not can_handle_fees(self.request.user):
+            raise PermissionDenied(
+                "Fee payments are recorded by the school office or the bursar."
+            )
 
     def _retotal(self, invoice):
         total = invoice.payments.aggregate(t=Sum("amount"))["t"] or Decimal("0")
@@ -139,8 +152,10 @@ class FeeStructureGridView(APIView):
     """
 
     def _require_office(self, user):
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Only the school office sets fee structures.")
+        if not can_handle_fees(user):
+            raise PermissionDenied(
+                "The fee structure is set by the school office or the bursar."
+            )
 
     def get(self, request):
         from apps.schools.moe import ALL_GRADES, GRADE_LABELS
@@ -237,8 +252,10 @@ class GenerateInvoicesView(APIView):
 
     def post(self, request):
         user = request.user
-        if not (user.is_superuser or user.role == "ADMIN"):
-            raise PermissionDenied("Only the school office raises fee invoices.")
+        if not can_handle_fees(user):
+            raise PermissionDenied(
+                "Fee invoices are raised by the school office or the bursar."
+            )
 
         from apps.students.models import Learner
 
@@ -312,8 +329,11 @@ class FeeRegisterXlsxView(APIView):
 
     def get(self, request):
         user = request.user
-        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER")):
-            raise PermissionDenied("The fee register is staff-only.")
+        if not can_view_fees(user):
+            raise PermissionDenied(
+                "The fee register is for the office, the bursar and school "
+                "leadership."
+            )
 
         rows = (
             Invoice.objects.filter(school=user.school)

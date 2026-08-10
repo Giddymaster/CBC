@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
 import Admission from './Admission.jsx'
+import Fees from './Fees.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
@@ -409,6 +410,8 @@ export default function SupportPortal() {
   const pending = data.reports.to_review.length
   const teamSize = data.team?.size || 0
   const canAdmit = Boolean(access?.can_admit)
+  const canViewFees = Boolean(data.fees?.can_view)
+  const canHandleFees = Boolean(data.fees?.can_handle)
 
   const actions = [
     { tab: 'My Role', icon: 'user', tone: 'blue', title: 'My Role',
@@ -420,6 +423,12 @@ export default function SupportPortal() {
       cta: 'Open reports', badge: pending },
     ...(canAdmit ? [{ tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
       desc: 'Admit a learner into the school.', cta: 'Admit a learner' }] : []),
+    // The bursar's own desk: receipt fees, chase balances, print the register.
+    ...(canViewFees ? [{ tab: 'Fees', icon: 'wallet', tone: 'orange', title: 'Fees',
+      desc: canHandleFees
+        ? 'Receipt payments, raise invoices and print the fee register.'
+        : 'What each class owes and has paid.',
+      cta: canHandleFees ? 'Open the fees desk' : 'Open the register' }] : []),
   ]
   const nav = [
     { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
@@ -427,6 +436,7 @@ export default function SupportPortal() {
     { key: 'Reports', label: 'Reports', icon: 'file' },
     ...(teamSize ? [{ key: 'My Team', label: 'Team', icon: 'users' }] : []),
     ...(canAdmit ? [{ key: 'Admissions', label: 'Admit', icon: 'plus' }] : []),
+    ...(canViewFees ? [{ key: 'Fees', label: 'Fees', icon: 'wallet' }] : []),
   ]
   const openTab = (name) => { setTab(name); window.scrollTo(0, 0) }
 
@@ -463,6 +473,7 @@ export default function SupportPortal() {
       {tab === 'My Role' && <MyRolePanel data={data} onRefresh={load} />}
       {tab === 'My Team' && <MyTeam />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
+      {tab === 'Fees' && <Fees grade={null} canHandle={canHandleFees} />}
       {tab === 'Reports' && <ReportsPanel data={data} onRefresh={load} />}
 
       <BottomNav items={nav} active={tab} onSelect={openTab} />

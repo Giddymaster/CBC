@@ -5,6 +5,7 @@ import { StaffParentThreads } from './ParentMessages.jsx'
 import { apiGet, apiWrite } from './api.js'
 import Attendance from './Attendance.jsx'
 import Broadsheet from './Broadsheet.jsx'
+import Fees from './Fees.jsx'
 import TaskHub from './TaskHub.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
@@ -474,6 +475,9 @@ const TEACHER_ACTIONS = [
   { tab: 'Report Cards', icon: 'file', tone: 'red', title: 'Report Cards',
     desc: 'Class broadsheets, Excel exports and printable report forms.',
     cta: 'Open broadsheets', when: (ctx) => ctx.rankLevel >= 4 },
+  { tab: 'Fees', icon: 'wallet', tone: 'orange', title: 'Fees',
+    desc: 'What each class owes and has paid — the whole school register.',
+    cta: 'Open the register', when: (ctx) => ctx.canViewFees },
   { tab: 'Task Hub', icon: 'star', tone: 'orange', title: 'Task Hub',
     desc: 'Every duty the school hands out — class teachers, games master, HODs, TOD, cooks, security — assigned in one place.',
     cta: 'Assign tasks', when: (ctx) => ctx.rankLevel >= 4 },
@@ -524,6 +528,8 @@ export default function TeacherPortal({ onQueueChange }) {
     // Head teacher / deputy — they run the school day, so they also see the
     // school structure and set teaching assignments.
     rankLevel: portal?.team?.rank_level || 0,
+    canViewFees: Boolean(portal?.fees?.can_view),
+    canHandleFees: Boolean(portal?.fees?.can_handle),
   }
   const actions = TEACHER_ACTIONS.filter((a) => !a.when || a.when(ctx))
 
@@ -574,6 +580,7 @@ export default function TeacherPortal({ onQueueChange }) {
       {tab === 'My Team' && <MyTeam />}
       {tab === 'School (Grades)' && <SchoolStructure grade={null} />}
       {tab === 'Report Cards' && <Broadsheet grade={null} />}
+      {tab === 'Fees' && <Fees grade={null} canHandle={ctx.canHandleFees} />}
       {tab === 'Task Hub' && <TaskHub />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
