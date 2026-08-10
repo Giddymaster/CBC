@@ -45,7 +45,9 @@ class SchemeWorkflowTests(APITestCase):
         self.assertEqual(res.status_code, 400)
         self.assertFalse(SchemeOfWork.objects.filter(learning_area=self.music).exists())
 
-    def test_generated_scheme_lands_pending_review(self):
+    def test_generated_scheme_lands_as_a_draft_to_proofread(self):
+        """A machine draft is a starting point: the teacher reads and edits it
+        before the head teacher ever sees it."""
         self.client.force_authenticate(self.teacher.user)
         res = self.client.post(
             "/api/schemes-of-work/generate/",
@@ -54,9 +56,60 @@ class SchemeWorkflowTests(APITestCase):
         )
         self.assertEqual(res.status_code, 201)
         scheme = SchemeOfWork.objects.get(pk=res.data["id"])
-        self.assertEqual(scheme.status, "PENDING")
+        self.assertEqual(scheme.status, "DRAFT")
         self.assertEqual(scheme.source, "GENERATED")
         self.assertTrue(scheme.content)
+
+    def test_the_teacher_edits_the_draft_then_submits_it(self):
+        self.client.force_authenticate(self.teacher.user)
+        scheme = SchemeOfWork.objects.create(
+            school=self.school, teacher=self.teacher, learning_area=self.maths,
+            grade=5, term=1, year=2026, status="DRAFT",
+            content={"weeks": [{"week": 1, "lessons": [{"lesson": 1, "strand": "Old"}]}]},
+        )
+        edited = self.client.patch(
+            f"/api/schemes-of-work/{scheme.id}/",
+            {"content": {"weeks": [{"week": 1, "lessons": [
+                {"lesson": 1, "strand": "Numbers", "sub_strand": "Place value"}]}]}},
+            format="json",
+        )
+        self.assertEqual(edited.status_code, 200, edited.data)
+        scheme.refresh_from_db()
+        self.assertEqual(scheme.content["weeks"][0]["lessons"][0]["strand"], "Numbers")
+
+        sent = self.client.post(f"/api/schemes-of-work/submit/{scheme.id}/", {},
+                                format="json")
+        self.assertEqual(sent.status_code, 200, sent.data)
+        scheme.refresh_from_db()
+        self.assertEqual(scheme.status, "PENDING")
+
+    def test_an_approved_scheme_is_not_quietly_rewritten(self):
+        scheme = SchemeOfWork.objects.create(
+            school=self.school, teacher=self.teacher, learning_area=self.maths,
+            grade=5, term=1, year=2026, status="APPROVED",
+        )
+        self.client.force_authenticate(self.teacher.user)
+        res = self.client.patch(
+            f"/api/schemes-of-work/{scheme.id}/", {"content": {"weeks": []}},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("approved", res.data["detail"].lower())
+
+    def test_a_teacher_cannot_edit_someone_elses_scheme(self):
+        from tests.factories import make_teacher
+
+        other = make_teacher(self.school)
+        scheme = SchemeOfWork.objects.create(
+            school=self.school, teacher=other, learning_area=self.maths,
+            grade=5, term=1, year=2026, status="DRAFT",
+        )
+        self.client.force_authenticate(self.teacher.user)
+        res = self.client.patch(
+            f"/api/schemes-of-work/{scheme.id}/", {"content": {"weeks": []}},
+            format="json",
+        )
+        self.assertIn(res.status_code, (403, 404))
 
     def test_only_an_admin_may_review(self):
         scheme = SchemeOfWork.objects.create(

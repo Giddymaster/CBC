@@ -138,14 +138,20 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
             self._check_teaches(owner, learning_area)
         if serializer.validated_data.get("document"):
             extra["source"] = SchemeOfWork.Source.UPLOADED
-            extra["status"] = SchemeOfWork.Status.PENDING
+            # A draft, not a submission: the teacher opens what they uploaded,
+            # checks it is the right file and the right term, and submits it
+            # themselves. Sending it to the head unread is how wrong documents
+            # reach a head teacher's desk.
+            extra["status"] = SchemeOfWork.Status.DRAFT
         if user.school_id is not None:
             extra["school"] = user.school
         serializer.save(**extra)
 
     @action(detail=False, methods=["post"])
     def generate(self, request):
-        """AI-draft a scheme of work; lands in PENDING for the head to review."""
+        """AI-draft a scheme of work. It lands as a DRAFT the teacher reads,
+        edits and then submits — a machine draft is a starting point, not a
+        plan the head teacher should receive unchecked."""
         teacher = self._own_teacher()
         if teacher is None:
             raise PermissionDenied("Only teacher accounts can generate schemes of work.")
@@ -187,7 +193,7 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
             defaults={
                 "content": content,
                 "source": SchemeOfWork.Source.GENERATED,
-                "status": SchemeOfWork.Status.PENDING,
+                "status": SchemeOfWork.Status.DRAFT,
                 "reviewed_by": None,
                 "reviewed_at": None,
                 "review_comment": "",
@@ -197,6 +203,27 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
             SchemeOfWorkSerializer(scheme, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+    def perform_update(self, serializer):
+        """A teacher edits their own scheme while it is theirs to edit.
+
+        Once the head has approved it, the plan on file is the one they
+        approved — reopening it takes another review, which is what a
+        rejected scheme already does.
+        """
+        scheme = serializer.instance
+        user = self.request.user
+        is_admin = user.is_superuser or user.role == "ADMIN"
+        teacher = self._own_teacher()
+        if not is_admin:
+            if teacher is None or scheme.teacher_id != teacher.id:
+                raise PermissionDenied("You can only edit your own scheme of work.")
+            if scheme.status == SchemeOfWork.Status.APPROVED:
+                raise PermissionDenied(
+                    "This scheme is approved. Ask the head teacher to return it "
+                    "before changing it."
+                )
+        serializer.save()
 
     @action(detail=True, methods=["post"])
     def review(self, request, pk=None):

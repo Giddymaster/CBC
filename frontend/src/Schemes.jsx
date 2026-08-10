@@ -68,6 +68,129 @@ export function taughtGrades(summary) {
   return [...grades].filter(Boolean).sort((a, b) => a - b)
 }
 
+/** Read a scheme before anyone else does — the generated weeks in full, and a
+ * way to open or download an uploaded document. */
+function SchemePreview({ scheme, onClose, onEdit, onSubmit, busy }) {
+  const weeks = scheme.content?.weeks || []
+  return (
+    <div className="card">
+      <div className="page-header" style={{ marginBottom: '0.3rem' }}>
+        <h3 style={{ margin: 0 }}>
+          {scheme.learning_area} — {gradeLabel(scheme.grade)} · Term {scheme.term} {scheme.year}
+        </h3>
+        <span style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {scheme.document && (
+            <a className="grade-chip" href={scheme.document}
+              target="_blank" rel="noreferrer">Open the document</a>
+          )}
+          {scheme.document && (
+            <a className="grade-chip" href={scheme.document} download>Download</a>
+          )}
+          {weeks.length > 0 && scheme.status !== 'APPROVED' && (
+            <button onClick={onEdit}>Edit</button>
+          )}
+          {scheme.status !== 'PENDING' && scheme.status !== 'APPROVED' && (
+            <button className="primary" onClick={onSubmit} disabled={busy}>
+              {busy ? 'Sending…' : 'Submit for review'}
+            </button>
+          )}
+          <button onClick={onClose}>Close</button>
+        </span>
+      </div>
+      <p className="muted">
+        <StatusBadge status={scheme.status} />{' '}
+        {scheme.status === 'DRAFT'
+          ? 'Yours to check and change. The head teacher sees it once you submit it.'
+          : scheme.status === 'PENDING'
+            ? 'With the head teacher for review.'
+            : scheme.status === 'REJECTED'
+              ? `Returned: ${scheme.review_comment || 'see the head teacher.'}`
+              : 'Approved — ask the head teacher to return it before changing it.'}
+      </p>
+      {scheme.document && weeks.length === 0 && (
+        <p className="muted">
+          This scheme is an uploaded document — open it above to proofread it.
+        </p>
+      )}
+      <SchemeWeeks content={scheme.content} />
+    </div>
+  )
+}
+
+/** Edit the generated plan lesson by lesson, before it goes for review. */
+function SchemeEditor({ scheme, onCancel, onSaved, onMessage }) {
+  const [weeks, setWeeks] = useState(
+    JSON.parse(JSON.stringify(scheme.content?.weeks || [])),
+  )
+  const [busy, setBusy] = useState(false)
+
+  const setLesson = (wi, li, key, value) =>
+    setWeeks((prev) => prev.map((w, i) => (i !== wi ? w : {
+      ...w,
+      lessons: w.lessons.map((l, j) => (j !== li ? l : { ...l, [key]: value })),
+    })))
+
+  async function save() {
+    setBusy(true)
+    const res = await apiWrite(`/api/schemes-of-work/${scheme.id}/`,
+      { content: { ...scheme.content, weeks } }, { method: 'PATCH' })
+    setBusy(false)
+    if (res.ok) {
+      onMessage('Scheme updated.')
+      onSaved()
+    } else {
+      onMessage(res.data?.detail || 'Could not save your changes.')
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="page-header" style={{ marginBottom: '0.3rem' }}>
+        <h3 style={{ margin: 0 }}>
+          Editing — {scheme.learning_area} {gradeLabel(scheme.grade)} T{scheme.term}
+        </h3>
+        <span style={{ display: 'flex', gap: '0.4rem' }}>
+          <button className="primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+          <button onClick={onCancel}>Cancel</button>
+        </span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Wk</th><th>Strand</th><th>Sub-strand</th>
+            <th>Learning outcomes</th><th>Inquiry question</th><th>Assessment</th>
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.flatMap((week, wi) => week.lessons.map((lesson, li) => (
+            <tr key={`${wi}-${li}`}>
+              <td className="muted">{week.week}.{lesson.lesson}</td>
+              <td><input value={lesson.strand || ''} style={{ width: '9rem' }}
+                onChange={(e) => setLesson(wi, li, 'strand', e.target.value)} /></td>
+              <td><input value={lesson.sub_strand || ''} style={{ width: '9rem' }}
+                onChange={(e) => setLesson(wi, li, 'sub_strand', e.target.value)} /></td>
+              <td>
+                <textarea rows="2" style={{ width: '14rem' }}
+                  value={(lesson.learning_outcomes || []).join('\n')}
+                  onChange={(e) => setLesson(
+                    wi, li, 'learning_outcomes',
+                    e.target.value.split('\n').filter(Boolean),
+                  )} />
+              </td>
+              <td><input value={lesson.key_inquiry_question || ''} style={{ width: '11rem' }}
+                onChange={(e) => setLesson(wi, li, 'key_inquiry_question', e.target.value)} /></td>
+              <td><input value={lesson.assessment_methods || ''} style={{ width: '10rem' }}
+                onChange={(e) => setLesson(wi, li, 'assessment_methods', e.target.value)} /></td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // Teacher-facing tab: pick the class, then the learning area, then work on
 // that combination's schemes — upload a document or generate one with AI.
 export default function TeacherSchemes({ summary, onRefresh }) {
@@ -80,6 +203,8 @@ export default function TeacherSchemes({ summary, onRefresh }) {
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ term: 2, year: 2026, weeks: 10 })
   const [file, setFile] = useState(null)
+  const [open, setOpen] = useState(null)   // scheme being proofread
+  const [editing, setEditing] = useState(null) // scheme being edited
 
   useEffect(() => {
     if (summary.taught_learning_areas) {
@@ -136,12 +261,22 @@ export default function TeacherSchemes({ summary, onRefresh }) {
     const result = await apiUpload('/api/schemes-of-work/', fd)
     setBusy(false)
     setMessage(result.ok
-      ? 'Uploaded — sent to the head teacher for review.'
+      ? 'Uploaded — open it to check it is the right file, then submit it.'
       : `Upload failed: ${JSON.stringify(result.data)}`)
     if (result.ok) {
       setFile(null)
       onRefresh()
     }
+  }
+
+  async function submit(scheme) {
+    setBusy(true)
+    const res = await apiWrite(`/api/schemes-of-work/submit/${scheme.id}/`, {})
+    setBusy(false)
+    setMessage(res.ok
+      ? 'Sent to the head teacher for review.'
+      : res.data?.detail || 'Could not submit it.')
+    if (res.ok) { setOpen(null); onRefresh() }
   }
 
   async function generate() {
@@ -157,9 +292,33 @@ export default function TeacherSchemes({ summary, onRefresh }) {
     })
     setBusy(false)
     setMessage(result.ok
-      ? 'Scheme generated — sent to the head teacher for review.'
+      ? 'Draft ready — proofread and edit it, then submit it for review.'
       : `Generation failed: ${JSON.stringify(result.data)}`)
     if (result.ok) onRefresh()
+  }
+
+  // Proofreading and editing take over the panel — one job at a time.
+  if (editing) {
+    return (
+      <SchemeEditor
+        scheme={editing}
+        onCancel={() => setEditing(null)}
+        onSaved={() => { setEditing(null); setOpen(null); onRefresh() }}
+        onMessage={setMessage}
+      />
+    )
+  }
+  if (open) {
+    const current = schemes.find((s) => s.id === open.id) || open
+    return (
+      <SchemePreview
+        scheme={current}
+        busy={busy}
+        onClose={() => setOpen(null)}
+        onEdit={() => setEditing(current)}
+        onSubmit={() => submit(current)}
+      />
+    )
   }
 
   if (!grade || !area) {
@@ -210,7 +369,7 @@ export default function TeacherSchemes({ summary, onRefresh }) {
           <table>
             <thead>
               <tr>
-                <th>Term</th><th>Source</th><th>Status</th><th>Feedback</th>
+                <th>Term</th><th>Source</th><th>Status</th><th>Feedback</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -220,15 +379,25 @@ export default function TeacherSchemes({ summary, onRefresh }) {
                   <td>
                     {s.source === 'GENERATED' ? 'AI generated'
                       : s.source === 'UPLOADED' ? 'Uploaded' : 'Manual'}
-                    {s.document && (
-                      <>
-                        {' '}
-                        <a href={s.document} target="_blank" rel="noreferrer">file</a>
-                      </>
-                    )}
                   </td>
                   <td><StatusBadge status={s.status} /></td>
                   <td className="muted">{s.review_comment}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {/* Proofread, change, hand in — the three things a teacher
+                        needs to do with a plan before the head sees it. */}
+                    <button onClick={() => setOpen(s)}>Proofread</button>{' '}
+                    {s.content?.weeks?.length > 0 && s.status !== 'APPROVED' && (
+                      <><button onClick={() => setEditing(s)}>Edit</button>{' '}</>
+                    )}
+                    {s.document && (
+                      <><a className="grade-chip" href={s.document} download>Download</a>{' '}</>
+                    )}
+                    {s.status !== 'PENDING' && s.status !== 'APPROVED' && (
+                      <button className="primary" onClick={() => submit(s)} disabled={busy}>
+                        Submit
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

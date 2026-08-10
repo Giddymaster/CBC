@@ -140,6 +140,19 @@ export function clearRejectedWrites() {
   localStorage.removeItem(REJECTED_KEY)
 }
 
+// A write that keeps failing must not wedge the queue forever. After this
+// many attempts it moves to the failures list, where a person can see it and
+// decide — rather than a "pending sync" badge that never clears.
+const MAX_ATTEMPTS = 5
+
+export function queuedWrites() {
+  return loadQueue()
+}
+
+export function discardQueue() {
+  localStorage.removeItem(QUEUE_KEY)
+}
+
 export async function flushQueue() {
   const queue = loadQueue()
   if (!queue.length) return { flushed: 0, rejected: 0 }
@@ -147,6 +160,7 @@ export async function flushQueue() {
   const rejected = []
   let flushed = 0
   for (const entry of queue) {
+    const attempts = (entry.attempts || 0) + 1
     try {
       const res = checkAuth(
         await fetch(entry.path, {
@@ -155,15 +169,27 @@ export async function flushQueue() {
           body: JSON.stringify(entry.body),
         }),
       )
-      if (res.status >= 500) throw new Error('retry later')
+      if (res.status >= 500) throw new Error(`server ${res.status}`)
       if (res.ok) {
         flushed += 1
       } else {
         const detail = await res.json().catch(() => null)
         rejected.push({ ...entry, status: res.status, detail })
       }
-    } catch {
-      remaining.push(entry)
+    } catch (err) {
+      if (attempts >= MAX_ATTEMPTS) {
+        rejected.push({
+          ...entry,
+          attempts,
+          status: 0,
+          detail: {
+            detail: `Gave up after ${attempts} attempts — ${err.message}. `
+              + 'Re-enter this if it matters.',
+          },
+        })
+      } else {
+        remaining.push({ ...entry, attempts })
+      }
     }
   }
   saveQueue(remaining)

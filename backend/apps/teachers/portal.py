@@ -116,15 +116,29 @@ class TeacherSummaryView(APIView):
                 "year": s.year,
                 "status": s.status,
                 "source": s.source,
-                "document": s.document.url if s.document else None,
+                "document": (
+                    request.build_absolute_uri(s.document.url) if s.document else None
+                ),
+                # The plan itself, so the teacher can proofread and edit it
+                # here rather than fetching each scheme separately.
+                "content": s.content or {},
                 "review_comment": s.review_comment,
                 "lesson_plans": s.lesson_plans.count(),
             }
             for s in teacher.schemes.select_related("learning_area").order_by("-year", "-term")
         ]
 
+        # Subjects THIS teacher teaches — their own record and their own
+        # timetable, never the school-wide set a head teacher can see. A
+        # scheme of work is filed personally, and the server refuses one for a
+        # subject the teacher does not teach, so the picker must not offer it.
+        own_combos = set(
+            LessonRequirement.objects.filter(teacher=teacher).values_list(
+                "learning_area_id", "grade", "stream"
+            )
+        ) | set(lessons.values_list("learning_area_id", "grade", "stream"))
         taught_ids = set(teacher.learning_areas.values_list("id", flat=True)) | {
-            la for la, _, _ in combos
+            la for la, _, _ in own_combos
         }
         from apps.assessments.models import LearningArea
 

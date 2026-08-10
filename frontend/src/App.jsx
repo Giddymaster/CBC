@@ -4,8 +4,11 @@ import {
   apiWrite,
   clearRejectedWrites,
   clearToken,
+  discardQueue,
+  flushQueue,
   getToken,
   queuedCount,
+  queuedWrites,
   rejectedWrites,
   setToken,
   setUnauthorizedHandler,
@@ -405,6 +408,8 @@ export default function App() {
   const [online, setOnline] = useState(navigator.onLine)
   const [queued, setQueued] = useState(queuedCount())
   const [rejected, setRejected] = useState(rejectedWrites())
+  const [showQueue, setShowQueue] = useState(false)
+  const [syncNote, setSyncNote] = useState('')
 
   const refreshQueue = useCallback(() => {
     setQueued(queuedCount())
@@ -549,7 +554,12 @@ export default function App() {
           <span className={`badge ${online ? 'online' : 'offline'}`}>
             {online ? 'Online' : 'Offline'}
           </span>
-          {queued > 0 && <span className="badge queued">{queued} pending sync</span>}
+          {queued > 0 && (
+            <button className="badge queued" title="See what has not synced"
+              onClick={() => setShowQueue((s) => !s)}>
+              {queued} pending sync
+            </button>
+          )}
           {rejected.length > 0 && (
             <span className="badge offline">{rejected.length} failed to sync</span>
           )}
@@ -566,6 +576,44 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {showQueue && queued > 0 && (
+        <div className="sync-failures">
+          <b>{queued} change{queued > 1 ? 's are' : ' is'} waiting to sync.</b>
+          <p className="muted" style={{ margin: '0.3rem 0' }}>
+            These were saved on this device when the server could not be
+            reached. They retry automatically; a change that keeps failing is
+            moved to the failures list after five attempts.
+          </p>
+          <ul>
+            {queuedWrites().slice(0, 8).map((q, i) => (
+              <li key={i}>
+                {q.method} {q.path}
+                {q.attempts ? ` — ${q.attempts} attempt${q.attempts > 1 ? 's' : ''}` : ''}
+              </li>
+            ))}
+          </ul>
+          <button className="primary" onClick={async () => {
+            const { flushed, rejected: failed } = await flushQueue()
+            refreshQueue()
+            setSyncNote(
+              flushed || failed
+                ? `${flushed} synced, ${failed} could not be saved.`
+                : 'Still unreachable — they stay queued.',
+            )
+          }}>Retry now</button>{' '}
+          <button onClick={() => {
+            if (!window.confirm(
+              `Discard ${queued} unsynced change${queued > 1 ? 's' : ''}? `
+              + 'They will not reach the server.',
+            )) return
+            discardQueue()
+            refreshQueue()
+            setShowQueue(false)
+          }}>Discard them</button>
+          {syncNote && <span className="muted"> {syncNote}</span>}
+        </div>
+      )}
 
       {rejected.length > 0 && (
         <div className="sync-failures">
