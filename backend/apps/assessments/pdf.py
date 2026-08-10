@@ -122,4 +122,36 @@ def _report_story(data: dict) -> list:
     legend = " • ".join(f"{code}: {label}" for code, label in CompetencyLevel.choices)
     story.append(Paragraph(f"<b>Competency levels</b> — {legend}", subtitle))
 
+    # The fee note every Kenyan report form carries: what is owed now, and
+    # what to bring on opening day.
+    fees = data.get("fees") or {}
+    if fees.get("billed") not in (None, "0") or fees.get("next_term_fee"):
+        fee_rows = [
+            ["Fees this term", f"KES {float(fees.get('billed', 0)):,.0f}"],
+            ["Paid", f"KES {float(fees.get('paid', 0)):,.0f}"],
+            ["Balance", f"KES {float(fees.get('balance', 0)):,.0f}"],
+        ]
+        if fees.get("next_term_fee"):
+            label = f"Term {fees['next_term']} {fees['next_year']} fee"
+            fee_rows.append([label, f"KES {float(fees['next_term_fee']):,.0f}"])
+            fee_rows.append([
+                "Total payable next term",
+                f"KES {float(fees['next_term_total_due']):,.0f}",
+            ])
+        fee_table = Table(fee_rows, colWidths=[70 * mm, 45 * mm])
+        fee_table.setStyle(TableStyle([
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e0")),
+            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#fffbea")),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.extend([
+            Spacer(1, 4 * mm),
+            Paragraph("<b>Fees</b>", subtitle),
+            fee_table,
+        ])
+
     return story

@@ -62,7 +62,8 @@ function Login({ onLogin }) {
   return (
     <form className="login" onSubmit={submit}>
       <h2>CBC School Management</h2>
-      <input placeholder="Username" value={username} autoComplete="username"
+      <input placeholder="Username or admission number" value={username}
+        autoComplete="username"
         onChange={(e) => setUsername(e.target.value)} />
       <PasswordInput
         placeholder="Password"
@@ -71,6 +72,11 @@ function Login({ onLogin }) {
         autoComplete="current-password"
       />
       <button className="primary" type="submit">Sign in</button>
+      {/* Parents are given their child's admission number, not a username
+          the school invented for them. */}
+      <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
+        Parents: sign in with your child's admission number or UPI.
+      </p>
       {error && <div className="error">{error}</div>}
     </form>
   )

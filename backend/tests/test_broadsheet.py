@@ -102,3 +102,71 @@ class BroadsheetTests(APITestCase):
             ).status_code,
             403,
         )
+
+
+class ReportFormFeesTests(APITestCase):
+    """The report form carries the fee balance and the coming term's fee."""
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from apps.payments.models import FeeStructure, Invoice, Payment
+
+        self.school = make_school()
+        self.admin = make_user(self.school, "ADMIN")
+        self.learner = make_learner(self.school, grade=5)
+        this_term = FeeStructure.objects.create(
+            school=self.school, grade=5, term=2, year=2026, amount=Decimal("8000"),
+        )
+        FeeStructure.objects.create(
+            school=self.school, grade=5, term=3, year=2026, amount=Decimal("9000"),
+            breakdown={"Tuition": "7000", "Games": "2000"},
+        )
+        invoice = Invoice.objects.create(
+            school=self.school, learner=self.learner,
+            fee_structure=this_term, amount_due=Decimal("8000"),
+        )
+        Payment.objects.create(
+            school=self.school, invoice=invoice, amount=Decimal("3000"),
+            method="CASH", paid_on="2026-05-04",
+        )
+        invoice.amount_paid = Decimal("3000")
+        invoice.refresh_status()
+
+    def test_the_report_carries_this_term_and_next_term_fees(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(
+            f"/api/report-card/{self.learner.id}/?term=2&year=2026"
+        )
+        fees = res.data["fees"]
+        self.assertEqual(fees["billed"], "8000.00")
+        self.assertEqual(fees["paid"], "3000.00")
+        self.assertEqual(fees["balance"], "5000.00")
+        self.assertEqual(fees["next_term"], 3)
+        self.assertEqual(fees["next_term_fee"], "9000.00")
+        # Arrears follow the child into the new term.
+        self.assertEqual(fees["next_term_total_due"], "14000.00")
+        self.assertEqual(fees["next_term_breakdown"]["Games"], "2000")
+
+    def test_term_three_rolls_into_the_new_year(self):
+        from decimal import Decimal
+
+        from apps.payments.models import FeeStructure
+
+        FeeStructure.objects.create(
+            school=self.school, grade=5, term=1, year=2027, amount=Decimal("9500"),
+        )
+        self.client.force_authenticate(self.admin)
+        fees = self.client.get(
+            f"/api/report-card/{self.learner.id}/?term=3&year=2026"
+        ).data["fees"]
+        self.assertEqual((fees["next_term"], fees["next_year"]), (1, 2027))
+        self.assertEqual(fees["next_term_fee"], "9500.00")
+
+    def test_the_pdf_still_renders_with_the_fee_block(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(
+            f"/api/report-card/{self.learner.id}/pdf/?term=2&year=2026"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.content.startswith(b"%PDF"))

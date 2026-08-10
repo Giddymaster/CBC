@@ -6,10 +6,10 @@ import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portal
 
 const PARENT_NAV = [
   { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
+  { key: 'Profile', label: 'Profile', icon: 'user' },
   { key: 'Results', label: 'Results', icon: 'clipboard' },
   { key: 'Fees', label: 'Fees', icon: 'wallet' },
   { key: 'Messages', label: 'Messages', icon: 'chat' },
-  { key: 'Announcements', label: 'News', icon: 'bell' },
 ]
 
 function unpaidCount(child) {
@@ -59,37 +59,122 @@ function ResultsTable({ child }) {
   )
 }
 
+const money = (n) => `KES ${Number(n || 0).toLocaleString(undefined, {
+  minimumFractionDigits: 0, maximumFractionDigits: 0,
+})}`
+
+/** Who the child is on the school's register. */
+function ProfileCard({ child }) {
+  const p = child.profile || {}
+  const facts = [
+    ['Admission no', child.admission_number],
+    ['UPI', p.upi],
+    ['Class', `${gradeLabel(child.grade)}${child.stream ? ` ${child.stream}` : ''}`],
+    ['Class teacher', p.class_teacher],
+    ['Date of birth', p.date_of_birth],
+    ['Gender', p.gender],
+    ['Admitted', p.admission_date],
+    ['Pathway', p.pathway],
+  ]
+  return (
+    <div className="card">
+      <div className="profile-head">
+        {p.photo
+          ? <img src={p.photo} alt="" className="learner-photo-lg" />
+          : <span className="avatar avatar-lg">
+              {child.name.split(' ').slice(0, 2).map((w) => w[0]).join('')}
+            </span>}
+        <div className="profile-headline">
+          <h3>{child.name}</h3>
+          <p className="profile-title">
+            {gradeLabel(child.grade)} {child.stream}
+          </p>
+        </div>
+      </div>
+      <div className="profile-grid">
+        {facts.map(([label, value]) => (
+          <div className="profile-field" key={label}>
+            <span className="profile-label">{label}</span>
+            <span className="profile-value">
+              {value || <span className="muted">—</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function FeesCard({ child }) {
   const { fees } = child
   return (
     <div className="card">
-      <h3>{child.name}</h3>
-      <p>
-        Outstanding balance: <b>KES {fees.total_balance}</b>
-      </p>
+      <h3>{child.name} — fees</h3>
+      <dl className="op-facts">
+        <div><dt>Billed this term</dt><dd>{money(fees.billed)}</dd></div>
+        <div><dt>Paid</dt><dd>{money(fees.paid)}</dd></div>
+        <div><dt>Balance</dt><dd><b>{money(fees.total_balance)}</b></dd></div>
+        {fees.next_term_fee && (
+          <>
+            <div>
+              <dt>Term {fees.next_term} {fees.next_year} fee</dt>
+              <dd>{money(fees.next_term_fee)}</dd>
+            </div>
+            <div>
+              <dt>To pay next term</dt>
+              <dd><b>{money(fees.next_term_total_due)}</b></dd>
+            </div>
+          </>
+        )}
+      </dl>
+      {fees.next_term_fee && Object.keys(fees.next_term_breakdown || {}).length > 0 && (
+        <p className="muted">
+          Next term:{' '}
+          {Object.entries(fees.next_term_breakdown)
+            .map(([head, amount]) => `${head} ${money(amount)}`)
+            .join(' · ')}
+        </p>
+      )}
+
       {fees.invoices.length === 0 ? (
         <p className="muted">No invoices yet.</p>
       ) : (
-        <table>
-          <thead>
-            <tr><th>Invoice</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {fees.invoices.map((inv) => (
-              <tr key={inv.id}>
-                <td>#{inv.id}</td>
-                <td>KES {inv.due}</td>
-                <td>KES {inv.paid}</td>
-                <td><b>KES {inv.balance}</b></td>
-                <td>
-                  <span className={`badge ${inv.status === 'PAID' ? 'online' : 'queued'}`}>
-                    {inv.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        fees.invoices.map((inv) => (
+          <div key={inv.id} style={{ marginTop: '0.8rem' }}>
+            <p style={{ margin: '0 0 0.3rem' }}>
+              <b>Term {inv.term} {inv.year}</b> — {money(inv.due)} billed,{' '}
+              {money(inv.paid)} paid,{' '}
+              <b>{money(inv.balance)} outstanding</b>{' '}
+              <span className={`badge ${inv.status === 'PAID' ? 'online' : 'queued'}`}>
+                {inv.status === 'PAID' ? 'Paid' : inv.status === 'PARTIAL' ? 'Part paid' : 'Unpaid'}
+              </span>
+            </p>
+            {Object.keys(inv.breakdown || {}).length > 0 && (
+              <p className="muted" style={{ margin: '0 0 0.3rem' }}>
+                {Object.entries(inv.breakdown)
+                  .map(([head, amount]) => `${head} ${money(amount)}`)
+                  .join(' · ')}
+              </p>
+            )}
+            {inv.payments?.length > 0 && (
+              <table>
+                <thead>
+                  <tr><th>Paid on</th><th>Amount</th><th>Method</th><th>Reference</th></tr>
+                </thead>
+                <tbody>
+                  {inv.payments.map((p, i) => (
+                    <tr key={i}>
+                      <td>{p.paid_on}</td>
+                      <td><b>{money(p.amount)}</b></td>
+                      <td>{p.method}</td>
+                      <td className="muted">{p.reference || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ))
       )}
     </div>
   )
@@ -161,10 +246,16 @@ export default function ParentPortal() {
             subtitle={`${summary.guardian.name} · ${summary.school} · ${summary.year}`}
             chips={[
               `${gradeLabel(child.grade)}${child.stream ? ` ${child.stream}` : ''}`,
-              ...(balance > 0 ? [`KES ${child.fees.total_balance} due`] : ['Fees cleared']),
+              ...(balance > 0 ? [`${money(child.fees.total_balance)} due`] : ['Fees cleared']),
+              ...(child.fees.next_term_fee
+                ? [`Term ${child.fees.next_term}: ${money(child.fees.next_term_fee)}`]
+                : []),
             ]}
           />
           <ActionGrid>
+            <ActionCard icon="user" tone="teal" title="My Child"
+              desc="Admission number, UPI, class and class teacher."
+              cta="View profile" onOpen={() => openTab('Profile')} />
             <ActionCard icon="clipboard" tone="green" title="Exam Report"
               desc="Detailed results and performance, area by area."
               cta="View results" onOpen={() => openTab('Results')} />
@@ -178,6 +269,13 @@ export default function ParentPortal() {
               desc="Notices and events from the school."
               cta="Read notices" onOpen={() => openTab('Announcements')} />
           </ActionGrid>
+        </>
+      )}
+
+      {tab === 'Profile' && (
+        <>
+          <ChildPicker children={children} selected={child.id} onSelect={setChildId} />
+          <ProfileCard child={child} />
         </>
       )}
 

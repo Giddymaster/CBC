@@ -2,9 +2,9 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
-from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
+from apps.accounts.parent_login import CreateParentLoginView, LoginView
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.views import MeView
 from apps.assessments.broadsheet import (
@@ -212,7 +212,8 @@ router.register("payments/payments", PaymentViewSet)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/auth/token/", obtain_auth_token),
+    path("api/auth/token/", LoginView.as_view()),
+    path("api/parent-logins/", CreateParentLoginView.as_view()),
     path("api/me/", MeView.as_view()),
     path("api/me/password/", ChangePasswordView.as_view()),
     path(
