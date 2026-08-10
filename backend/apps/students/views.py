@@ -123,7 +123,11 @@ class GuardianViewSet(SchoolScopedViewSet):
 class LearnerViewSet(SchoolScopedViewSet):
     queryset = Learner.objects.select_related("pathway").prefetch_related("guardians").all()
     serializer_class = LearnerSerializer
-    filterset_fields = ["grade", "stream", "pathway", "gender", "active"]
+    # admission_number is exact-matchable so the fees desk can look a family
+    # up by the number the parent quotes.
+    filterset_fields = [
+        "grade", "stream", "pathway", "gender", "active", "admission_number",
+    ]
     search_fields = ["first_name", "middle_name", "last_name", "admission_number", "upi"]
 
     def _require_admin(self):

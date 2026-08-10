@@ -62,11 +62,18 @@ function RecordPayment({ invoice, onDone, onClose }) {
   return (
     <div className="card">
       <div className="page-header" style={{ marginBottom: '0.4rem' }}>
-        <h3 style={{ margin: 0 }}>
-          Record a payment — {invoice.learner_name} ({invoice.admission_number})
-        </h3>
+        <h3 style={{ margin: 0 }}>Record a payment</h3>
         <button onClick={onClose}>Close</button>
       </div>
+      {/* Who is being receipted, in the terms the desk checks: the number the
+          parent quotes, the name, the UPI, the class. */}
+      <dl className="op-facts">
+        <div><dt>Admission no</dt><dd><b>{invoice.admission_number}</b></dd></div>
+        <div><dt>Learner</dt><dd>{invoice.learner_name}</dd></div>
+        <div><dt>UPI</dt><dd>{invoice.upi || '—'}</dd></div>
+        <div><dt>Class</dt><dd>{gradeLabel(invoice.grade)} {invoice.stream}</dd></div>
+        <div><dt>Term</dt><dd>Term {invoice.term} {invoice.year}</dd></div>
+      </dl>
       <p className="muted">
         {money(invoice.amount_due)} due · {money(invoice.amount_paid)} paid ·{' '}
         <b>{money(invoice.balance)} outstanding</b>
@@ -266,10 +273,66 @@ function printRegister(title, rows, totals) {
   w.document.close()
 }
 
+/** The fees desk's front door: a parent quotes an admission number, and the
+ * register narrows to that learner with their name and UPI confirmed. */
+function AdmissionLookup({ value, onFound, onClear, onMessage }) {
+  const [adm, setAdm] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function find(e) {
+    e.preventDefault()
+    const number = adm.trim()
+    if (!number) return
+    setBusy(true)
+    const d = await apiGet(
+      `/api/learners/?admission_number=${encodeURIComponent(number)}`,
+    ).catch(() => null)
+    setBusy(false)
+    const learner = (d?.results || d || [])[0]
+    if (!learner) {
+      onMessage(`No learner with admission number ${number}.`)
+      return
+    }
+    onMessage('')
+    onFound(learner)
+    setAdm('')
+  }
+
+  if (value) {
+    return (
+      <p className="op-creds handover" style={{ display: 'flex', gap: '0.6rem',
+        alignItems: 'center', flexWrap: 'wrap' }}>
+        <b>{value.admission_number}</b> · {value.full_name} · UPI{' '}
+        <b>{value.upi || '—'}</b> · {gradeLabel(value.grade)} {value.stream}
+        <button onClick={onClear} style={{ marginLeft: 'auto' }}>
+          Show the whole register
+        </button>
+      </p>
+    )
+  }
+  return (
+    <form onSubmit={find}
+      style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <label className="muted" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+        Admission no
+        <input value={adm} onChange={(e) => setAdm(e.target.value)}
+          placeholder="e.g. ADM0126" style={{ padding: '0.4rem', width: '10rem' }} />
+      </label>
+      <button className="primary" type="submit" disabled={busy}>
+        {busy ? 'Finding…' : 'Find learner'}
+      </button>
+      <span className="muted">
+        Look a family up by the number the parent quotes.
+      </span>
+    </form>
+  )
+}
+
 export default function Fees({ grade: fixedGrade }) {
   const [rows, setRows] = useState([])
   const [streams, setStreams] = useState([])
   const [open, setOpen] = useState(null) // invoice being paid
+  const [learner, setLearner] = useState(null) // looked up by admission no
   const [message, setMessage] = useState('')
   const [filters, setFilters] = useState({
     grade: fixedGrade ?? '', stream: '', term: '', year: '', status: '',
@@ -281,13 +344,17 @@ export default function Fees({ grade: fixedGrade }) {
     }
   }, [fixedGrade])
 
-  const query = [
-    filters.grade !== '' && `learner__grade=${filters.grade}`,
-    filters.stream && `learner__stream=${encodeURIComponent(filters.stream)}`,
-    filters.term && `fee_structure__term=${filters.term}`,
-    filters.year && `fee_structure__year=${filters.year}`,
-    filters.status && `status=${filters.status}`,
-  ].filter(Boolean).join('&')
+  // A looked-up learner overrides the class filters — the desk is dealing
+  // with that one family until it clears.
+  const query = learner
+    ? `learner=${learner.id}`
+    : [
+        filters.grade !== '' && `learner__grade=${filters.grade}`,
+        filters.stream && `learner__stream=${encodeURIComponent(filters.stream)}`,
+        filters.term && `fee_structure__term=${filters.term}`,
+        filters.year && `fee_structure__year=${filters.year}`,
+        filters.status && `status=${filters.status}`,
+      ].filter(Boolean).join('&')
 
   const load = useCallback(() => {
     fetchAll(`/api/payments/invoices/?page_size=500${query ? `&${query}` : ''}`)
@@ -353,31 +420,41 @@ export default function Fees({ grade: fixedGrade }) {
       <FeeStructures onGenerated={load} onMessage={setMessage} />
 
       <div className="card">
+        <AdmissionLookup
+          value={learner}
+          onFound={setLearner}
+          onClear={() => setLearner(null)}
+          onMessage={setMessage}
+        />
         <p style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {(fixedGrade === null || fixedGrade === undefined) && (
+          {!learner && (fixedGrade === null || fixedGrade === undefined) && (
             <select value={filters.grade} onChange={setFilter('grade')}>
               <option value="">All grades</option>
               {ALL_GRADES.map((g) => <option key={g} value={g}>{gradeLabel(g)}</option>)}
             </select>
           )}
-          {streams.length > 0 && (
+          {!learner && streams.length > 0 && (
             <select value={filters.stream} onChange={setFilter('stream')}>
               <option value="">All streams</option>
               {streams.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
-          <select value={filters.term} onChange={setFilter('term')}>
-            <option value="">All terms</option>
-            {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
-          </select>
-          <input type="number" placeholder="Year" value={filters.year}
-            style={{ width: '5.5rem', padding: '0.4rem' }} onChange={setFilter('year')} />
-          <select value={filters.status} onChange={setFilter('status')}>
-            <option value="">Any status</option>
-            <option value="UNPAID">Unpaid</option>
-            <option value="PARTIAL">Part paid</option>
-            <option value="PAID">Paid</option>
-          </select>
+          {!learner && (
+            <>
+              <select value={filters.term} onChange={setFilter('term')}>
+                <option value="">All terms</option>
+                {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
+              </select>
+              <input type="number" placeholder="Year" value={filters.year}
+                style={{ width: '5.5rem', padding: '0.4rem' }} onChange={setFilter('year')} />
+              <select value={filters.status} onChange={setFilter('status')}>
+                <option value="">Any status</option>
+                <option value="UNPAID">Unpaid</option>
+                <option value="PARTIAL">Part paid</option>
+                <option value="PAID">Paid</option>
+              </select>
+            </>
+          )}
           <button className="primary" onClick={downloadExcel}>Download Excel</button>
           <button onClick={() => printRegister(title, rows, totals)}>Print</button>
         </p>

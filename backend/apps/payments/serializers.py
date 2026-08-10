@@ -36,6 +36,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     admission_number = serializers.CharField(
         source="learner.admission_number", read_only=True
     )
+    upi = serializers.CharField(source="learner.upi", read_only=True)
     grade = serializers.IntegerField(source="learner.grade", read_only=True)
     stream = serializers.CharField(source="learner.stream", read_only=True)
     term = serializers.IntegerField(source="fee_structure.term", read_only=True)
