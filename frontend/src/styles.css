@@ -1145,6 +1145,22 @@ td.day-cell { background: #edf2f7; vertical-align: top; }
 }
 .mark-cell.dirty { border-color: #b7791f; background: #fffbea; }
 
+/* A card section that folds away, so the page opens on what matters. */
+.collapse-toggle {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid #cbd5e0;
+  border-radius: 5px;
+  background: #fff;
+  color: #2b6cb0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.collapse-toggle:hover { background: #ebf4ff; }
+
 /* Attendance month calendar: tiny day cells, weeks in alternating shades. */
 .att-month th, .att-month td { padding: 0.25rem 0.35rem; text-align: center; }
 .att-month th { font-size: 0.7rem; }

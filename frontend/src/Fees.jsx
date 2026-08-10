@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite, getToken } from './api.js'
+import { useAnchoredMenu } from './columns.jsx'
 import { ALL_GRADES, gradeLabel, todayLocal } from './format.js'
 
 const STATUS_BADGE = { PAID: 'online', PARTIAL: 'queued', UNPAID: 'offline' }
@@ -186,10 +187,40 @@ function RecordPayment({ invoice, onDone, onClose }) {
   )
 }
 
+/** A vote-head column heading: click it to rename, hide or remove the column,
+ * the way a spreadsheet lets you manage its columns. */
+function VoteHeadHeader({ head, open, onToggle, onRename, onHide, onDelete }) {
+  const [name, setName] = useState(head)
+  const [anchorRef, menuStyle] = useAnchoredMenu(open, 220)
+  useEffect(() => setName(head), [head])
+
+  return (
+    <th className="col-head">
+      <button ref={anchorRef} className="col-head-btn" onClick={onToggle}
+        title="Rename, hide or remove this column">
+        {head} <span className="caret">▾</span>
+      </button>
+      {open && (
+        <div className="col-menu" style={menuStyle}>
+          <form onSubmit={(e) => { e.preventDefault(); onRename(name) }}
+            style={{ display: 'flex', gap: '0.35rem' }}>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              style={{ padding: '0.3rem' }} />
+            <button className="primary" type="submit">Rename</button>
+          </form>
+          <button onClick={onHide}>Hide column</button>
+          <button className="col-menu-danger" onClick={onDelete}>Remove column</button>
+        </div>
+      )}
+    </th>
+  )
+}
+
 /** The fee note as a school prints it: grades down the side, vote heads
  * (tuition, activities, games…) across the top, each cell an amount, the row
  * total at the end. Saving writes one fee structure per grade. */
-function FeeStructures({ onGenerated, onMessage }) {
+function FeeStructures({ grade: fixedGrade, onGenerated, onMessage }) {
+  const [open, setOpen] = useState(false)
   const [term, setTerm] = useState(currentTerm())
   const [year, setYear] = useState(new Date().getFullYear())
   const [columns, setColumns] = useState([])
@@ -197,6 +228,8 @@ function FeeStructures({ onGenerated, onMessage }) {
   const [structures, setStructures] = useState([])
   const [busy, setBusy] = useState(false)
   const [newHead, setNewHead] = useState('')
+  const [hidden, setHidden] = useState([])
+  const [menu, setMenu] = useState(null) // column whose menu is open
 
   const load = useCallback(() => {
     apiGet(`/api/payments/fee-structures/grid/?term=${term}&year=${year}`)
@@ -213,6 +246,41 @@ function FeeStructures({ onGenerated, onMessage }) {
       r.grade === grade ? { ...r, breakdown: { ...r.breakdown, [head]: value } } : r
     )))
 
+  // Renaming and deleting are local until Save — the grid POST replaces each
+  // class's breakdown wholesale, so what is on screen becomes what is stored.
+  function renameColumn(head, next) {
+    const name = next.trim()
+    if (!name || name === head) { setMenu(null); return }
+    if (columns.includes(name)) {
+      onMessage(`There is already a ${name} column.`)
+      return
+    }
+    setColumns((prev) => prev.map((c) => (c === head ? name : c)))
+    setRows((prev) => prev.map((r) => {
+      if (!(head in r.breakdown)) return r
+      const { [head]: value, ...rest } = r.breakdown
+      return { ...r, breakdown: { ...rest, [name]: value } }
+    }))
+    setMenu(null)
+    onMessage(`Renamed to ${name} — click Save fee structure to apply it.`)
+  }
+
+  function deleteColumn(head) {
+    const charged = rows.filter((r) => Number(r.breakdown[head]) > 0).length
+    if (charged && !window.confirm(
+      `Remove ${head} from the fee structure? ${charged} class`
+      + `${charged === 1 ? '' : 'es'} currently charge it.`,
+    )) return
+    setColumns((prev) => prev.filter((c) => c !== head))
+    setRows((prev) => prev.map((r) => {
+      const { [head]: _drop, ...rest } = r.breakdown
+      return { ...r, breakdown: rest }
+    }))
+    setMenu(null)
+    onMessage(`${head} removed — click Save fee structure to apply it.`)
+  }
+
+  const visible = columns.filter((c) => !hidden.includes(c))
   const rowTotal = (row) =>
     columns.reduce((sum, head) => sum + (Number(row.breakdown[head]) || 0), 0)
   const columnTotal = (head) =>
@@ -245,91 +313,130 @@ function FeeStructures({ onGenerated, onMessage }) {
     if (res.ok) onGenerated()
   }
 
+  // The sidebar's grade scopes this to one class; otherwise the whole school.
+  const shown = fixedGrade === null || fixedGrade === undefined
+    ? rows
+    : rows.filter((r) => r.grade === Number(fixedGrade))
   const billable = rows.filter((r) => rowTotal(r) > 0)
 
   return (
     <div className="card">
-      <div className="page-header" style={{ marginBottom: '0.3rem' }}>
-        <h3 style={{ margin: 0 }}>Fee structure</h3>
-        <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          <select value={term} onChange={(e) => setTerm(Number(e.target.value))}>
-            {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
-          </select>
-          <input type="number" value={year} style={{ width: '5.5rem', padding: '0.4rem' }}
-            onChange={(e) => setYear(Number(e.target.value))} />
-          <button className="primary" onClick={save} disabled={busy}>
-            {busy ? 'Saving…' : 'Save fee structure'}
+      <div className="page-header" style={{ marginBottom: open ? '0.3rem' : 0 }}>
+        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button className="collapse-toggle" onClick={() => setOpen(!open)}
+            title={open ? 'Hide the fee structure' : 'Show the fee structure'}>
+            {open ? '−' : '+'}
           </button>
-        </span>
+          Fee structure
+          {!open && (
+            <span className="muted" style={{ fontWeight: 400, fontSize: '0.85rem' }}>
+              Term {term} {year} · {billable.length} class
+              {billable.length === 1 ? '' : 'es'} charged
+            </span>
+          )}
+        </h3>
+        {open && (
+          <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+            <select value={term} onChange={(e) => setTerm(Number(e.target.value))}>
+              {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
+            </select>
+            <input type="number" value={year} style={{ width: '5.5rem', padding: '0.4rem' }}
+              onChange={(e) => setYear(Number(e.target.value))} />
+            <button className="primary" onClick={save} disabled={busy}>
+              {busy ? 'Saving…' : 'Save fee structure'}
+            </button>
+          </span>
+        )}
       </div>
-      <p className="muted">
-        What each class pays this term, broken down by vote head. Leave a class
-        blank if it is not charged. Save, then raise that class's invoices —
-        every active learner is billed, and re-running bills only newcomers.
-      </p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Class</th>
-            {columns.map((head) => <th key={head}>{head}</th>)}
-            <th>Total</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const total = rowTotal(row)
-            const structure = structures.find((s) => s.grade === row.grade)
-            return (
-              <tr key={row.grade}>
-                <td><b>{row.label}</b></td>
-                {columns.map((head) => (
-                  <td key={head}>
-                    <input
-                      type="number" min="0" step="50"
-                      value={row.breakdown[head] ?? ''}
-                      onChange={(e) => setCell(row.grade, head, e.target.value)}
-                      style={{ width: '5.5rem', padding: '0.2rem' }}
-                    />
+      {open && (
+        <>
+          <p className="muted">
+            What each class pays this term, broken down by vote head. Click a
+            column heading to rename, hide or remove it. Leave a class blank if
+            it is not charged. Save, then raise that class's invoices — every
+            active learner is billed, and re-running bills only newcomers.
+          </p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Class</th>
+                {visible.map((head) => (
+                  <VoteHeadHeader
+                    key={head}
+                    head={head}
+                    open={menu === head}
+                    onToggle={() => setMenu(menu === head ? null : head)}
+                    onRename={(next) => renameColumn(head, next)}
+                    onHide={() => { setHidden([...hidden, head]); setMenu(null) }}
+                    onDelete={() => deleteColumn(head)}
+                  />
+                ))}
+                <th>Total</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((row) => {
+                const total = rowTotal(row)
+                const structure = structures.find((s) => s.grade === row.grade)
+                return (
+                  <tr key={row.grade}>
+                    <td><b>{row.label}</b></td>
+                    {visible.map((head) => (
+                      <td key={head}>
+                        <input
+                          type="number" min="0" step="50"
+                          value={row.breakdown[head] ?? ''}
+                          onChange={(e) => setCell(row.grade, head, e.target.value)}
+                          style={{ width: '5.5rem', padding: '0.2rem' }}
+                        />
+                      </td>
+                    ))}
+                    <td><b>{total ? money(total) : <span className="muted">—</span>}</b></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {structure && (
+                        <button onClick={() => generate(structure)}>Raise invoices</button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td><b>{shown.length === 1 ? shown[0].label : 'All classes'}</b></td>
+                {visible.map((head) => (
+                  <td key={head} className="muted">
+                    {columnTotal(head) ? money(columnTotal(head)) : '—'}
                   </td>
                 ))}
-                <td><b>{total ? money(total) : <span className="muted">—</span>}</b></td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  {structure && (
-                    <button onClick={() => generate(structure)}>Raise invoices</button>
-                  )}
-                </td>
+                <td colSpan="2" />
               </tr>
-            )
-          })}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td><b>All classes</b></td>
-            {columns.map((head) => (
-              <td key={head} className="muted">
-                {columnTotal(head) ? money(columnTotal(head)) : '—'}
-              </td>
-            ))}
-            <td colSpan="2" />
-          </tr>
-        </tfoot>
-      </table>
+            </tfoot>
+          </table>
 
-      <p style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={newHead} placeholder="Another vote head e.g. Uniform"
-          style={{ padding: '0.35rem' }}
-          onChange={(e) => setNewHead(e.target.value)} />
-        <button onClick={() => {
-          const head = newHead.trim()
-          if (head && !columns.includes(head)) setColumns([...columns, head])
-          setNewHead('')
-        }}>+ Add column</button>
-        <span className="muted">
-          {billable.length} class{billable.length === 1 ? '' : 'es'} charged this term
-        </span>
-      </p>
+          <p style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input value={newHead} placeholder="Another vote head e.g. Uniform"
+              style={{ padding: '0.35rem' }}
+              onChange={(e) => setNewHead(e.target.value)} />
+            <button onClick={() => {
+              const head = newHead.trim()
+              if (head && !columns.includes(head)) setColumns([...columns, head])
+              setNewHead('')
+            }}>+ Add column</button>
+            {hidden.length > 0 && (
+              <button onClick={() => setHidden([])}>
+                Show {hidden.length} hidden column{hidden.length === 1 ? '' : 's'}
+              </button>
+            )}
+            <span className="muted">
+              {billable.length} class{billable.length === 1 ? '' : 'es'} charged this term
+            </span>
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -379,24 +486,40 @@ function printRegister(title, rows, totals) {
 function AdmissionLookup({ value, onFound, onClear, onMessage }) {
   const [adm, setAdm] = useState('')
   const [busy, setBusy] = useState(false)
+  const [choices, setChoices] = useState([])
 
   async function find(e) {
     e.preventDefault()
     const number = adm.trim()
     if (!number) return
     setBusy(true)
-    const d = await apiGet(
+    setChoices([])
+    // Exact first, then a loose search: a school writes ADM081 on the receipt
+    // book and ADM0081 in the system, and a parent may quote either — or just
+    // the child's name.
+    const exact = await apiGet(
       `/api/learners/?admission_number=${encodeURIComponent(number)}`,
     ).catch(() => null)
+    let hits = exact?.results || exact || []
+    if (!hits.length) {
+      const loose = await apiGet(
+        `/api/learners/?search=${encodeURIComponent(number)}&page_size=25`,
+      ).catch(() => null)
+      hits = loose?.results || loose || []
+    }
     setBusy(false)
-    const learner = (d?.results || d || [])[0]
-    if (!learner) {
-      onMessage(`No learner with admission number ${number}.`)
+
+    if (!hits.length) {
+      onMessage(`No learner matching "${number}" — try the name, or check the number.`)
       return
     }
     onMessage('')
-    onFound(learner)
-    setAdm('')
+    if (hits.length === 1) {
+      onFound(hits[0])
+      setAdm('')
+      return
+    }
+    setChoices(hits)
   }
 
   if (value) {
@@ -412,20 +535,36 @@ function AdmissionLookup({ value, onFound, onClear, onMessage }) {
     )
   }
   return (
-    <form onSubmit={find}
-      style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-      <label className="muted" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-        Admission no
-        <input value={adm} onChange={(e) => setAdm(e.target.value)}
-          placeholder="e.g. ADM0126" style={{ padding: '0.4rem', width: '10rem' }} />
-      </label>
-      <button className="primary" type="submit" disabled={busy}>
-        {busy ? 'Finding…' : 'Find learner'}
-      </button>
-      <span className="muted">
-        Look a family up by the number the parent quotes.
-      </span>
-    </form>
+    <>
+      <form onSubmit={find}
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label className="muted" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          Admission no
+          <input value={adm} onChange={(e) => setAdm(e.target.value)}
+            placeholder="e.g. ADM0126" style={{ padding: '0.4rem', width: '10rem' }} />
+        </label>
+        <button className="primary" type="submit" disabled={busy}>
+          {busy ? 'Finding…' : 'Find learner'}
+        </button>
+        <span className="muted">
+          The number the parent quotes — or the child's name.
+        </span>
+      </form>
+      {choices.length > 0 && (
+        <div className="pick-grid" style={{ marginTop: '0.5rem' }}>
+          {choices.map((c) => (
+            <button key={c.id} type="button" className="pick-item"
+              onClick={() => { onFound(c); setChoices([]); setAdm('') }}>
+              <span className="pick-label">{c.full_name}</span>
+              <span className="pick-hint">
+                {c.admission_number} · {gradeLabel(c.grade)} {c.stream}
+              </span>
+              <span className="pick-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -439,10 +578,11 @@ export default function Fees({ grade: fixedGrade }) {
     grade: fixedGrade ?? '', stream: '', term: '', year: '', status: '',
   })
 
+  // Choosing a class in the sidebar means "show me that class" — so a learner
+  // pinned from an earlier lookup steps aside.
   useEffect(() => {
-    if (fixedGrade !== null && fixedGrade !== undefined) {
-      setFilters((f) => ({ ...f, grade: fixedGrade }))
-    }
+    setLearner(null)
+    setFilters((f) => ({ ...f, grade: fixedGrade ?? '' }))
   }, [fixedGrade])
 
   // A looked-up learner overrides the class filters — the desk is dealing
@@ -518,7 +658,7 @@ export default function Fees({ grade: fixedGrade }) {
 
   return (
     <div>
-      <FeeStructures onGenerated={load} onMessage={setMessage} />
+      <FeeStructures grade={fixedGrade} onGenerated={load} onMessage={setMessage} />
 
       <div className="card">
         <AdmissionLookup
