@@ -20,6 +20,7 @@ import Attendance from './Attendance.jsx'
 import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
+import Fees from './Fees.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
@@ -284,56 +285,8 @@ function Learners({ grade }) {
 // The Report Card page is the class broadsheet — the whole class on one grid,
 // with Excel and printable report-form sets. See Broadsheet.jsx.
 
-function Fees({ grade }) {
-  const [invoices, setInvoices] = useState([])
-  const [message, setMessage] = useState('')
-
-  const load = useCallback(() => {
-    const q = gradeParam(grade, 'learner__grade')
-    apiGet(`/api/payments/invoices/?page_size=200${q ? `&${q}` : ''}`)
-      .then((data) => setInvoices(data.results || data))
-  }, [grade])
-  useEffect(load, [load])
-
-  async function push(invoice) {
-    const phone = prompt('Parent phone (2547XXXXXXXX):', '254700000001')
-    if (!phone) return
-    const result = await apiWrite('/api/payments/stk-push/', { invoice: invoice.id, phone })
-    setMessage(
-      result.ok
-        ? `STK push sent (${result.data.ResponseDescription || 'accepted'})`
-        : 'STK push failed or queued — check connectivity.',
-    )
-    load()
-  }
-
-  return (
-    <div className="card">
-      <table>
-        <thead>
-          <tr><th>Learner</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-          {invoices.map((inv) => (
-            <tr key={inv.id}>
-              <td>{inv.learner_name}</td>
-              <td>{inv.amount_due}</td>
-              <td>{inv.amount_paid}</td>
-              <td>{inv.balance}</td>
-              <td>{inv.status}</td>
-              <td>
-                {inv.status !== 'PAID' && (
-                  <button className="primary" onClick={() => push(inv)}>M-Pesa STK</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {message && <p className="muted">{message}</p>}
-    </div>
-  )
-}
+// The Fees page is the fee register — structures, invoices, and the
+// instalment ledger. See Fees.jsx.
 
 // Sidebar groups, Django-admin style: section header + its items.
 // An item with `options` gets a "+" that expands them, so the page can be

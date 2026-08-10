@@ -52,8 +52,11 @@ from apps.knowledge.views import (
 )
 from apps.payments.views import (
     C2BConfirmationView,
+    FeeRegisterXlsxView,
     FeeStructureViewSet,
+    GenerateInvoicesView,
     InvoiceViewSet,
+    PaymentViewSet,
     StkCallbackView,
     StkPushView,
 )
@@ -200,6 +203,7 @@ router.register("communication/announcements", AnnouncementViewSet)
 router.register("communication/parent-messages", ParentMessageViewSet)
 router.register("payments/fee-structures", FeeStructureViewSet)
 router.register("payments/invoices", InvoiceViewSet)
+router.register("payments/payments", PaymentViewSet)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -272,6 +276,8 @@ urlpatterns = [
     path("api/report-cards/class.pdf", ClassReportPdfView.as_view()),
     path("api/timetable/generate/", GenerateTimetableView.as_view()),
     path("api/timetable/assignments/auto/", AutoAssignView.as_view()),
+    path("api/payments/generate-invoices/", GenerateInvoicesView.as_view()),
+    path("api/payments/register.xlsx", FeeRegisterXlsxView.as_view()),
     path("api/payments/stk-push/", StkPushView.as_view()),
     path("api/payments/stk-callback/", StkCallbackView.as_view()),
     path("api/payments/c2b-confirmation/", C2BConfirmationView.as_view()),

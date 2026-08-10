@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 
 from apps.students.models import Learner
 
-from ..models import Invoice, MpesaTransaction
+from ..models import Invoice, MpesaTransaction, Payment
 
 
 def record_transaction(
@@ -43,6 +43,19 @@ def record_transaction(
                 raw_payload=raw or {},
             )
             if invoice:
+                # The ledger row, so an M-Pesa credit reads on the statement
+                # beside the cash and bank instalments.
+                from django.utils import timezone
+
+                Payment.objects.create(
+                    school=school,
+                    invoice=invoice,
+                    amount=amount,
+                    method=Payment.Method.MPESA,
+                    reference=receipt,
+                    paid_on=timezone.localdate(),
+                    note=f"{source} {phone}".strip(),
+                )
                 invoice.apply_payment(amount)
     except IntegrityError:
         # Duplicate receipt => replayed callback. Idempotent no-op.

@@ -1,17 +1,26 @@
 import logging
 from decimal import Decimal
 
+from django.db.models import Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 from apps.schools.models import School
 
-from .models import FeeStructure, Invoice, StkPushRequest
-from .serializers import FeeStructureSerializer, InvoiceSerializer, StkPushSerializer
+from .models import FeeStructure, Invoice, Payment, StkPushRequest
+from .serializers import (
+    FeeStructureSerializer,
+    InvoiceSerializer,
+    PaymentSerializer,
+    StkPushSerializer,
+)
 from .services import daraja
 from .services.reconcile import record_transaction
 
@@ -19,16 +28,222 @@ logger = logging.getLogger(__name__)
 
 
 class FeeStructureViewSet(SchoolScopedViewSet):
+    """What a class is charged per term. Staff read it; the office sets it —
+    the amount here becomes every learner's invoice."""
+
     queryset = FeeStructure.objects.all()
     serializer_class = FeeStructureSerializer
     filterset_fields = ["grade", "term", "year"]
 
+    def _require_office(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school office sets fee structures.")
+
+    def perform_create(self, serializer):
+        self._require_office()
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_office()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_office()
+        instance.delete()
+
 
 class InvoiceViewSet(SchoolScopedViewSet):
-    queryset = Invoice.objects.select_related("learner", "fee_structure").all()
+    queryset = (
+        Invoice.objects.select_related("learner", "fee_structure")
+        .prefetch_related("payments")
+        .all()
+    )
     serializer_class = InvoiceSerializer
-    # learner__grade lets the admin scope fees to one grade (e.g. ?learner__grade=5)
-    filterset_fields = ["learner", "status", "fee_structure", "learner__grade"]
+    # The office slices the register by class and by term:
+    #   ?learner__grade=5&learner__stream=North&fee_structure__term=2
+    filterset_fields = [
+        "learner", "status", "fee_structure", "learner__grade",
+        "learner__stream", "fee_structure__term", "fee_structure__year",
+    ]
+    ordering_fields = ["learner__admission_number", "amount_due", "amount_paid", "status"]
+    search_fields = ["learner__first_name", "learner__last_name",
+                     "learner__admission_number"]
+
+    def get_queryset(self):
+        return super().get_queryset().order_by(
+            "learner__grade", "learner__stream", "learner__admission_number"
+        )
+
+
+class PaymentViewSet(SchoolScopedViewSet):
+    """The instalment ledger. Recording or reversing a payment re-totals its
+    invoice, so paid/balance/status always follow the rows beneath them."""
+
+    queryset = Payment.objects.select_related(
+        "invoice__learner", "received_by"
+    ).all()
+    serializer_class = PaymentSerializer
+    filterset_fields = ["invoice", "method", "paid_on"]
+
+    def _require_office(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Fee payments are recorded by the school office.")
+
+    def _retotal(self, invoice):
+        total = invoice.payments.aggregate(t=Sum("amount"))["t"] or Decimal("0")
+        invoice.amount_paid = total
+        invoice.refresh_status()
+
+    def perform_create(self, serializer):
+        self._require_office()
+        payment = serializer.save(
+            school=self.request.user.school, received_by=self.request.user
+        )
+        self._retotal(payment.invoice)
+        audit(
+            actor=self.request.user,
+            school=payment.school,
+            action="PAYMENT_RECORDED",
+            target=payment,
+            label=f"{payment.invoice.learner.full_name} — KES {payment.amount}",
+            detail={"method": payment.method, "reference": payment.reference},
+        )
+
+    def perform_update(self, serializer):
+        self._require_office()
+        payment = serializer.save()
+        self._retotal(payment.invoice)
+
+    def perform_destroy(self, instance):
+        self._require_office()
+        invoice = instance.invoice
+        instance.delete()
+        self._retotal(invoice)
+
+
+class GenerateInvoicesView(APIView):
+    """POST /api/payments/generate-invoices/ {fee_structure} — raise this
+    term's invoice for every active learner in that grade.
+
+    Idempotent: a learner who already has an invoice for this fee structure is
+    skipped, so re-running after admitting a new learner bills only them."""
+
+    def post(self, request):
+        user = request.user
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school office raises fee invoices.")
+        structure = get_object_or_404(
+            FeeStructure.objects.filter(school=user.school),
+            pk=request.data.get("fee_structure"),
+        )
+        from apps.students.models import Learner
+
+        already = set(
+            Invoice.objects.filter(
+                school=user.school, fee_structure=structure
+            ).values_list("learner_id", flat=True)
+        )
+        learners = Learner.objects.filter(
+            school=user.school, grade=structure.grade, active=True
+        )
+        stream = (request.data.get("stream") or "").strip()
+        if stream:
+            learners = learners.filter(stream=stream)
+
+        created = [
+            Invoice(
+                school=user.school,
+                learner=learner,
+                fee_structure=structure,
+                amount_due=structure.amount,
+            )
+            for learner in learners
+            if learner.id not in already
+        ]
+        Invoice.objects.bulk_create(created)
+        return Response(
+            {
+                "created": len(created),
+                "skipped_existing": len(already),
+                "fee_structure": str(structure),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class FeeRegisterXlsxView(APIView):
+    """GET /api/payments/register.xlsx?... — the filtered fee register as a
+    real workbook, one row per learner with what they owe and have paid."""
+
+    def get(self, request):
+        user = request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER")):
+            raise PermissionDenied("The fee register is staff-only.")
+
+        rows = (
+            Invoice.objects.filter(school=user.school)
+            .select_related("learner", "fee_structure")
+            .order_by("learner__grade", "learner__stream", "learner__admission_number")
+        )
+        for param, field in (
+            ("learner__grade", "learner__grade"),
+            ("learner__stream", "learner__stream"),
+            ("fee_structure__term", "fee_structure__term"),
+            ("fee_structure__year", "fee_structure__year"),
+            ("status", "status"),
+        ):
+            value = request.query_params.get(param)
+            if value not in (None, ""):
+                rows = rows.filter(**{field: value})
+
+        from io import BytesIO
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Fee register"
+        ws.append([
+            "Adm No", "Learner", "Grade", "Stream", "Term", "Year",
+            "Fee due", "Paid", "Balance", "Status", "Last payment",
+        ])
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="2B6CB0")
+        for inv in rows:
+            last = inv.payments.order_by("-paid_on").first()
+            ws.append([
+                inv.learner.admission_number,
+                inv.learner.full_name,
+                inv.learner.grade,
+                inv.learner.stream,
+                inv.fee_structure.term,
+                inv.fee_structure.year,
+                float(inv.amount_due),
+                float(inv.amount_paid),
+                float(inv.balance),
+                inv.get_status_display(),
+                last.paid_on.isoformat() if last else "",
+            ])
+        ws.freeze_panes = "C2"
+        for i, width in enumerate([12, 26, 8, 10, 7, 8, 12, 12, 12, 14, 14], start=1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type=(
+                "application/vnd.openxmlformats-officedocument"
+                ".spreadsheetml.sheet"
+            ),
+        )
+        response["Content-Disposition"] = 'attachment; filename="fee_register.xlsx"'
+        return response
 
 
 class StkPushView(APIView):

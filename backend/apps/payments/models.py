@@ -40,10 +40,15 @@ class Invoice(SchoolScopedModel):
 
     def apply_payment(self, amount: Decimal):
         self.amount_paid += amount
+        self.refresh_status()
+
+    def refresh_status(self):
         if self.amount_paid >= self.amount_due:
             self.status = self.Status.PAID
         elif self.amount_paid > 0:
             self.status = self.Status.PARTIAL
+        else:
+            self.status = self.Status.UNPAID
         self.save()
 
     @property
@@ -55,6 +60,47 @@ class Invoice(SchoolScopedModel):
 
     def __str__(self):
         return f"Invoice {self.pk} {self.learner} [{self.status}]"
+
+
+class Payment(SchoolScopedModel):
+    """One instalment against an invoice.
+
+    Families do not pay in one lump on one day: a parent pays 3,000 in cash at
+    the gate in May, 5,000 by M-Pesa in June, and the balance by bank slip in
+    August. Each of those is a row here — its own amount, date, method and
+    reference — and the invoice's paid total is the sum of them. Without this
+    the register could only ever say "partially paid" without saying when, how
+    much, or how.
+    """
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Cash"
+        MPESA = "MPESA", "M-Pesa"
+        BANK = "BANK", "Bank deposit"
+        CHEQUE = "CHEQUE", "Cheque"
+        BURSARY = "BURSARY", "Bursary / sponsor"
+        WAIVER = "WAIVER", "Waiver"
+
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.CASCADE, related_name="payments"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(max_length=8, choices=Method.choices, default=Method.CASH)
+    reference = models.CharField(
+        max_length=60, blank=True, help_text="M-Pesa code, bank slip or receipt no"
+    )
+    paid_on = models.DateField(help_text="The day the family actually paid")
+    note = models.CharField(max_length=200, blank=True)
+    received_by = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="payments_received",
+    )
+
+    class Meta:
+        ordering = ["-paid_on", "-id"]
+
+    def __str__(self):
+        return f"KES {self.amount} {self.get_method_display()} on {self.paid_on}"
 
 
 class MpesaTransaction(SchoolScopedModel):
