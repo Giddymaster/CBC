@@ -226,50 +226,81 @@ class FeeStructureGridView(APIView):
 
 
 class GenerateInvoicesView(APIView):
-    """POST /api/payments/generate-invoices/ {fee_structure} — raise this
-    term's invoice for every active learner in that grade.
+    """POST /api/payments/generate-invoices/ — raise the term's invoices.
 
-    Idempotent: a learner who already has an invoice for this fee structure is
+    Either {fee_structure} for one class, or {term, year} to bill every class
+    that has a fee set — a school sets its whole fee note at once, so it
+    should be able to invoice the whole school at once.
+
+    Idempotent: a learner who already has an invoice for a fee structure is
     skipped, so re-running after admitting a new learner bills only them."""
 
     def post(self, request):
         user = request.user
         if not (user.is_superuser or user.role == "ADMIN"):
             raise PermissionDenied("Only the school office raises fee invoices.")
-        structure = get_object_or_404(
-            FeeStructure.objects.filter(school=user.school),
-            pk=request.data.get("fee_structure"),
-        )
+
         from apps.students.models import Learner
 
-        already = set(
-            Invoice.objects.filter(
-                school=user.school, fee_structure=structure
-            ).values_list("learner_id", flat=True)
-        )
-        learners = Learner.objects.filter(
-            school=user.school, grade=structure.grade, active=True
-        )
-        stream = (request.data.get("stream") or "").strip()
-        if stream:
-            learners = learners.filter(stream=stream)
-
-        created = [
-            Invoice(
-                school=user.school,
-                learner=learner,
-                fee_structure=structure,
-                amount_due=structure.amount,
+        structures = []
+        if request.data.get("fee_structure"):
+            structures = [get_object_or_404(
+                FeeStructure.objects.filter(school=user.school),
+                pk=request.data["fee_structure"],
+            )]
+        else:
+            try:
+                term = int(request.data.get("term"))
+                year = int(request.data.get("year"))
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    {"detail": "Give a fee_structure, or a term and year."}
+                )
+            structures = list(
+                FeeStructure.objects.filter(school=user.school, term=term, year=year)
             )
-            for learner in learners
-            if learner.id not in already
-        ]
-        Invoice.objects.bulk_create(created)
+            if not structures:
+                raise ValidationError(
+                    {"detail": f"No fee is set for Term {term} {year} yet."}
+                )
+
+        stream = (request.data.get("stream") or "").strip()
+        created_total = skipped_total = 0
+        classes = []
+        for structure in structures:
+            already = set(
+                Invoice.objects.filter(
+                    school=user.school, fee_structure=structure
+                ).values_list("learner_id", flat=True)
+            )
+            learners = Learner.objects.filter(
+                school=user.school, grade=structure.grade, active=True
+            )
+            if stream:
+                learners = learners.filter(stream=stream)
+
+            created = [
+                Invoice(
+                    school=user.school,
+                    learner=learner,
+                    fee_structure=structure,
+                    amount_due=structure.amount,
+                )
+                for learner in learners
+                if learner.id not in already
+            ]
+            Invoice.objects.bulk_create(created)
+            created_total += len(created)
+            skipped_total += len(already)
+            if created:
+                classes.append(str(structure))
+
         return Response(
             {
-                "created": len(created),
-                "skipped_existing": len(already),
-                "fee_structure": str(structure),
+                "created": created_total,
+                "skipped_existing": skipped_total,
+                "classes": classes,
+                "fee_structure": str(structures[0]) if len(structures) == 1 else "",
             },
             status=status.HTTP_201_CREATED,
         )

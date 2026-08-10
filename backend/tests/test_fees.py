@@ -131,6 +131,41 @@ class FeeRegisterTests(APITestCase):
         self.assertEqual(res.data["count"], 1)
         self.assertEqual(res.data["results"][0]["stream"], "North")
 
+    def test_a_whole_term_can_be_invoiced_in_one_call(self):
+        """The office sets the fee note for every class at once, so it should
+        be able to bill every class at once."""
+        FeeStructure.objects.create(
+            school=self.school, grade=7, term=2, year=2026, amount=Decimal("9000"),
+        )
+        make_learner(self.school, grade=7)
+        self.client.force_authenticate(self.admin)
+        res = self.client.post(
+            "/api/payments/generate-invoices/", {"term": 2, "year": 2026},
+            format="json",
+        )
+        # Two in G5, and both G7 learners (setUp made one, this test another).
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["created"], 4)
+        self.assertEqual(Invoice.objects.count(), 4)
+        self.assertEqual(len(res.data["classes"]), 2)
+
+        # Running it again bills nobody twice.
+        again = self.client.post(
+            "/api/payments/generate-invoices/", {"term": 2, "year": 2026},
+            format="json",
+        )
+        self.assertEqual(again.data["created"], 0)
+        self.assertEqual(Invoice.objects.count(), 4)
+
+    def test_invoicing_a_term_with_no_fee_set_says_so(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.post(
+            "/api/payments/generate-invoices/", {"term": 3, "year": 2030},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("No fee is set", str(res.data))
+
     def test_the_grid_returns_vote_head_columns_for_every_grade(self):
         self.client.force_authenticate(self.admin)
         res = self.client.get("/api/payments/fee-structures/grid/?term=2&year=2026")

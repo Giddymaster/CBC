@@ -299,9 +299,8 @@ function FeeStructures({ grade: fixedGrade, onGenerated, onMessage }) {
   }
 
   async function generate(structure) {
-    const res = await apiWrite('/api/payments/generate-invoices/', {
-      fee_structure: structure.id,
-    })
+    const res = await apiWrite('/api/payments/generate-invoices/',
+      structure ? { fee_structure: structure.id } : { term, year })
     onMessage(
       res.ok
         ? `Raised ${res.data.created} invoice${res.data.created === 1 ? '' : 's'}`
@@ -345,6 +344,11 @@ function FeeStructures({ grade: fixedGrade, onGenerated, onMessage }) {
             <button className="primary" onClick={save} disabled={busy}>
               {busy ? 'Saving…' : 'Save fee structure'}
             </button>
+            {structures.length > 0 && (
+              <button onClick={() => generate(null)}>
+                Raise invoices for all classes
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -574,6 +578,7 @@ export default function Fees({ grade: fixedGrade }) {
   const [open, setOpen] = useState(null) // invoice being paid
   const [learner, setLearner] = useState(null) // looked up by admission no
   const [message, setMessage] = useState('')
+  const [raising, setRaising] = useState(false)
   const [filters, setFilters] = useState({
     grade: fixedGrade ?? '', stream: '', term: '', year: '', status: '',
   })
@@ -624,6 +629,24 @@ export default function Fees({ grade: fixedGrade }) {
     paid: acc.paid + Number(r.amount_paid),
     balance: acc.balance + Number(r.balance),
   }), { due: 0, paid: 0, balance: 0 })
+
+  // The empty register's way out: bill the term in one click, rather than
+  // hunting for a per-class button inside the collapsed fee structure.
+  async function raiseAll() {
+    setRaising(true)
+    const res = await apiWrite('/api/payments/generate-invoices/', {
+      term: Number(filters.term || currentTerm()),
+      year: Number(filters.year || new Date().getFullYear()),
+    })
+    setRaising(false)
+    setMessage(res.ok
+      ? `Raised ${res.data.created} invoice${res.data.created === 1 ? '' : 's'}`
+        + (res.data.skipped_existing
+          ? ` (${res.data.skipped_existing} already billed).`
+          : '.')
+      : res.data?.detail || 'Could not raise invoices.')
+    if (res.ok) load()
+  }
 
   const setFilter = (k) => (e) => setFilters({ ...filters, [k]: e.target.value })
   const title = 'Fee register'
@@ -706,9 +729,23 @@ export default function Fees({ grade: fixedGrade }) {
         </p>
 
         {rows.length === 0 ? (
-          <p className="muted">
-            No invoices here yet — set a fee above and click <b>Raise invoices</b>.
-          </p>
+          <div>
+            <p className="muted">
+              No invoices here yet. A fee structure says what a class is
+              charged; invoices are what each learner actually owes.
+            </p>
+            <p>
+              <button className="primary" onClick={raiseAll} disabled={raising}>
+                {raising
+                  ? 'Raising…'
+                  : `Raise Term ${filters.term || currentTerm()} `
+                    + `${filters.year || new Date().getFullYear()} invoices for every class`}
+              </button>{' '}
+              <span className="muted">
+                Every active learner in a class with a fee set is billed.
+              </span>
+            </p>
+          </div>
         ) : (
           <table>
             <thead>
