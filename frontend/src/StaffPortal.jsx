@@ -3,6 +3,7 @@ import { apiGet, apiWrite } from './api.js'
 import { gradeLabel } from './format.js'
 import Admission from './Admission.jsx'
 import Fees from './Fees.jsx'
+import Messaging from './Messaging.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
@@ -429,6 +430,12 @@ export default function SupportPortal() {
         ? 'Receipt payments, raise invoices and print the fee register.'
         : 'What each class owes and has paid.',
       cta: canHandleFees ? 'Open the fees desk' : 'Open the register' }] : []),
+    // Fee reminders are the school's commonest notice, so the bursar composes
+    // them from their own desk rather than queueing at the office.
+    ...(canHandleFees ? [{ tab: 'Messages', icon: 'chat', tone: 'blue',
+      title: 'Message Parents',
+      desc: 'Send an SMS or WhatsApp notice — a class, or only those still owing.',
+      cta: 'Compose a message' }] : []),
   ]
   const nav = [
     { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
@@ -474,6 +481,7 @@ export default function SupportPortal() {
       {tab === 'My Team' && <MyTeam />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'Fees' && <Fees grade={null} canHandle={canHandleFees} />}
+      {tab === 'Messages' && <Messaging grade={null} />}
       {tab === 'Reports' && <ReportsPanel data={data} onRefresh={load} />}
 
       <BottomNav items={nav} active={tab} onSelect={openTab} />

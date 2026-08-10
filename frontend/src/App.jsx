@@ -24,6 +24,7 @@ import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import Fees from './Fees.jsx'
+import Messaging from './Messaging.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
@@ -362,6 +363,13 @@ const NAV_SECTIONS = [
   },
   { title: 'Finance', items: [{ name: 'Fees', ...GRADE_NAV }] },
   {
+    title: 'Communication',
+    items: [
+      // The "+" per class opens the composer already aimed at that class.
+      { name: 'Messages', label: 'Messages (SMS & WhatsApp)', ownHeading: true, ...GRADE_NAV },
+    ],
+  },
+  {
     title: 'Administration',
     items: [
       { name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true },
@@ -383,6 +391,7 @@ const TABS = {
   'Report Card': Broadsheet,
   'Task Hub': TaskHub,
   Fees: Fees,
+  Messages: Messaging,
   Timetable: Timetable,
   'Schemes Review': SchemesReview,
   Curriculum: Curriculum,

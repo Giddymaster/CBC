@@ -1185,6 +1185,97 @@ th.tt-gap, td.tt-gap {
   text-align: center;
 }
 
+/* ---- Messaging parents ------------------------------------------------
+   Channel and audience are big targets, not dropdowns: on a phone in the
+   office the choice of "whole school" versus "one class" is the decision
+   worth slowing down for. */
+.msg-channels, .msg-audience {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  margin: 0.5rem 0 1rem;
+}
+.msg-channel, .msg-aud {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.9rem;
+}
+.msg-channel small, .msg-aud small { color: #718096; font-size: 0.72rem; }
+.msg-channel.active, .msg-aud.active {
+  border-color: #3182ce;
+  background: #ebf4ff;
+}
+.msg-channel.active small, .msg-aud.active small { color: #2b6cb0; }
+.msg-warn {
+  background: #fffaf0;
+  border-left: 3px solid #dd6b20;
+  padding: 0.5rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #744210;
+}
+.msg-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+.msg-title, .msg-body {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font: inherit;
+  margin-bottom: 0.4rem;
+}
+.msg-body { resize: vertical; line-height: 1.45; }
+.msg-meta { font-size: 0.78rem; color: #718096; margin-bottom: 0.6rem; }
+.msg-fields { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.msg-chip {
+  background: #edf2f7;
+  border: 1px solid #cbd5e0;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.msg-chip:hover { background: #ebf4ff; border-color: #3182ce; }
+.msg-hit {
+  background: #fff;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.msg-count { font-size: 1.05rem; }
+.msg-past { border-top: 1px solid #edf2f7; padding: 0.6rem 0; }
+.msg-past:first-of-type { border-top: none; }
+.msg-past-head {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+.msg-past-body {
+  font-size: 0.88rem;
+  color: #4a5568;
+  white-space: pre-wrap;
+  margin-bottom: 0.3rem;
+}
+.msg-past-delivery { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 

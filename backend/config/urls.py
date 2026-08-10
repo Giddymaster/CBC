@@ -34,7 +34,12 @@ from apps.communication.parent_messages import (
     ParentThreadsView,
     StaffThreadsView,
 )
-from apps.communication.views import AnnouncementViewSet, SmsMessageViewSet
+from apps.communication.views import (
+    AnnouncementViewSet,
+    MessageBlastViewSet,
+    MessagingStatusView,
+    SmsMessageViewSet,
+)
 from apps.facilities.views import (
     FacilityAssignmentViewSet,
     FacilityBulkImportView,
@@ -206,6 +211,7 @@ router.register("timetable/requirements", LessonRequirementViewSet)
 router.register("communication/sms", SmsMessageViewSet)
 router.register("communication/announcements", AnnouncementViewSet)
 router.register("communication/parent-messages", ParentMessageViewSet)
+router.register("communication/blasts", MessageBlastViewSet)
 router.register("payments/fee-structures", FeeStructureViewSet)
 router.register("payments/invoices", InvoiceViewSet)
 router.register("payments/payments", PaymentViewSet)
@@ -235,6 +241,7 @@ urlpatterns = [
     ),
     path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
+    path("api/communication/status/", MessagingStatusView.as_view()),
     path("api/locations/", LocationsView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/streams/", GradeStreamsView.as_view()),

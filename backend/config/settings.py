@@ -192,6 +192,16 @@ AT_USERNAME = os.getenv("AT_USERNAME", "")
 AT_API_KEY = os.getenv("AT_API_KEY", "")
 AT_SENDER_ID = os.getenv("AT_SENDER_ID", "")
 
+# WhatsApp Business Cloud API (Meta). Empty token => the same stub mode.
+# The school registers its own number with Meta; these are that number's
+# credentials. WHATSAPP_TEMPLATE is the approved template used for
+# school-initiated notices — Meta refuses free-form text to a parent who has
+# not messaged the school in the last 24 hours.
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_TEMPLATE = os.getenv("WHATSAPP_TEMPLATE", "")
+WHATSAPP_TEMPLATE_LANG = os.getenv("WHATSAPP_TEMPLATE_LANG", "en")
+
 # M-Pesa Daraja. Empty consumer key => sandbox-stub mode (no network calls).
 DARAJA_CONSUMER_KEY = os.getenv("DARAJA_CONSUMER_KEY", "")
 DARAJA_CONSUMER_SECRET = os.getenv("DARAJA_CONSUMER_SECRET", "")

@@ -7,6 +7,7 @@ import Attendance from './Attendance.jsx'
 import Broadsheet from './Broadsheet.jsx'
 import Fees from './Fees.jsx'
 import TaskHub from './TaskHub.jsx'
+import Messaging from './Messaging.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
@@ -478,6 +479,11 @@ const TEACHER_ACTIONS = [
   { tab: 'Fees', icon: 'wallet', tone: 'orange', title: 'Fees',
     desc: 'What each class owes and has paid — the whole school register.',
     cta: 'Open the register', when: (ctx) => ctx.canViewFees },
+  // Head teacher, deputy or bursar — the people who sign a notice to parents.
+  // A class teacher talks to their own parents on the Parents thread instead.
+  { tab: 'Messages', icon: 'chat', tone: 'blue', title: 'Message Parents',
+    desc: 'Send an SMS or WhatsApp notice to a class or the whole school.',
+    cta: 'Compose a message', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Task Hub', icon: 'star', tone: 'orange', title: 'Task Hub',
     desc: 'Every duty the school hands out — class teachers, games master, HODs, TOD, cooks, security — assigned in one place.',
     cta: 'Assign tasks', when: (ctx) => ctx.rankLevel >= 4 },
@@ -582,6 +588,7 @@ export default function TeacherPortal({ onQueueChange }) {
       {tab === 'Report Cards' && <Broadsheet grade={null} />}
       {tab === 'Fees' && <Fees grade={null} canHandle={ctx.canHandleFees} />}
       {tab === 'Task Hub' && <TaskHub />}
+      {tab === 'Messages' && <Messaging grade={null} />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
         <>
