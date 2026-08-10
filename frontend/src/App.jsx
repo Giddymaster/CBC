@@ -25,6 +25,7 @@ import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import Fees from './Fees.jsx'
 import Messaging from './Messaging.jsx'
+import SchoolProfile from './SchoolProfile.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
@@ -372,6 +373,7 @@ const NAV_SECTIONS = [
   {
     title: 'Administration',
     items: [
+      { name: 'School Profile', label: 'School Profile (Logo, Contacts, Documents)', ownHeading: true },
       { name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true },
       { name: 'Subscription', label: 'Subscription (Billing)', ownHeading: true },
     ],
@@ -392,6 +394,7 @@ const TABS = {
   'Task Hub': TaskHub,
   Fees: Fees,
   Messages: Messaging,
+  'School Profile': SchoolProfile,
   Timetable: Timetable,
   'Schemes Review': SchemesReview,
   Curriculum: Curriculum,

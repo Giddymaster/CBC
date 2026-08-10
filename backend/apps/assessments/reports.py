@@ -3,6 +3,8 @@ renderer, so the two can never drift apart."""
 
 from decimal import Decimal
 
+from apps.schools.profile import school_letterhead
+
 
 def _fees(learner, term, year):
     """What the family owes on this report, and what the next term will cost.
@@ -60,7 +62,7 @@ def _fees(learner, term, year):
     }
 
 
-def build_report_card(learner, term=None, year=None) -> dict:
+def build_report_card(learner, term=None, year=None, request=None) -> dict:
     scores = learner.scores.select_related("assessment__learning_area")
     if term:
         scores = scores.filter(assessment__term=term)
@@ -87,11 +89,9 @@ def build_report_card(learner, term=None, year=None) -> dict:
             "stream": learner.stream,
             "pathway": learner.pathway.get_code_display() if learner.pathway else None,
         },
-        "school": {
-            "name": learner.school.name,
-            "code": learner.school.code,
-            "county": learner.school.county,
-        },
+        # Name, crest, motto and the number to ring — the same letterhead every
+        # printed page uses, built in one place.
+        "school": school_letterhead(learner.school, request),
         "term": term,
         "year": year,
         "learning_areas": by_area,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiGet, apiWrite, getToken } from './api.js'
 import { useAnchoredMenu } from './columns.jsx'
 import { ALL_GRADES, gradeLabel, todayLocal } from './format.js'
+import { LETTERHEAD_CSS, letterheadHtml, useLetterhead } from './letterhead.js'
 
 const STATUS_BADGE = { PAID: 'online', PARTIAL: 'queued', UNPAID: 'offline' }
 const STATUS_LABEL = { PAID: 'Paid', PARTIAL: 'Part paid', UNPAID: 'Unpaid' }
@@ -453,8 +454,9 @@ function FeeStructures({ grade: fixedGrade, onGenerated, onMessage }) {
   )
 }
 
-/** A printable copy of exactly what is on screen — the filtered register. */
-function printRegister(title, rows, totals) {
+/** A printable copy of exactly what is on screen — the filtered register,
+ *  under the school's own letterhead. */
+function printRegister(title, rows, totals, letterhead) {
   const cells = rows.map((r) => `<tr>
     <td>${r.admission_number || ''}</td><td>${r.learner_name || ''}</td>
     <td>${gradeLabel(r.grade)} ${r.stream || ''}</td>
@@ -473,7 +475,9 @@ function printRegister(title, rows, totals) {
     .n { text-align: right; }
     tfoot td { font-weight: bold; background: #f4f4f4; }
     @media print { body { margin: 0.5rem; } }
+    ${LETTERHEAD_CSS}
   </style></head><body>
+  ${letterheadHtml(letterhead)}
   <h1>${title}</h1>
   <p class="sub">${rows.length} learners · printed ${new Date().toLocaleDateString()}</p>
   <table><thead><tr>
@@ -591,6 +595,7 @@ export default function Fees({ grade: fixedGrade, canHandle = true }) {
   const [learner, setLearner] = useState(null) // looked up by admission no
   const [message, setMessage] = useState('')
   const [raising, setRaising] = useState(false)
+  const letterhead = useLetterhead()
   const [filters, setFilters] = useState({
     grade: fixedGrade ?? '', stream: '', term: '', year: '', status: '',
   })
@@ -735,7 +740,7 @@ export default function Fees({ grade: fixedGrade, canHandle = true }) {
             </>
           )}
           <button className="primary" onClick={downloadExcel}>Download Excel</button>
-          <button onClick={() => printRegister(title, rows, totals)}>Print</button>
+          <button onClick={() => printRegister(title, rows, totals, letterhead)}>Print</button>
         </p>
         {message && <p className="muted">{message}</p>}
         <p className="muted">

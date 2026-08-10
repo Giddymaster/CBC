@@ -4,12 +4,9 @@ from django.db import models
 
 from apps.common.models import SchoolScopedModel
 
-# The vote heads a Kenyan school's fee structure is broken into. Schools add
-# their own; these are the columns the grid starts with.
-DEFAULT_VOTE_HEADS = [
-    "Tuition", "Activities", "Health", "Games", "Projects",
-    "Exams", "Transport", "Lunch", "Development", "Boarding",
-]
+# The vote heads a fee structure is broken into live on the school itself
+# (School.vote_heads, defaulting to schools.models.DEFAULT_VOTE_HEADS) — they
+# are the school's headings, not the ledger's.
 
 
 class FeeStructure(SchoolScopedModel):

@@ -7,6 +7,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
+    Image,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -48,6 +49,50 @@ def render_report_cards_pdf(reports: list) -> bytes:
     return buffer.getvalue()
 
 
+def _letterhead(school, term_label, year_label, title_style, subtitle):
+    """The school's badge and name across the top of the report form.
+
+    Laid out as a two-column table rather than centred text: with a crest the
+    name sits beside it, without one the name spans the full width and the page
+    looks deliberate either way. A crest that has gone missing from disk is
+    skipped — a report card must still print.
+    """
+    lines = [f"{school['county']} County — School code {school['code']}"]
+    if school.get("motto"):
+        lines.append(f"<i>{school['motto']}</i>")
+    contact = " · ".join(
+        part for part in [school.get("address"), school.get("phone"), school.get("email")]
+        if part
+    )
+    if contact:
+        lines.append(contact)
+    lines.append(f"CBC Learner Report Card — {term_label} {year_label}")
+
+    text = [Paragraph(school["name"], title_style), Paragraph("<br/>".join(lines), subtitle)]
+
+    crest = None
+    path = school.get("logo_path")
+    if path:
+        try:
+            crest = Image(path, width=20 * mm, height=20 * mm, kind="proportional")
+        except Exception:
+            crest = None
+
+    if crest is None:
+        head = Table([[text]], colWidths=[170 * mm])
+    else:
+        head = Table([[crest, text]], colWidths=[24 * mm, 146 * mm])
+    head.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.75, colors.HexColor("#2b6cb0")),
+    ]))
+    return head
+
+
 def _report_story(data: dict) -> list:
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("SchoolTitle", parent=styles["Title"], fontSize=16, spaceAfter=2)
@@ -59,14 +104,7 @@ def _report_story(data: dict) -> list:
     term_label = f"Term {data['term']}" if data["term"] else "All terms"
     year_label = str(data["year"]) if data["year"] else ""
 
-    story = [
-        Paragraph(school["name"], title_style),
-        Paragraph(
-            f"{school['county']} County — School code {school['code']}<br/>"
-            f"CBC Learner Report Card — {term_label} {year_label}",
-            subtitle,
-        ),
-    ]
+    story = [_letterhead(school, term_label, year_label, title_style, subtitle)]
 
     info = Table(
         [

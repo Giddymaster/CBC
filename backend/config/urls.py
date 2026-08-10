@@ -96,6 +96,7 @@ from apps.promotions.views import (
     TransitionInfoView,
 )
 from apps.schools.locations import LocationsView
+from apps.schools.profile import MySchoolProfileView, SchoolDocumentViewSet
 from apps.schools.structure import (
     GradeDetailView,
     GradeStreamsView,
@@ -212,6 +213,7 @@ router.register("communication/sms", SmsMessageViewSet)
 router.register("communication/announcements", AnnouncementViewSet)
 router.register("communication/parent-messages", ParentMessageViewSet)
 router.register("communication/blasts", MessageBlastViewSet)
+router.register("school-documents", SchoolDocumentViewSet)
 router.register("payments/fee-structures", FeeStructureViewSet)
 router.register("payments/invoices", InvoiceViewSet)
 router.register("payments/payments", PaymentViewSet)
@@ -242,6 +244,7 @@ urlpatterns = [
     path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
     path("api/communication/status/", MessagingStatusView.as_view()),
+    path("api/my-school/profile/", MySchoolProfileView.as_view()),
     path("api/locations/", LocationsView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
     path("api/school/streams/", GradeStreamsView.as_view()),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiGet, apiUpload, apiWrite } from './api.js'
 import BulkImport from './BulkImport.jsx'
 import { ALL_GRADES, gradeLabel, todayLocal } from './format.js'
+import { LETTERHEAD_CSS, letterheadHtml } from './letterhead.js'
 
 const RESIDENCE = [
   { value: 'DAY', label: 'Day scholar' },
@@ -123,7 +124,7 @@ function GuardianCard({ index, value, onChange, onRemove, canRemove }) {
 
 // A paper twin of the digital form, for parents filling it at the gate or at
 // home. Opens the browser's print dialog — "Save as PDF" makes the download.
-function printBlankForm(schoolName) {
+function printBlankForm(schoolName, letterhead) {
   const f = (label, wide) =>
     `<div class="f${wide ? ' wide' : ''}"><span>${label}</span><i></i></div>`
   const box = (label) => `<span class="bx">☐ ${label}</span>`
@@ -157,8 +158,12 @@ function printBlankForm(schoolName) {
     .bx { margin-right: 1.2rem; }
     .sig { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.2rem; margin-top: 1.4rem; }
     @media print { body { margin: 0 auto; } }
+    ${LETTERHEAD_CSS}
+    .lh { justify-content: center; }
   </style></head><body>
-  <div class="school">${schoolName || ''}</div>
+  ${letterhead
+    ? letterheadHtml(letterhead)
+    : `<div class="school">${schoolName || ''}</div>`}
   <h1>Learner Admission Form</h1>
   <p class="note">Please fill in BLOCK letters. Fields marked * are required.</p>
 
@@ -369,7 +374,8 @@ export default function Admission({ scope, onAdmitted }) {
             type="button"
             onClick={async () => {
               const me = await apiGet('/api/me/').catch(() => null)
-              printBlankForm(me?.school)
+              const profile = await apiGet('/api/my-school/profile/').catch(() => null)
+              printBlankForm(me?.school, profile)
             }}
           >
             Download blank form

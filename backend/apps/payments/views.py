@@ -16,7 +16,6 @@ from apps.schools.models import School
 
 from .access import can_handle_fees, can_view_fees
 from .models import (
-    DEFAULT_VOTE_HEADS,
     FeeStructure,
     Invoice,
     Payment,
@@ -171,13 +170,14 @@ class FeeStructureGridView(APIView):
             fs.grade: fs
             for fs in FeeStructure.objects.filter(school=school, term=term, year=year)
         }
-        # Whatever columns the school has actually used, then the defaults.
-        used = []
+        # The school's own headings, set on the School Profile page. Anything a
+        # past term was priced under is appended rather than dropped, so
+        # removing a heading never hides money already billed under it.
+        columns = school.fee_columns()
         for fs in existing.values():
             for head in (fs.breakdown or {}):
-                if head not in used:
-                    used.append(head)
-        columns = used + [h for h in DEFAULT_VOTE_HEADS if h not in used]
+                if head not in columns:
+                    columns.append(head)
 
         return Response({
             "term": term,
@@ -202,6 +202,16 @@ class FeeStructureGridView(APIView):
             year = int(request.data.get("year"))
         except (TypeError, ValueError):
             raise ValidationError({"detail": "term and year are required."})
+
+        # The headings travel with the grid. Saving them on the school is what
+        # makes a new vote head outlive the term it was added in — previously a
+        # column nobody had yet priced simply disappeared on the next load.
+        columns = request.data.get("columns")
+        if isinstance(columns, list):
+            from apps.schools.profile import _clean_vote_heads
+
+            school.vote_heads = _clean_vote_heads(columns)
+            school.save(update_fields=["vote_heads"])
 
         saved = cleared = 0
         for row in request.data.get("rows", []):

@@ -1276,6 +1276,90 @@ th.tt-gap, td.tt-gap {
 }
 .msg-past-delivery { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 
+/* ---- School Profile ---------------------------------------------------- */
+.sp-facts {
+  display: grid;
+  gap: 0.6rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin-bottom: 0.5rem;
+}
+.sp-facts small { display: block; color: #718096; font-size: 0.72rem; text-transform: uppercase; }
+.sp-facts b { font-size: 0.95rem; }
+.sp-grid {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.sp-field { display: flex; flex-direction: column; gap: 0.2rem; }
+.sp-field span { font-size: 0.78rem; color: #4a5568; font-weight: 600; }
+.sp-field input {
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font: inherit;
+}
+.sp-field input:disabled { background: #f7fafc; color: #4a5568; }
+.sp-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.6rem 0 0; }
+.sp-row input { padding: 0.45rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 6px; font: inherit; }
+.sp-logo { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.sp-logo img {
+  max-width: 7rem;
+  max-height: 7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.3rem;
+  background: #fff;
+}
+.sp-logo-empty {
+  width: 7rem;
+  height: 7rem;
+  display: grid;
+  place-items: center;
+  border: 2px dashed #cbd5e0;
+  border-radius: 8px;
+  color: #a0aec0;
+  font-size: 0.8rem;
+}
+.sp-heads { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.sp-head-name {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+.sp-head-edit {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid #3182ce;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  width: 8rem;
+}
+.sp-upload {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.6rem;
+  background: #f7fafc;
+  border-radius: 8px;
+  margin-bottom: 0.6rem;
+}
+.sp-upload input[type="text"], .sp-upload input:not([type]) { min-width: 14rem; }
+.sp-upload input, .sp-upload select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font: inherit;
+  max-width: 100%;
+}
+.sp-doc-group h4 { margin: 0.8rem 0 0.3rem; }
+.sp-doc-actions { display: flex; gap: 0.6rem; align-items: center; white-space: nowrap; }
+.sp-doc-actions a { color: #2b6cb0; font-size: 0.85rem; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 
