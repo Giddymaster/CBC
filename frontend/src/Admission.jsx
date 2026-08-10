@@ -248,10 +248,8 @@ export default function Admission({ scope, onAdmitted }) {
   // as suggestions; a school without them can still type one.
   const [streams, setStreams] = useState([])
   useEffect(() => {
-    apiGet(`/api/class-groups/?grade=${form.grade}&page_size=100`)
-      .then((d) => setStreams(
-        [...new Set((d.results || d).map((c) => c.stream).filter(Boolean))],
-      ))
+    apiGet(`/api/school/streams/?grade=${form.grade}`)
+      .then((d) => setStreams(d.streams || []))
       .catch(() => setStreams([]))
   }, [form.grade])
 

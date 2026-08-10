@@ -131,6 +131,57 @@ class FeeRegisterTests(APITestCase):
         self.assertEqual(res.data["count"], 1)
         self.assertEqual(res.data["results"][0]["stream"], "North")
 
+    def test_the_grid_returns_vote_head_columns_for_every_grade(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.get("/api/payments/fee-structures/grid/?term=2&year=2026")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Tuition", res.data["columns"])
+        self.assertIn("Games", res.data["columns"])
+        grades = [r["grade"] for r in res.data["rows"]]
+        self.assertIn(5, grades)
+        row = next(r for r in res.data["rows"] if r["grade"] == 5)
+        self.assertEqual(row["total"], "8000.00")
+
+    def test_saving_the_grid_itemises_and_totals_each_class(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.post(
+            "/api/payments/fee-structures/grid/",
+            {
+                "term": 3, "year": 2026,
+                "rows": [
+                    {"grade": 4, "breakdown": {
+                        "Tuition": "6000", "Games": "500", "Lunch": "2500"}},
+                    {"grade": 5, "breakdown": {"Tuition": "7000", "Exams": "800"}},
+                    {"grade": 6, "breakdown": {}},  # not charged
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data["saved"], 2)
+        g4 = FeeStructure.objects.get(grade=4, term=3, year=2026)
+        self.assertEqual(g4.amount, Decimal("9000"))
+        self.assertEqual(g4.breakdown["Games"], "500")
+        self.assertFalse(
+            FeeStructure.objects.filter(grade=6, term=3, year=2026).exists()
+        )
+        # The saved columns come back on the next read.
+        grid = self.client.get(
+            "/api/payments/fee-structures/grid/?term=3&year=2026"
+        ).data
+        self.assertIn("Lunch", grid["columns"])
+
+    def test_a_teacher_cannot_rewrite_the_fee_structure(self):
+        teacher = make_teacher(self.school)
+        self.client.force_authenticate(teacher.user)
+        res = self.client.post(
+            "/api/payments/fee-structures/grid/",
+            {"term": 3, "year": 2026,
+             "rows": [{"grade": 4, "breakdown": {"Tuition": "1"}}]},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 403)
+
     def test_the_excel_register_downloads(self):
         import io
 

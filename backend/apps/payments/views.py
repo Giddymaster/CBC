@@ -5,7 +5,7 @@ from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,7 +14,13 @@ from apps.common.audit import record as audit
 from apps.common.views import SchoolScopedViewSet
 from apps.schools.models import School
 
-from .models import FeeStructure, Invoice, Payment, StkPushRequest
+from .models import (
+    DEFAULT_VOTE_HEADS,
+    FeeStructure,
+    Invoice,
+    Payment,
+    StkPushRequest,
+)
 from .serializers import (
     FeeStructureSerializer,
     InvoiceSerializer,
@@ -121,6 +127,102 @@ class PaymentViewSet(SchoolScopedViewSet):
         invoice = instance.invoice
         instance.delete()
         self._retotal(invoice)
+
+
+class FeeStructureGridView(APIView):
+    """GET/POST /api/payments/fee-structures/grid/ — the fee note as a school
+    prints it: grades down the side, vote heads across the top.
+
+    GET  ?term=&year= → the columns and one row per grade with its amounts.
+    POST {term, year, columns, rows:[{grade, breakdown}]} → upsert the lot.
+    A grade whose row totals zero is dropped, so clearing a row removes it.
+    """
+
+    def _require_office(self, user):
+        if not (user.is_superuser or user.role == "ADMIN"):
+            raise PermissionDenied("Only the school office sets fee structures.")
+
+    def get(self, request):
+        from apps.schools.moe import ALL_GRADES, GRADE_LABELS
+
+        school = request.user.school
+        try:
+            term = int(request.query_params.get("term"))
+            year = int(request.query_params.get("year"))
+        except (TypeError, ValueError):
+            raise ValidationError({"detail": "term and year are required."})
+
+        existing = {
+            fs.grade: fs
+            for fs in FeeStructure.objects.filter(school=school, term=term, year=year)
+        }
+        # Whatever columns the school has actually used, then the defaults.
+        used = []
+        for fs in existing.values():
+            for head in (fs.breakdown or {}):
+                if head not in used:
+                    used.append(head)
+        columns = used + [h for h in DEFAULT_VOTE_HEADS if h not in used]
+
+        return Response({
+            "term": term,
+            "year": year,
+            "columns": columns,
+            "rows": [
+                {
+                    "grade": g,
+                    "label": GRADE_LABELS[g],
+                    "breakdown": (existing[g].breakdown or {}) if g in existing else {},
+                    "total": str(existing[g].amount) if g in existing else "0",
+                }
+                for g in ALL_GRADES
+            ],
+        })
+
+    def post(self, request):
+        self._require_office(request.user)
+        school = request.user.school
+        try:
+            term = int(request.data.get("term"))
+            year = int(request.data.get("year"))
+        except (TypeError, ValueError):
+            raise ValidationError({"detail": "term and year are required."})
+
+        saved = cleared = 0
+        for row in request.data.get("rows", []):
+            try:
+                grade = int(row.get("grade"))
+            except (TypeError, ValueError):
+                continue
+            breakdown = {
+                str(head): str(value)
+                for head, value in (row.get("breakdown") or {}).items()
+                if str(value).strip() not in ("", "0")
+            }
+            structure = FeeStructure(
+                school=school, grade=grade, term=term, year=year,
+                breakdown=breakdown, amount=Decimal("0"),
+            )
+            total = structure.total_from_breakdown()
+            if total <= 0:
+                # An emptied row means "this class is not charged this term".
+                # Only drop it if nothing has been billed from it yet.
+                gone, _ = FeeStructure.objects.filter(
+                    school=school, grade=grade, term=term, year=year,
+                    invoice__isnull=True,
+                ).delete()
+                cleared += bool(gone)
+                continue
+            FeeStructure.objects.update_or_create(
+                school=school, grade=grade, term=term, year=year,
+                defaults={
+                    "breakdown": breakdown,
+                    "amount": total,
+                    "description": row.get("description", ""),
+                },
+            )
+            saved += 1
+        return Response({"saved": saved, "cleared": cleared})
 
 
 class GenerateInvoicesView(APIView):

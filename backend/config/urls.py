@@ -53,6 +53,7 @@ from apps.knowledge.views import (
 from apps.payments.views import (
     C2BConfirmationView,
     FeeRegisterXlsxView,
+    FeeStructureGridView,
     FeeStructureViewSet,
     GenerateInvoicesView,
     InvoiceViewSet,
@@ -90,7 +91,11 @@ from apps.promotions.views import (
     TransitionInfoView,
 )
 from apps.schools.locations import LocationsView
-from apps.schools.structure import GradeDetailView, SchoolStructureView
+from apps.schools.structure import (
+    GradeDetailView,
+    GradeStreamsView,
+    SchoolStructureView,
+)
 from apps.schools.views import SchoolViewSet
 from apps.students.admissions import (
     AdmissionRightViewSet,
@@ -231,6 +236,7 @@ urlpatterns = [
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
     path("api/locations/", LocationsView.as_view()),
     path("api/school/structure/", SchoolStructureView.as_view()),
+    path("api/school/streams/", GradeStreamsView.as_view()),
     path("api/school/staff/", StaffDirectoryView.as_view()),
     path("api/school/analysis/", SchoolAnalysisView.as_view()),
     path("api/school/subject-analysis/", SubjectAnalysisView.as_view()),
@@ -276,6 +282,7 @@ urlpatterns = [
     path("api/report-cards/class.pdf", ClassReportPdfView.as_view()),
     path("api/timetable/generate/", GenerateTimetableView.as_view()),
     path("api/timetable/assignments/auto/", AutoAssignView.as_view()),
+    path("api/payments/fee-structures/grid/", FeeStructureGridView.as_view()),
     path("api/payments/generate-invoices/", GenerateInvoicesView.as_view()),
     path("api/payments/register.xlsx", FeeRegisterXlsxView.as_view()),
     path("api/payments/stk-push/", StkPushView.as_view()),

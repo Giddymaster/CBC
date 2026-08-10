@@ -30,6 +30,50 @@ async function fetchAll(path) {
   return rows
 }
 
+/** The learner's UPI, editable in place. Blank for a learner admitted before
+ * NEMIS issued one; the fees desk is where the parent can finally supply it. */
+function UpiCell({ learnerId, upi, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(upi || '')
+  const [message, setMessage] = useState('')
+
+  async function save() {
+    const next = value.trim()
+    if (next === (upi || '')) { setEditing(false); return }
+    const res = await apiWrite(`/api/learners/${learnerId}/`, { upi: next },
+      { method: 'PATCH' })
+    if (res.ok) {
+      setEditing(false)
+      setMessage('')
+      onSaved()
+    } else {
+      setMessage(res.data?.upi?.[0] || res.data?.detail || 'Could not save the UPI.')
+    }
+  }
+
+  if (!editing) {
+    return (
+      <>
+        {upi ? <b>{upi}</b> : <span className="muted">Not recorded</span>}{' '}
+        <button className="grade-chip" onClick={() => { setValue(upi || ''); setEditing(true) }}>
+          {upi ? 'Change' : '+ Add UPI'}
+        </button>
+      </>
+    )
+  }
+  return (
+    <span style={{ display: 'inline-flex', gap: '0.3rem', alignItems: 'center' }}>
+      <input autoFocus value={value} placeholder="NEMIS / UPI number"
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') save() }}
+        style={{ padding: '0.25rem', width: '10rem' }} />
+      <button className="primary" onClick={save}>Save</button>
+      <button onClick={() => setEditing(false)}>×</button>
+      {message && <span className="error">{message}</span>}
+    </span>
+  )
+}
+
 /** Record one instalment. Families pay what they can, when they can — this
  * takes any amount, any day, by any method, and the invoice re-totals. */
 function RecordPayment({ invoice, onDone, onClose }) {
@@ -70,7 +114,14 @@ function RecordPayment({ invoice, onDone, onClose }) {
       <dl className="op-facts">
         <div><dt>Admission no</dt><dd><b>{invoice.admission_number}</b></dd></div>
         <div><dt>Learner</dt><dd>{invoice.learner_name}</dd></div>
-        <div><dt>UPI</dt><dd>{invoice.upi || '—'}</dd></div>
+        <div>
+          <dt>UPI</dt>
+          <dd>
+            {/* The desk is the one moment a parent is standing there to
+                ask — so a missing UPI is captured here, not chased later. */}
+            <UpiCell learnerId={invoice.learner} upi={invoice.upi} onSaved={onDone} />
+          </dd>
+        </div>
         <div><dt>Class</dt><dd>{gradeLabel(invoice.grade)} {invoice.stream}</dd></div>
         <div><dt>Term</dt><dd>Term {invoice.term} {invoice.year}</dd></div>
       </dl>
@@ -135,36 +186,48 @@ function RecordPayment({ invoice, onDone, onClose }) {
   )
 }
 
-/** Set what each class is charged, and raise the term's invoices from it. */
+/** The fee note as a school prints it: grades down the side, vote heads
+ * (tuition, activities, games…) across the top, each cell an amount, the row
+ * total at the end. Saving writes one fee structure per grade. */
 function FeeStructures({ onGenerated, onMessage }) {
+  const [term, setTerm] = useState(currentTerm())
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [columns, setColumns] = useState([])
   const [rows, setRows] = useState([])
-  const [form, setForm] = useState({
-    grade: 4, term: currentTerm(), year: new Date().getFullYear(),
-    amount: '', description: '',
-  })
+  const [structures, setStructures] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [newHead, setNewHead] = useState('')
+
   const load = useCallback(() => {
-    apiGet('/api/payments/fee-structures/?page_size=200')
-      .then((d) => setRows(d.results || d)).catch(() => setRows([]))
-  }, [])
+    apiGet(`/api/payments/fee-structures/grid/?term=${term}&year=${year}`)
+      .then((d) => { setColumns(d.columns); setRows(d.rows) })
+      .catch(() => { setColumns([]); setRows([]) })
+    apiGet(`/api/payments/fee-structures/?term=${term}&year=${year}&page_size=200`)
+      .then((d) => setStructures(d.results || d))
+      .catch(() => setStructures([]))
+  }, [term, year])
   useEffect(load, [load])
 
-  async function add(e) {
-    e.preventDefault()
-    if (!(Number(form.amount) > 0)) {
-      onMessage('Enter the fee amount.')
-      return
-    }
-    const res = await apiWrite('/api/payments/fee-structures/', {
-      ...form, grade: Number(form.grade), term: Number(form.term),
-      year: Number(form.year),
+  const setCell = (grade, head, value) =>
+    setRows((prev) => prev.map((r) => (
+      r.grade === grade ? { ...r, breakdown: { ...r.breakdown, [head]: value } } : r
+    )))
+
+  const rowTotal = (row) =>
+    columns.reduce((sum, head) => sum + (Number(row.breakdown[head]) || 0), 0)
+  const columnTotal = (head) =>
+    rows.reduce((sum, r) => sum + (Number(r.breakdown[head]) || 0), 0)
+
+  async function save() {
+    setBusy(true)
+    const res = await apiWrite('/api/payments/fee-structures/grid/', {
+      term, year, rows: rows.map((r) => ({ grade: r.grade, breakdown: r.breakdown })),
     })
-    if (res.ok) {
-      setForm({ ...form, amount: '', description: '' })
-      onMessage('')
-      load()
-    } else {
-      onMessage(res.data?.detail || JSON.stringify(res.data))
-    }
+    setBusy(false)
+    onMessage(res.ok
+      ? `Fee structure saved for ${res.data.saved} class${res.data.saved === 1 ? '' : 'es'}.`
+      : res.data?.detail || 'Could not save the fee structure.')
+    if (res.ok) load()
   }
 
   async function generate(structure) {
@@ -182,53 +245,91 @@ function FeeStructures({ onGenerated, onMessage }) {
     if (res.ok) onGenerated()
   }
 
+  const billable = rows.filter((r) => rowTotal(r) > 0)
+
   return (
     <div className="card">
-      <h3>Fee structure</h3>
+      <div className="page-header" style={{ marginBottom: '0.3rem' }}>
+        <h3 style={{ margin: 0 }}>Fee structure</h3>
+        <span style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          <select value={term} onChange={(e) => setTerm(Number(e.target.value))}>
+            {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
+          </select>
+          <input type="number" value={year} style={{ width: '5.5rem', padding: '0.4rem' }}
+            onChange={(e) => setYear(Number(e.target.value))} />
+          <button className="primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save fee structure'}
+          </button>
+        </span>
+      </div>
       <p className="muted">
-        What each class pays per term. Set the amount, then raise the invoices —
-        every active learner in that grade is billed, and re-running bills only
-        newcomers.
+        What each class pays this term, broken down by vote head. Leave a class
+        blank if it is not charged. Save, then raise that class's invoices —
+        every active learner is billed, and re-running bills only newcomers.
       </p>
-      <form onSubmit={add}
-        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })}>
-          {ALL_GRADES.map((g) => <option key={g} value={g}>{gradeLabel(g)}</option>)}
-        </select>
-        <select value={form.term} onChange={(e) => setForm({ ...form, term: e.target.value })}>
-          {[1, 2, 3].map((t) => <option key={t} value={t}>Term {t}</option>)}
-        </select>
-        <input type="number" value={form.year} style={{ width: '5.5rem', padding: '0.4rem' }}
-          onChange={(e) => setForm({ ...form, year: e.target.value })} />
-        <input type="number" min="1" placeholder="Amount (KES)" value={form.amount}
-          style={{ width: '9rem', padding: '0.4rem' }}
-          onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-        <input placeholder="Description (optional)" value={form.description}
-          style={{ padding: '0.4rem', minWidth: '12rem' }}
-          onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        <button className="primary" type="submit">Save fee</button>
-      </form>
 
-      {rows.length > 0 && (
-        <table>
-          <thead>
-            <tr><th>Class</th><th>Term</th><th>Amount</th><th>Description</th><th></th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td><b>{gradeLabel(r.grade)}</b></td>
-                <td>Term {r.term} {r.year}</td>
-                <td>{money(r.amount)}</td>
-                <td className="muted">{r.description || '—'}</td>
-                <td>
-                  <button onClick={() => generate(r)}>Raise invoices</button>
+      <table>
+        <thead>
+          <tr>
+            <th>Class</th>
+            {columns.map((head) => <th key={head}>{head}</th>)}
+            <th>Total</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const total = rowTotal(row)
+            const structure = structures.find((s) => s.grade === row.grade)
+            return (
+              <tr key={row.grade}>
+                <td><b>{row.label}</b></td>
+                {columns.map((head) => (
+                  <td key={head}>
+                    <input
+                      type="number" min="0" step="50"
+                      value={row.breakdown[head] ?? ''}
+                      onChange={(e) => setCell(row.grade, head, e.target.value)}
+                      style={{ width: '5.5rem', padding: '0.2rem' }}
+                    />
+                  </td>
+                ))}
+                <td><b>{total ? money(total) : <span className="muted">—</span>}</b></td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {structure && (
+                    <button onClick={() => generate(structure)}>Raise invoices</button>
+                  )}
                 </td>
               </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td><b>All classes</b></td>
+            {columns.map((head) => (
+              <td key={head} className="muted">
+                {columnTotal(head) ? money(columnTotal(head)) : '—'}
+              </td>
             ))}
-          </tbody>
-        </table>
-      )}
+            <td colSpan="2" />
+          </tr>
+        </tfoot>
+      </table>
+
+      <p style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input value={newHead} placeholder="Another vote head e.g. Uniform"
+          style={{ padding: '0.35rem' }}
+          onChange={(e) => setNewHead(e.target.value)} />
+        <button onClick={() => {
+          const head = newHead.trim()
+          if (head && !columns.includes(head)) setColumns([...columns, head])
+          setNewHead('')
+        }}>+ Add column</button>
+        <span className="muted">
+          {billable.length} class{billable.length === 1 ? '' : 'es'} charged this term
+        </span>
+      </p>
     </div>
   )
 }
@@ -363,12 +464,12 @@ export default function Fees({ grade: fixedGrade }) {
   }, [query])
   useEffect(load, [load])
 
+  // Streams the learners are really in, not only the class groups somebody
+  // remembered to create.
   useEffect(() => {
-    if (filters.grade === '') { setStreams([]); return }
-    apiGet(`/api/class-groups/?grade=${filters.grade}&page_size=100`)
-      .then((d) => setStreams(
-        [...new Set((d.results || d).map((c) => c.stream).filter(Boolean))].sort(),
-      ))
+    const q = filters.grade === '' ? '' : `?grade=${filters.grade}`
+    apiGet(`/api/school/streams/${q}`)
+      .then((d) => setStreams(d.streams || []))
       .catch(() => setStreams([]))
   }, [filters.grade])
 

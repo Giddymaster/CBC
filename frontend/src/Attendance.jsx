@@ -157,13 +157,12 @@ function MonthView({ grade: fixedGrade }) {
     if (fixedGrade !== null && fixedGrade !== undefined) setGrade(fixedGrade)
   }, [fixedGrade])
 
-  // The streams this grade runs, for the filter bar.
+  // The streams this grade runs — taken from the learners themselves, so a
+  // stream nobody created a class group for is still selectable.
   useEffect(() => {
     setStream('')
-    apiGet(`/api/class-groups/?grade=${grade}&page_size=100`)
-      .then((d) => setStreams(
-        [...new Set((d.results || d).map((c) => c.stream).filter(Boolean))].sort(),
-      ))
+    apiGet(`/api/school/streams/?grade=${grade}`)
+      .then((d) => setStreams(d.streams || []))
       .catch(() => setStreams([]))
   }, [grade])
 

@@ -4,13 +4,34 @@ from django.db import models
 
 from apps.common.models import SchoolScopedModel
 
+# The vote heads a Kenyan school's fee structure is broken into. Schools add
+# their own; these are the columns the grid starts with.
+DEFAULT_VOTE_HEADS = [
+    "Tuition", "Activities", "Health", "Games", "Projects",
+    "Exams", "Transport", "Lunch", "Development", "Boarding",
+]
+
 
 class FeeStructure(SchoolScopedModel):
     grade = models.IntegerField()
     term = models.PositiveSmallIntegerField()
     year = models.PositiveSmallIntegerField()
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    # What the total is made of: {"Tuition": "6000", "Games": "500", ...}.
+    # A fee note has to itemise — parents and the board both ask "for what?"
+    breakdown = models.JSONField(default=dict, blank=True)
     description = models.CharField(max_length=200, blank=True)
+
+    def total_from_breakdown(self):
+        from decimal import InvalidOperation
+
+        total = Decimal("0")
+        for value in (self.breakdown or {}).values():
+            try:
+                total += Decimal(str(value or 0))
+            except InvalidOperation:
+                continue
+        return total
 
     class Meta:
         ordering = ["-year", "-term", "grade"]

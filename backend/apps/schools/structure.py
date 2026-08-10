@@ -95,6 +95,32 @@ def _teacher_panel(teacher, school, grade, stream, today):
     }
 
 
+class GradeStreamsView(APIView):
+    """GET /api/school/streams/?grade=N — the streams a grade actually runs.
+
+    Union of the class groups the school defined and the streams its learners
+    are really in: a stream picker built from ClassGroup alone goes blind to
+    learners imported into a stream nobody created a class group for.
+    """
+
+    def get(self, request):
+        _require_staff(request.user)
+        school = request.user.school
+        grade = request.query_params.get("grade")
+
+        groups = ClassGroup.objects.filter(school=school)
+        learners = Learner.objects.filter(school=school, active=True)
+        if grade not in (None, ""):
+            groups = groups.filter(grade=int(grade))
+            learners = learners.filter(grade=int(grade))
+
+        streams = {s for s in groups.values_list("stream", flat=True) if s}
+        streams |= {s for s in learners.values_list("stream", flat=True) if s}
+        # Learners with no stream at all are still somebody's class.
+        unstreamed = learners.filter(stream="").exists()
+        return Response({"streams": sorted(streams), "unstreamed": unstreamed})
+
+
 class SchoolStructureView(APIView):
     def get(self, request):
         _require_staff(request.user)
