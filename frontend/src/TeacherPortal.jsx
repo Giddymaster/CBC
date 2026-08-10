@@ -11,6 +11,7 @@ import Messaging from './Messaging.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
+import SchoolProfile from './SchoolProfile.jsx'
 import SchoolStructure from './SchoolStructure.jsx'
 import MyTeam from './MyTeam.jsx'
 import {
@@ -484,6 +485,9 @@ const TEACHER_ACTIONS = [
   { tab: 'Messages', icon: 'chat', tone: 'blue', title: 'Message Parents',
     desc: 'Send an SMS or WhatsApp notice to a class or the whole school.',
     cta: 'Compose a message', when: (ctx) => ctx.rankLevel >= 4 },
+  { tab: 'School Profile', icon: 'grid', tone: 'teal', title: 'School Profile',
+    desc: 'Badge, motto, office contacts, fee note headings and the school’s documents.',
+    cta: 'Open school profile', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Task Hub', icon: 'star', tone: 'orange', title: 'Task Hub',
     desc: 'Every duty the school hands out — class teachers, games master, HODs, TOD, cooks, security — assigned in one place.',
     cta: 'Assign tasks', when: (ctx) => ctx.rankLevel >= 4 },
@@ -589,6 +593,7 @@ export default function TeacherPortal({ onQueueChange }) {
       {tab === 'Fees' && <Fees grade={null} canHandle={ctx.canHandleFees} />}
       {tab === 'Task Hub' && <TaskHub />}
       {tab === 'Messages' && <Messaging grade={null} />}
+      {tab === 'School Profile' && <SchoolProfile />}
       {tab === 'Admissions' && <Admission onAdmitted={load} />}
       {tab === 'My Outcomes' && (
         <>

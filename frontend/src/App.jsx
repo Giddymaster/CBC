@@ -318,6 +318,9 @@ const NAV_SECTIONS = [
   {
     title: 'School',
     items: [
+      // The school's own identity sits at the top of its own section — it was
+      // under Administration and nobody found it there.
+      { name: 'School Profile', label: 'School Profile (Logo, Contacts, Documents)', ownHeading: true },
       { name: 'School', label: 'School (Grades)', ...GRADE_NAV },
       // Staff draws its own heading + "Add staff" button, so the shell skips
       // the generic one.
@@ -373,7 +376,6 @@ const NAV_SECTIONS = [
   {
     title: 'Administration',
     items: [
-      { name: 'School Profile', label: 'School Profile (Logo, Contacts, Documents)', ownHeading: true },
       { name: 'Audit Log', label: 'Audit Log (Who changed what)', ownHeading: true },
       { name: 'Subscription', label: 'Subscription (Billing)', ownHeading: true },
     ],

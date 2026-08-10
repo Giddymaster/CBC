@@ -56,12 +56,36 @@ class ProfileTests(APITestCase):
         self.assertEqual(self.school.motto, "Education is light")
         self.assertEqual(self.school.postal_address, "P.O. Box 42, Nyeri")
 
-    def test_a_teacher_cannot_change_the_school(self):
+    def test_a_class_teacher_cannot_change_the_school(self):
         self.client.force_authenticate(self.teacher.user)
         res = self.client.patch(
             "/api/my-school/profile/", {"motto": "Mine now"}, format="json"
         )
         self.assertEqual(res.status_code, 403)
+
+    def test_the_head_teacher_may_set_the_school_s_details(self):
+        """In a small school the head teacher is the one who knows the postal
+        box — they run the school, so the crest and the contacts are theirs."""
+        head = make_teacher(self.school, rank="HEAD")
+        self.client.force_authenticate(head.user)
+        seen = self.client.get("/api/my-school/profile/")
+        self.assertTrue(seen.data["can_edit"])
+        res = self.client.patch(
+            "/api/my-school/profile/",
+            {"motto": "Education is light", "contact_phone": "0722000111"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.school.refresh_from_db()
+        self.assertEqual(self.school.motto, "Education is light")
+
+    def test_the_deputy_may_too(self):
+        deputy = make_teacher(self.school, rank="DEPUTY")
+        self.client.force_authenticate(deputy.user)
+        res = self.client.patch(
+            "/api/my-school/profile/", {"motto": "Onward"}, format="json"
+        )
+        self.assertEqual(res.status_code, 200, res.data)
 
     def test_registration_facts_stay_with_the_operator(self):
         """A school renaming its own MoE code would break the register it is
@@ -209,6 +233,12 @@ class DocumentTests(APITestCase):
         self.assertEqual(listed.data["count"], 1)
         denied = self._upload("Mine", "POLICY")
         self.assertEqual(denied.status_code, 403)
+
+    def test_the_head_teacher_files_documents_too(self):
+        head = make_teacher(self.school, rank="HEAD")
+        self.client.force_authenticate(head.user)
+        res = self._upload("Board minutes — Term 1", "BOARD")
+        self.assertEqual(res.status_code, 201, res.data)
 
     def test_one_school_never_sees_another_school_s_papers(self):
         self.client.force_authenticate(self.admin)

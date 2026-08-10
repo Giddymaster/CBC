@@ -14,10 +14,24 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.images import downscale_photo
-from apps.common.views import SchoolScopedViewSet, is_admin
+from apps.common.views import SchoolScopedViewSet
 
 from .models import DEFAULT_VOTE_HEADS, SchoolDocument
 from .serializers import SchoolDocumentSerializer, SchoolProfileSerializer
+
+
+def can_edit_profile(user):
+    """The office and the school's leadership.
+
+    The head teacher and deputy run the school; the crest, the motto and the
+    office number are theirs to set as much as the administrator's, and in a
+    small school they are often the only ones who would know the postal box.
+    Every other member of staff reads the page — the office number belongs on
+    a screen they can reach.
+    """
+    from apps.payments.access import is_office, is_school_leadership
+
+    return is_office(user) or is_school_leadership(user)
 
 # What a school may change about itself. An allowlist rather than the whole
 # model: `code` identifies the school to the Ministry and
@@ -46,7 +60,7 @@ class MySchoolProfileView(APIView):
         return Response(
             {
                 **SchoolProfileSerializer(school, context={"request": request}).data,
-                "can_edit": is_admin(request.user),
+                "can_edit": can_edit_profile(request.user),
                 "default_vote_heads": DEFAULT_VOTE_HEADS,
                 "document_categories": [
                     {"value": value, "label": label}
@@ -57,8 +71,10 @@ class MySchoolProfileView(APIView):
 
     def patch(self, request):
         school = self._school()
-        if not is_admin(request.user):
-            raise PermissionDenied("Only the school administrator may edit this.")
+        if not can_edit_profile(request.user):
+            raise PermissionDenied(
+                "The school's details are set by the office or the head teacher."
+            )
 
         data = {key: value for key, value in request.data.items() if key in EDITABLE}
         if "vote_heads" in data:
@@ -112,8 +128,10 @@ class SchoolDocumentViewSet(SchoolScopedViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def _require_admin(self):
-        if not is_admin(self.request.user):
-            raise PermissionDenied("Only the school administrator may file documents.")
+        if not can_edit_profile(self.request.user):
+            raise PermissionDenied(
+                "Documents are filed by the office or the head teacher."
+            )
 
     def perform_create(self, serializer):
         self._require_admin()
