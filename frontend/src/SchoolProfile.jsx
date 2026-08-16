@@ -29,7 +29,6 @@ function Field({ label, value, onChange, placeholder, disabled, type = 'text' })
 
 function Facts({ profile }) {
   const rows = [
-    ['School', profile.name],
     ['MoE code', profile.code],
     ['KEMIS code', profile.kemis_code],
     ['County', [profile.county, profile.subcounty, profile.ward].filter(Boolean).join(' · ')],
@@ -47,7 +46,7 @@ function Facts({ profile }) {
   )
 }
 
-function VoteHeads({ heads, canEdit, onChange }) {
+function VoteHeads({ heads, defaults, canEdit, onChange }) {
   const [adding, setAdding] = useState('')
   const [editing, setEditing] = useState(null)
 
@@ -81,7 +80,8 @@ function VoteHeads({ heads, canEdit, onChange }) {
               }}
             />
           ) : (
-            <span key={head} className="stream-chip">
+            <span key={head} className="stream-chip sp-head-chip">
+              <i className="sp-head-order">{index + 1}</i>
               <button
                 type="button"
                 className="sp-head-name"
@@ -130,10 +130,30 @@ function VoteHeads({ heads, canEdit, onChange }) {
           >
             Add heading
           </button>
+          {defaults?.length > 0 &&
+            JSON.stringify(heads) !== JSON.stringify(defaults) && (
+              <button
+                type="button"
+                className="sp-restore"
+                onClick={() => {
+                  if (window.confirm('Replace these headings with the common Kenyan list?')) {
+                    onChange(defaults)
+                  }
+                }}
+              >
+                Restore the common list
+              </button>
+            )}
         </p>
       )}
     </div>
   )
+}
+
+function fileExt(url) {
+  const tail = (url || '').split('?')[0].split('/').pop() || ''
+  const ext = tail.includes('.') ? tail.split('.').pop() : ''
+  return (ext.length <= 5 ? ext : '').toUpperCase() || 'FILE'
 }
 
 function Documents({ categories, canEdit }) {
@@ -221,7 +241,10 @@ function Documents({ categories, canEdit }) {
       {docs.length === 0 && <p className="muted">Nothing filed yet.</p>}
       {byCategory.map((group) => (
         <div key={group.value} className="sp-doc-group">
-          <h4>{group.label}</h4>
+          <h4>
+            {group.label}
+            <span className="sp-doc-count">{group.items.length}</span>
+          </h4>
           <table>
             <thead>
               <tr><th>Document</th><th>Dated</th><th>Filed by</th><th></th></tr>
@@ -230,6 +253,7 @@ function Documents({ categories, canEdit }) {
               {group.items.map((doc) => (
                 <tr key={doc.id}>
                   <td>
+                    <span className="sp-ext">{fileExt(doc.file_url)}</span>
                     <b>{doc.title}</b>
                     {doc.note && <><br /><span className="muted">{doc.note}</span></>}
                   </td>
@@ -313,42 +337,74 @@ export default function SchoolProfile() {
     load()
   }
 
+  // The hero reads from the draft, not the saved record, so the letterhead
+  // repaints as you type — what you see up top is what the printer will do.
+  const contactLine = [
+    draft.postal_address,
+    [draft.contact_phone, draft.alt_phone].filter(Boolean).join(' / '),
+    draft.contact_email,
+    draft.website,
+  ].filter(Boolean)
+
   return (
     <div>
-      <div className="card">
-        <h3>{profile.name}</h3>
+      <div className="card sp-hero-card">
+        <div className="sp-hero">
+          <div
+            className={`sp-crest${canEdit ? ' editable' : ''}`}
+            role={canEdit ? 'button' : undefined}
+            tabIndex={canEdit ? 0 : undefined}
+            title={canEdit ? 'Change the school badge' : undefined}
+            onClick={() => canEdit && logoRef.current?.click()}
+            onKeyDown={(e) => canEdit && e.key === 'Enter' && logoRef.current?.click()}
+          >
+            {profile.logo_url ? (
+              <img src={profile.logo_url} alt={`${profile.name} badge`} />
+            ) : (
+              <div className="sp-crest-empty">
+                <span aria-hidden="true">＋</span>
+                {canEdit ? 'Add badge' : 'No badge'}
+              </div>
+            )}
+          </div>
+          <div className="sp-hero-text">
+            <h2>{profile.name}</h2>
+            {draft.motto && <div className="sp-motto">“{draft.motto}”</div>}
+            {contactLine.length > 0 && (
+              <div className="sp-contact-line">
+                {contactLine.map((part) => (
+                  <span key={part}>{part}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <input
+          ref={logoRef}
+          type="file"
+          accept="image/*"
+          className="sp-hidden-input"
+          onChange={(e) => uploadLogo(e.target.files[0])}
+        />
+        {canEdit && (
+          <div className="sp-crest-actions">
+            <button onClick={() => logoRef.current?.click()}>
+              {profile.logo_url ? 'Change badge' : 'Upload badge'}
+            </button>
+            {profile.logo_url && <button onClick={removeLogo}>Remove</button>}
+          </div>
+        )}
+        <p className="sp-hero-note">
+          This heading is printed at the top of report cards, fee notes and
+          admission forms — exactly as it appears here.
+        </p>
         <Facts profile={profile} />
         {!canEdit && (
           <p className="muted">
-            You can see the school's details here; only the school administrator
-            can change them.
+            You can see the school's details here; only the office or the head
+            teacher can change them.
           </p>
         )}
-      </div>
-
-      <div className="card">
-        <h3>School badge</h3>
-        <p className="muted">
-          Printed at the top of report cards, fee notes and admission forms.
-        </p>
-        <div className="sp-logo">
-          {profile.logo_url ? (
-            <img src={profile.logo_url} alt={`${profile.name} badge`} />
-          ) : (
-            <div className="sp-logo-empty">No badge</div>
-          )}
-          {canEdit && (
-            <div className="sp-row">
-              <input
-                ref={logoRef}
-                type="file"
-                accept="image/*"
-                onChange={(e) => uploadLogo(e.target.files[0])}
-              />
-              {profile.logo_url && <button onClick={removeLogo}>Remove</button>}
-            </div>
-          )}
-        </div>
       </div>
 
       <div className="card">
@@ -390,6 +446,7 @@ export default function SchoolProfile() {
 
       <VoteHeads
         heads={profile.fee_columns || []}
+        defaults={profile.default_vote_heads || []}
         canEdit={canEdit}
         onChange={saveHeads}
       />
