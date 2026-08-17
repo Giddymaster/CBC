@@ -120,8 +120,8 @@ class AttendanceWriteGuardTests(APITestCase):
 
 class PeerReviewTenancyTests(APITestCase):
     def test_a_teacher_cannot_read_another_schools_peer_reviews(self):
-        from apps.teachers.models import SchemeOfWork
         from apps.teachers.development import PeerReview
+        from apps.teachers.models import SchemeOfWork
         from tests.factories import make_learning_area
 
         school_a = make_school("A")

@@ -67,7 +67,8 @@ class CreateParentLoginTests(APITestCase):
         )
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data["username"], "adm0126")
-        self.assertTrue(res.data["generated_password"])
+        # The first password IS the admission number — nothing extra to hand over.
+        self.assertEqual(res.data["generated_password"], "ADM0126")
         self.guardian.refresh_from_db()
         self.assertIsNotNone(self.guardian.user)
         self.assertEqual(self.guardian.user.role, "PARENT")

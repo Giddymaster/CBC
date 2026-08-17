@@ -135,10 +135,16 @@ class CreateParentLoginView(ObtainAuthToken):
                 "created": False,
             })
 
-        username = learner.admission_number.strip().lower()
+        admission = learner.admission_number.strip()
+        username = admission.lower()
         if User.objects.filter(username__iexact=username).exists():
             username = f"{username}-{secrets.token_hex(2)}"
-        password = secrets.token_urlsafe(6)
+        # The first password IS the admission number — the one thing every
+        # parent already has on the fee slip, so the office hands over nothing
+        # extra. It is a one-time key: must_change_password forces the parent
+        # onto the change-password screen before anything else, enforced both in
+        # the app and server-side (see accounts.permissions.PasswordChangeEnforced).
+        password = admission
         account = User.objects.create_user(
             username=username,
             password=password,
@@ -160,8 +166,8 @@ class CreateParentLoginView(ObtainAuthToken):
             "learner": learner.full_name,
             "created": True,
             "detail": (
-                "Hand these over now — the password is not shown again. The "
-                "parent signs in with the admission number and chooses their "
-                "own password."
+                "The parent signs in with the admission number as both the "
+                "username and the password, then sets their own password on the "
+                "first screen."
             ),
         }, status=201)
