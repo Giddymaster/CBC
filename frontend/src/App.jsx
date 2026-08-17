@@ -67,6 +67,17 @@ const LOGIN_ROLES = {
     passLabel: 'Password',
     hint: 'School office and administrators.',
   },
+  // The platform owner — the one who enrols schools. Deliberately absent from
+  // the public login menu, reached only at /operator/login, and never asked for
+  // a school code because an operator belongs to no single school.
+  operator: {
+    heading: 'Operator sign-in',
+    userLabel: 'Username',
+    passLabel: 'Password',
+    hideCode: true,
+    hideTabs: true,
+    hint: 'Platform operator — school onboarding and billing.',
+  },
 }
 
 function Login({ onLogin }) {
@@ -76,7 +87,12 @@ function Login({ onLogin }) {
     () => new URLSearchParams(window.location.search).get('school') || '',
   )
   const [error, setError] = useState('')
-  const asRole = new URLSearchParams(window.location.search).get('as')
+  // The operator has its own door at /operator/login; everyone else picks a
+  // role with ?as=. Reading the operator role from the path keeps it out of the
+  // public ?as= menu.
+  const asRole = window.location.pathname === '/operator/login'
+    ? 'operator'
+    : new URLSearchParams(window.location.search).get('as')
   const role = LOGIN_ROLES[asRole] || {
     heading: 'Sign in',
     userLabel: 'Username or admission number',
@@ -110,7 +126,7 @@ function Login({ onLogin }) {
     <form className="login" onSubmit={submit}>
       <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
       <h2>{role.heading}</h2>
-      {asRole && (
+      {asRole && !role.hideTabs && (
         <div className="login-tabs">
           {['parent', 'staff', 'admin'].map((r) => (
             <a key={r} href={`/login?as=${r}`}
@@ -122,10 +138,13 @@ function Login({ onLogin }) {
       )}
       {/* The school code names the tenant, so an admission number resolves to
           the right school and a login can never land on the wrong one. Required
-          for parents; optional for staff, whose usernames are unique. */}
-      <input placeholder={role.codeRequired ? 'School code' : 'School code (optional)'}
-        value={schoolCode} autoComplete="off"
-        onChange={(e) => setSchoolCode(e.target.value)} />
+          for parents; optional for staff, whose usernames are unique. The
+          operator belongs to no school, so it never sees this field. */}
+      {!role.hideCode && (
+        <input placeholder={role.codeRequired ? 'School code' : 'School code (optional)'}
+          value={schoolCode} autoComplete="off"
+          onChange={(e) => setSchoolCode(e.target.value)} />
+      )}
       <input placeholder={role.userLabel} value={username}
         autoComplete="username"
         onChange={(e) => setUsername(e.target.value)} />
@@ -488,11 +507,12 @@ export default function App() {
   const [syncNote, setSyncNote] = useState('')
   const path = usePath()
 
-  // Signed out → /login, whatever was typed. The target tab survives in the
-  // URL only until the redirect; keeping it would mean encoding state nobody
-  // asked to keep.
+  // Signed out → the sign-in page. /operator/login is the platform owner's own
+  // door (no school code), kept off the public login menu, so it is allowed to
+  // stand alongside /login rather than being bounced to it.
   useEffect(() => {
-    if (!authed && window.location.pathname !== '/login') {
+    const p = window.location.pathname
+    if (!authed && p !== '/login' && p !== '/operator/login') {
       goTo('/login', { replace: true })
     }
   }, [authed])
@@ -504,11 +524,17 @@ export default function App() {
     if (!authed || !me || me.must_change_password) return
     const base = basePathFor(me)          // e.g. /demo-junior-school/admin
     const isAdmin = portalFor(me) === 'admin'
-    if (!path.startsWith(base)) {
-      goTo(isAdmin ? `${base}/${slugify(tab)}` : base, { replace: true })
+    if (!isAdmin) {
+      // Teacher, staff, parent and operator portals keep their own tab state
+      // in React, not the URL, so they sit at exactly their base — this also
+      // normalises the operator away from /operator/login after signing in.
+      if (path !== base) goTo(base, { replace: true })
       return
     }
-    if (!isAdmin) return
+    if (!path.startsWith(base)) {
+      goTo(`${base}/${slugify(tab)}`, { replace: true })
+      return
+    }
     const segment = path.slice(base.length).replace(/^\/+/, '').split('/')[0]
     const name = SLUG_TO_TAB[segment]
     if (name && name !== tab) {
