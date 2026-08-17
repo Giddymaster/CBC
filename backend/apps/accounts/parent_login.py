@@ -139,12 +139,14 @@ class CreateParentLoginView(ObtainAuthToken):
         username = admission.lower()
         if User.objects.filter(username__iexact=username).exists():
             username = f"{username}-{secrets.token_hex(2)}"
-        # The first password IS the admission number — the one thing every
-        # parent already has on the fee slip, so the office hands over nothing
-        # extra. It is a one-time key: must_change_password forces the parent
-        # onto the change-password screen before anything else, enforced both in
-        # the app and server-side (see accounts.permissions.PasswordChangeEnforced).
-        password = admission
+        # Two things the parent already has off the report form, so the office
+        # hands over nothing and nobody has to guess: the admission number is the
+        # username, the UPI is the first password. Where a learner has no UPI yet
+        # the admission number stands in for both. Either way it is a one-time
+        # key — must_change_password forces the parent onto the change-password
+        # screen first (enforced in the app and by PasswordChangeEnforced).
+        upi = (learner.upi or "").strip()
+        password = upi or admission
         account = User.objects.create_user(
             username=username,
             password=password,
@@ -166,8 +168,8 @@ class CreateParentLoginView(ObtainAuthToken):
             "learner": learner.full_name,
             "created": True,
             "detail": (
-                "The parent signs in with the admission number as both the "
-                "username and the password, then sets their own password on the "
-                "first screen."
+                "The parent signs in with the admission number as the username "
+                f"and the {'UPI' if upi else 'admission number'} as the password, "
+                "then sets their own password on the first screen."
             ),
         }, status=201)

@@ -43,10 +43,42 @@ import SupportPortal from './StaffPortal.jsx'
 import TeacherPortal from './TeacherPortal.jsx'
 import Timetable from './Timetable.jsx'
 
+// The landing page links here as /login?as=parent|staff|admin. The role only
+// tailors the labels and the hint — everyone authenticates through the same
+// endpoint, and the app routes each account to its own portal after sign-in, so
+// "redirect correctly" needs no role in the URL beyond this cue.
+const LOGIN_ROLES = {
+  parent: {
+    heading: 'Parent sign-in',
+    userLabel: "Child's admission number",
+    passLabel: 'UPI number',
+    hint: "First time? Username is your child's admission number, password is their UPI — both on the report form. You'll set your own password next.",
+  },
+  staff: {
+    heading: 'Staff sign-in',
+    userLabel: 'Username',
+    passLabel: 'Password',
+    hint: 'Teachers and support staff: use the username and password the office gave you.',
+  },
+  admin: {
+    heading: 'Administrator sign-in',
+    userLabel: 'Username',
+    passLabel: 'Password',
+    hint: 'School office and administrators.',
+  },
+}
+
 function Login({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const asRole = new URLSearchParams(window.location.search).get('as')
+  const role = LOGIN_ROLES[asRole] || {
+    heading: 'Sign in',
+    userLabel: 'Username or admission number',
+    passLabel: 'Password',
+    hint: "Parents: sign in with your child's admission number and UPI.",
+  }
 
   async function submit(e) {
     e.preventDefault()
@@ -68,21 +100,29 @@ function Login({ onLogin }) {
 
   return (
     <form className="login" onSubmit={submit}>
-      <h2>CBC School Management</h2>
-      <input placeholder="Username or admission number" value={username}
+      <h2>{role.heading}</h2>
+      {asRole && (
+        <div className="login-tabs">
+          {['parent', 'staff', 'admin'].map((r) => (
+            <a key={r} href={`/login?as=${r}`}
+              className={`login-tab${asRole === r ? ' active' : ''}`}>
+              {r === 'parent' ? 'Parent' : r === 'staff' ? 'Staff' : 'Admin'}
+            </a>
+          ))}
+        </div>
+      )}
+      <input placeholder={role.userLabel} value={username}
         autoComplete="username"
         onChange={(e) => setUsername(e.target.value)} />
       <PasswordInput
-        placeholder="Password"
+        placeholder={role.passLabel}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         autoComplete="current-password"
       />
       <button className="primary" type="submit">Sign in</button>
-      {/* Parents are given their child's admission number, not a username
-          the school invented for them. */}
       <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
-        Parents: sign in with your child's admission number or UPI.
+        {role.hint}
       </p>
       {error && <div className="error">{error}</div>}
     </form>

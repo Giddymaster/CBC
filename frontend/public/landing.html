@@ -133,8 +133,26 @@
   .brand img { width: 30px; height: 30px; }
   .nav-links { display: flex; gap: 1.25rem; align-items: center; }
   .nav-links a { color: var(--muted); font-weight: 600; font-size: 0.92rem; }
-  .nav-links a.cta { background: var(--brand); color: #fff; padding: 0.5rem 1rem; border-radius: 8px; }
-  @media (max-width: 640px) { .nav-links a:not(.cta) { display: none; } }
+  .nav-links a.cta, .nav-links .cta { background: var(--brand); color: #fff; padding: 0.5rem 1rem; border-radius: 8px; border: none; font: inherit; font-weight: 600; cursor: pointer; }
+  @media (max-width: 640px) { .nav-links > a:not(.cta) { display: none; } }
+  .login-menu { position: relative; }
+  .login-dropdown {
+    position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 30;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.16); overflow: hidden; min-width: 15rem;
+  }
+  .login-dropdown a { display: block; padding: 0.7rem 1rem; color: var(--fg); border-bottom: 1px solid var(--border); }
+  .login-dropdown a:last-child { border-bottom: none; }
+  .login-dropdown a:hover { background: var(--card); }
+  .login-dropdown b { display: block; font-size: 0.95rem; }
+  .login-dropdown span { font-size: 0.78rem; color: var(--faint); }
+  .hero-logins { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-top: 1.1rem; }
+  .hero-logins span { color: #bfdbfe; font-size: 0.9rem; }
+  .hero-logins a {
+    color: #fff; font-weight: 600; font-size: 0.9rem; padding: 0.35rem 0.85rem;
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 999px;
+  }
+  .hero-logins a:hover { background: rgba(255,255,255,0.15); }
 
   /* Hero */
   .hero { background: linear-gradient(160deg, var(--hero-grad-a), var(--hero-grad-b)); color: #fff; padding: 4rem 0 4.5rem; }
@@ -209,7 +227,14 @@
       <a href="#features">Features</a>
       <a href="#who">Who it's for</a>
       <a href="#faq">FAQ</a>
-      <a class="cta" href="/login">Log in</a>
+      <div class="login-menu">
+        <button class="cta" id="login-toggle" aria-haspopup="true" aria-expanded="false">Log in ▾</button>
+        <div class="login-dropdown" id="login-dropdown" hidden>
+          <a href="/login?as=parent"><b>Parent</b><span>Your child's records</span></a>
+          <a href="/login?as=staff"><b>Teacher / Staff</b><span>Your classes and duties</span></a>
+          <a href="/login?as=admin"><b>Administrator</b><span>The school office</span></a>
+        </div>
+      </div>
     </nav>
   </div>
 </header>
@@ -221,9 +246,15 @@
       <h1>The whole school, in one nest.</h1>
       <p class="lead">Shulenest runs the CBC school day end to end — reports with competency levels, fees with M-Pesa, attendance, timetables and parent messaging — on any phone, even when the network drops.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="/login">Get started free</a>
+        <a class="btn btn-primary" href="/login?as=admin">Get started free</a>
         <button class="btn btn-accent" id="install-btn" hidden>📲 Install the app</button>
         <a class="btn btn-ghost" id="apk-btn" href="/shulenest.apk" download hidden>⬇ Download Android APK</a>
+      </div>
+      <div class="hero-logins">
+        <span>Sign in as</span>
+        <a href="/login?as=parent">Parent</a>
+        <a href="/login?as=staff">Teacher / Staff</a>
+        <a href="/login?as=admin">Administrator</a>
       </div>
       <p class="hero-note">Free to try. No card. Set up your school in an afternoon.</p>
     </div>
@@ -465,6 +496,27 @@
         if (soon) soon.hidden = true;
       }
     } catch (e) { /* offline or blocked — leave the APK button hidden */ }
+  })();
+
+  // Log-in dropdown: open on click, close on outside click or Escape.
+  (function () {
+    const toggle = document.getElementById('login-toggle');
+    const menu = document.getElementById('login-dropdown');
+    if (!toggle || !menu) return;
+    const setOpen = (open) => {
+      menu.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+    };
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(menu.hidden);
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !menu.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
   })();
 
   document.getElementById('yr').textContent = new Date().getFullYear();

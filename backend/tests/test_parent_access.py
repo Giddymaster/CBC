@@ -56,32 +56,42 @@ class CreateParentLoginTests(APITestCase):
         self.school = make_school()
         self.admin = make_user(self.school, "ADMIN")
         self.learner = make_learner(
-            self.school, grade=5, admission_number="ADM0126",
+            self.school, grade=5, admission_number="ADM0126", upi="UPI777",
         )
         self.guardian = make_guardian(self.school, learners=[self.learner])
 
-    def test_the_office_issues_a_login_keyed_to_the_admission_number(self):
+    def test_the_office_issues_a_login_admission_number_as_username_upi_as_password(self):
         self.client.force_authenticate(self.admin)
         res = self.client.post(
             "/api/parent-logins/", {"learner": self.learner.id}, format="json",
         )
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data["username"], "adm0126")
-        # The first password IS the admission number — nothing extra to hand over.
-        self.assertEqual(res.data["generated_password"], "ADM0126")
+        # Admission number is the username, the UPI is the first password —
+        # two things the parent already has on the report form.
+        self.assertEqual(res.data["generated_password"], "UPI777")
         self.guardian.refresh_from_db()
         self.assertIsNotNone(self.guardian.user)
         self.assertEqual(self.guardian.user.role, "PARENT")
         self.assertTrue(self.guardian.user.must_change_password)
 
-        # And that login works by admission number straight away.
+        # Login with admission number + UPI works straight away.
         self.client.force_authenticate(None)
         signin = self.client.post(
             "/api/auth/token/",
-            {"username": "ADM0126", "password": res.data["generated_password"]},
+            {"username": "ADM0126", "password": "UPI777"},
             format="json",
         )
         self.assertEqual(signin.status_code, 200, signin.data)
+
+    def test_without_a_upi_the_admission_number_stands_in_for_the_password(self):
+        no_upi = make_learner(self.school, grade=5, admission_number="ADM0200", upi="")
+        make_guardian(self.school, learners=[no_upi])
+        self.client.force_authenticate(self.admin)
+        res = self.client.post(
+            "/api/parent-logins/", {"learner": no_upi.id}, format="json",
+        )
+        self.assertEqual(res.data["generated_password"], "ADM0200")
 
     def test_a_family_that_already_has_one_is_not_given_another(self):
         self.client.force_authenticate(self.admin)
