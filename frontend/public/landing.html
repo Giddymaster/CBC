@@ -129,8 +129,12 @@
   /* Header */
   header.site { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
   .nav { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 0; }
-  .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.15rem; color: var(--fg); }
-  .brand img { width: 30px; height: 30px; }
+  .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 900; font-size: 1.3rem; color: var(--fg); letter-spacing: 0.2px; }
+  .brand img { width: 34px; height: 34px; }
+  .wm-s { color: #1a3a8f; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wm-s { color: #8fb3ff; } }
+  :root[data-theme="dark"] .wm-s { color: #8fb3ff; }
+  .wm-n { background: linear-gradient(90deg,#e53935 0%,#fb8c00 33%,#43a047 66%,#8e24aa 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .nav-links { display: flex; gap: 1.25rem; align-items: center; }
   .nav-links a { color: var(--muted); font-weight: 600; font-size: 0.92rem; }
   .nav-links a.cta, .nav-links .cta { background: var(--brand); color: #fff; padding: 0.5rem 1rem; border-radius: 8px; border: none; font: inherit; font-weight: 600; cursor: pointer; }
@@ -222,7 +226,7 @@
 
 <header class="site">
   <div class="wrap nav">
-    <a class="brand" href="/"><img src="/icon.svg" alt="Shulenest logo" /> Shulenest</a>
+    <a class="brand" href="/"><img src="/icon.svg" alt="" /> <span class="wm"><span class="wm-s">Shule</span><span class="wm-n">Nest</span></span></a>
     <nav class="nav-links">
       <a href="#features">Features</a>
       <a href="#who">Who it's for</a>
@@ -435,7 +439,7 @@
 <footer class="site">
   <div class="wrap foot-grid">
     <div>
-      <a class="brand" href="/" style="color:var(--fg);"><img src="/icon.svg" alt="" width="24" height="24" style="vertical-align:middle;" /> Shulenest</a>
+      <a class="brand" href="/" style="color:var(--fg);"><img src="/icon.svg" alt="" width="26" height="26" style="vertical-align:middle;" /> <span class="wm"><span class="wm-s">Shule</span><span class="wm-n">Nest</span></span></a>
       <p style="max-width:32ch; margin:0.6rem 0 0;">A CBC school management system for Kenyan schools. Every school its own nest.</p>
     </div>
     <div>

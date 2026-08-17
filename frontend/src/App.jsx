@@ -108,6 +108,7 @@ function Login({ onLogin }) {
 
   return (
     <form className="login" onSubmit={submit}>
+      <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
       <h2>{role.heading}</h2>
       {asRole && (
         <div className="login-tabs">
@@ -616,12 +617,12 @@ export default function App() {
   const Active = TABS[tab]
 
   const title = isParent
-    ? 'CBC Parent Portal'
+    ? 'Parent Portal'
     : isTeacher
-      ? 'CBC Teacher Portal'
+      ? 'Teacher Portal'
       : isSupport
-        ? 'CBC Staff Portal'
-        : 'CBC School Management'
+        ? 'Staff Portal'
+        : 'School Management'
 
   const withOptions = (item) =>
     item.dynamicOptions === 'facilityCategories'
@@ -653,7 +654,11 @@ export default function App() {
   return (
     <div className="admin-shell">
       <header className="topbar">
-        <h1>{title}</h1>
+        <h1 className="brand-h1">
+          <img src="/icon.svg" alt="" className="brand-mark" />
+          <span className="wm"><span className="wm-s">Shule</span><span className="wm-n">Nest</span></span>
+          <span className="brand-sub">{title}</span>
+        </h1>
         <div className="userlinks">
           {/* Every staff login gets the bell — a supervisor's message lands in
               the teacher and support portals, not just the admin shell. */}

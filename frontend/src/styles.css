@@ -27,6 +27,21 @@ header.topbar h1 {
   color: #f5dd5d;
   font-weight: 500;
 }
+/* Brand lockup in the topbar: nest mark + ShuleNest wordmark + portal name. */
+.brand-h1 { display: flex; align-items: center; gap: 0.55rem; }
+.brand-mark { width: 34px; height: 34px; flex-shrink: 0; }
+.brand-h1 .wm { font-weight: 900; font-size: 1.3rem; letter-spacing: 0.2px; }
+.wm-s { color: #fff; }
+.wm-n {
+  background: linear-gradient(90deg,#ff6a5f 0%,#ffb14e 33%,#6fd07a 66%,#c07de0 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.brand-sub {
+  font-size: 0.9rem; font-weight: 500; color: #dbeafe; opacity: 0.9;
+  padding-left: 0.6rem; margin-left: 0.15rem; border-left: 1px solid rgba(255,255,255,0.3);
+}
+@media (max-width: 640px) { .brand-sub { display: none; } }
+.login-logo { width: 100%; max-width: 260px; height: auto; margin: 0 auto 0.5rem; display: block; }
 header.topbar .userlinks {
   display: flex;
   align-items: center;
