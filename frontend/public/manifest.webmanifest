@@ -1,8 +1,8 @@
 {
-  "name": "CBC School Management",
-  "short_name": "CBC SMS",
-  "description": "CBC school portal — reports, fees, announcements",
-  "start_url": "/",
+  "name": "Shulenest — School Management",
+  "short_name": "Shulenest",
+  "description": "CBC school management — reports, fees, attendance, timetables and parent messaging",
+  "start_url": "/login",
   "display": "standalone",
   "background_color": "#f7fafc",
   "theme_color": "#2b6cb0",

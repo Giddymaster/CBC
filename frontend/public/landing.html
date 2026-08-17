@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shulenest — CBC School Management System for Kenyan Schools</title>
+<meta name="description" content="Shulenest is a CBC school management system for Kenyan schools: assessment reports with competency levels, fees with M-Pesa, attendance, timetables, and bulk SMS & WhatsApp to parents. Works on any phone, even offline." />
+<meta name="keywords" content="CBC school management system, school software Kenya, CBC report card, KICD competency based curriculum, school fees M-Pesa, bulk SMS parents Kenya, school timetable generator, KEMIS UPI, parent portal, Shulenest" />
+<meta name="author" content="Shulenest" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<link rel="canonical" href="https://shulenest.com/" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<meta name="theme-color" content="#2b6cb0" />
+
+<!-- Open Graph (Facebook, WhatsApp link previews, LinkedIn) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Shulenest" />
+<meta property="og:title" content="Shulenest — CBC School Management for Kenyan Schools" />
+<meta property="og:description" content="Reports with competency levels, fees with M-Pesa, attendance, timetables and bulk SMS & WhatsApp to parents. Runs on any phone, even offline." />
+<meta property="og:url" content="https://shulenest.com/" />
+<meta property="og:image" content="https://shulenest.com/og-cover.png" />
+<meta property="og:locale" content="en_KE" />
+
+<!-- Twitter / X card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Shulenest — CBC School Management for Kenyan Schools" />
+<meta name="twitter:description" content="One system for CBC reports, fees, attendance, timetables and parent messaging. Works offline." />
+<meta name="twitter:image" content="https://shulenest.com/og-cover.png" />
+
+<!-- Structured data: what the school-software is, who makes it, and the FAQ.
+     Search engines and AI answer-engines read this to describe Shulenest. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Shulenest",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, Android",
+      "description": "A CBC (Competency-Based Curriculum) school management system for Kenyan schools. Handles assessment reports with competency levels, school fees with M-Pesa, attendance registers, automatic timetables, and bulk SMS and WhatsApp to parents.",
+      "url": "https://shulenest.com/",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "KES", "description": "Free trial" },
+      "featureList": [
+        "CBC assessment reports with EE/ME/AE/BE competency levels",
+        "Class broadsheets and printable report forms",
+        "School fees with itemised vote heads and M-Pesa payments",
+        "Daily attendance registers and monthly calendars",
+        "Automatic timetable generation",
+        "Bulk SMS and WhatsApp notices to parents",
+        "Parent portal with a child's ADM/UPI login",
+        "Works offline and syncs when back online"
+      ],
+      "areaServed": { "@type": "Country", "name": "Kenya" }
+    },
+    {
+      "@type": "Organization",
+      "name": "Shulenest",
+      "url": "https://shulenest.com/",
+      "logo": "https://shulenest.com/icon.svg",
+      "slogan": "Every school its own nest."
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Shulenest built for the CBC curriculum?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Shulenest is built for Kenya's Competency-Based Curriculum. Reports show competency levels (Exceeding, Meeting, Approaching and Below Expectation) per learning area, seeded from the MoE catalogue, from Pre-Primary through Senior School." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can parents pay school fees through Shulenest?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Fees are itemised by vote head, and parents can pay by M-Pesa against their child's admission number. The office sees a live register with balances, and report cards carry the fee balance and next term's fee." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Shulenest work without a reliable internet connection?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Score entry and other writes are saved on the device when the connection drops and sync automatically once it returns, so a teacher can mark a class in a room with no signal." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can the school message all parents at once?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The office can send a bulk SMS or WhatsApp notice to the whole school, one class, or only the families with a fee balance, with a preview of who it reaches before sending." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there an Android app?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Shulenest installs as an app on any phone straight from the browser, and an Android APK is available to download for schools that prefer it." }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a202c; --muted: #4a5568; --faint: #718096;
+    --brand: #2b6cb0; --brand-dark: #234e78; --accent: #dd6b20;
+    --card: #f7fafc; --border: #e2e8f0; --hero-grad-a: #2b6cb0; --hero-grad-b: #234e78;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {}
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1723; --fg: #e2e8f0; --muted: #a0aec0; --faint: #718096;
+      --brand: #63b3ed; --brand-dark: #4299e1; --accent: #f6ad55;
+      --card: #1a2433; --border: #2d3748; --hero-grad-a: #1a365d; --hero-grad-b: #0f2544;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1723; --fg: #e2e8f0; --muted: #a0aec0; --faint: #718096;
+    --brand: #63b3ed; --brand-dark: #4299e1; --accent: #f6ad55;
+    --card: #1a2433; --border: #2d3748; --hero-grad-a: #1a365d; --hero-grad-b: #0f2544;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); text-decoration: none; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
+  h1, h2, h3 { line-height: 1.2; }
+
+  /* Header */
+  header.site { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 0; }
+  .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.15rem; color: var(--fg); }
+  .brand img { width: 30px; height: 30px; }
+  .nav-links { display: flex; gap: 1.25rem; align-items: center; }
+  .nav-links a { color: var(--muted); font-weight: 600; font-size: 0.92rem; }
+  .nav-links a.cta { background: var(--brand); color: #fff; padding: 0.5rem 1rem; border-radius: 8px; }
+  @media (max-width: 640px) { .nav-links a:not(.cta) { display: none; } }
+
+  /* Hero */
+  .hero { background: linear-gradient(160deg, var(--hero-grad-a), var(--hero-grad-b)); color: #fff; padding: 4rem 0 4.5rem; }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); margin: 0 0 1rem; letter-spacing: -0.02em; }
+  .hero p.lead { font-size: clamp(1.05rem, 2.5vw, 1.3rem); color: #dbeafe; max-width: 40ch; margin: 0 0 2rem; }
+  .hero .eyebrow { display: inline-block; background: rgba(255,255,255,0.15); padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.03em; margin-bottom: 1.2rem; }
+  .cta-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.8rem 1.4rem; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; border: none; }
+  .btn-primary { background: #fff; color: var(--brand-dark); }
+  .btn-ghost { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .hero-note { margin-top: 1rem; font-size: 0.85rem; color: #bfdbfe; }
+
+  /* Trust bar */
+  .trust { padding: 1.5rem 0; border-bottom: 1px solid var(--border); }
+  .trust-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; text-align: center; }
+  .trust b { display: block; font-size: 1.5rem; color: var(--brand); }
+  .trust span { font-size: 0.82rem; color: var(--faint); }
+
+  /* Sections */
+  section { padding: 3.5rem 0; }
+  .section-head { text-align: center; max-width: 44ch; margin: 0 auto 2.5rem; }
+  .section-head h2 { font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0 0 0.6rem; }
+  .section-head p { color: var(--muted); margin: 0; }
+
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; }
+  .feature { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
+  .feature .ic { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--brand) 15%, transparent); font-size: 1.4rem; margin-bottom: 0.9rem; }
+  .feature h3 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+  .feature p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+
+  /* Audience */
+  .who { background: var(--card); }
+  .who-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; }
+  .who-card { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
+  .who-card h3 { margin: 0 0 0.6rem; color: var(--brand); }
+  .who-card ul { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.92rem; }
+  .who-card li { margin-bottom: 0.35rem; }
+
+  /* Download / install */
+  .get { text-align: center; }
+  .get .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; max-width: 760px; margin: 2rem auto 0; }
+  .get-card { border: 1px solid var(--border); border-radius: 14px; padding: 1.75rem; background: var(--card); }
+  .get-card h3 { margin: 0.3rem 0 0.5rem; }
+  .get-card p { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.2rem; }
+  .get-card .big-ic { font-size: 2rem; }
+
+  /* FAQ */
+  details { border: 1px solid var(--border); border-radius: 10px; padding: 0.4rem 1rem; margin-bottom: 0.7rem; background: var(--card); }
+  details summary { cursor: pointer; font-weight: 700; padding: 0.6rem 0; list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; float: right; color: var(--brand); font-weight: 700; }
+  details[open] summary::after { content: "–"; }
+  details p { color: var(--muted); margin: 0 0 0.8rem; }
+
+  /* Footer */
+  footer.site { border-top: 1px solid var(--border); padding: 2.5rem 0; color: var(--faint); font-size: 0.88rem; }
+  .foot-grid { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; }
+  .foot-grid a { color: var(--muted); display: block; margin-bottom: 0.3rem; }
+
+  .final-cta { background: linear-gradient(160deg, var(--hero-grad-a), var(--hero-grad-b)); color: #fff; text-align: center; }
+  .final-cta h2 { font-size: clamp(1.6rem, 4vw, 2.4rem); margin: 0 0 0.8rem; }
+  .final-cta p { color: #dbeafe; margin: 0 0 1.8rem; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="/"><img src="/icon.svg" alt="Shulenest logo" /> Shulenest</a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#who">Who it's for</a>
+      <a href="#faq">FAQ</a>
+      <a class="cta" href="/login">Log in</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Built for Kenya's CBC</span>
+      <h1>The whole school, in one nest.</h1>
+      <p class="lead">Shulenest runs the CBC school day end to end — reports with competency levels, fees with M-Pesa, attendance, timetables and parent messaging — on any phone, even when the network drops.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/login">Get started free</a>
+        <button class="btn btn-accent" id="install-btn" hidden>📲 Install the app</button>
+        <a class="btn btn-ghost" href="/shulenest.apk" download>⬇ Download Android APK</a>
+      </div>
+      <p class="hero-note">Free to try. No card. Set up your school in an afternoon.</p>
+    </div>
+  </section>
+
+  <section class="trust" aria-label="At a glance">
+    <div class="wrap trust-grid">
+      <div><b>PP1–G12</b><span>Every CBC level, MoE catalogue seeded</span></div>
+      <div><b>M-Pesa</b><span>Fees paid by admission number</span></div>
+      <div><b>Offline</b><span>Mark a class with no signal</span></div>
+      <div><b>SMS + WhatsApp</b><span>One notice, every parent</span></div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>One system, not seven spreadsheets</h2>
+        <p>Everything a Kenyan school keeps in books, ledgers and WhatsApp groups — in one place the whole staff can reach.</p>
+      </div>
+      <div class="features">
+        <article class="feature">
+          <div class="ic">📊</div>
+          <h3>CBC assessment &amp; reports</h3>
+          <p>Enter marks by class, learning area and assessment. Competency levels (EE/ME/AE/BE) are worked out for you, with class broadsheets and printable report forms on your own letterhead.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">💰</div>
+          <h3>Fees &amp; M-Pesa</h3>
+          <p>Itemised fee structures by vote head, a live register with balances, and parents paying by M-Pesa against a child's admission number. The report form carries the balance and next term's fee.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">✅</div>
+          <h3>Attendance</h3>
+          <p>The class teacher marks a daily register; the head and deputy see a month calendar at a glance. Present, absent or on health leave, per learner, per day.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">📅</div>
+          <h3>Automatic timetables</h3>
+          <p>Generate a conflict-free wall-chart timetable across the school, with teachers assigned to the periods they teach and every period filled.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">💬</div>
+          <h3>Bulk SMS &amp; WhatsApp</h3>
+          <p>Send a notice to the whole school, one class, or only the families still owing — with a preview of exactly who it reaches, and their own child's name merged in, before a shilling is spent.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">👨‍👩‍👧</div>
+          <h3>Parent portal</h3>
+          <p>Parents sign in with their child's admission or UPI number and see the profile, assessments, fee balance and the school's notices — nothing of any other family's.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">📶</div>
+          <h3>Works offline</h3>
+          <p>Score entry and registers save on the device when the connection drops and sync the moment it returns. A room with no signal is not a reason to fall back to paper.</p>
+        </article>
+        <article class="feature">
+          <div class="ic">🗂️</div>
+          <h3>Staff, streams &amp; documents</h3>
+          <p>A staff register, streams and learning areas per grade, a task hub for duties, and a filing cabinet for the school's certificates, policies and minutes.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="who" class="who">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>For everyone in the school</h2>
+        <p>One login each, and each sees only what their job needs.</p>
+      </div>
+      <div class="who-grid">
+        <div class="who-card">
+          <h3>Teachers</h3>
+          <ul>
+            <li>Enter scores for your own classes</li>
+            <li>Schemes of work and lesson plans</li>
+            <li>Your timetable on your phone</li>
+            <li>Mark your class register</li>
+          </ul>
+        </div>
+        <div class="who-card">
+          <h3>The office &amp; bursar</h3>
+          <ul>
+            <li>Admissions and the learner roll</li>
+            <li>Fees, receipts and the register</li>
+            <li>Bulk messages to parents</li>
+            <li>The school's profile and documents</li>
+          </ul>
+        </div>
+        <div class="who-card">
+          <h3>Head &amp; deputy</h3>
+          <ul>
+            <li>Whole-school performance by subject</li>
+            <li>Approve schemes of work</li>
+            <li>Assign duties and class teachers</li>
+            <li>See fees and attendance across grades</li>
+          </ul>
+        </div>
+        <div class="who-card">
+          <h3>Parents</h3>
+          <ul>
+            <li>Your child's assessments and levels</li>
+            <li>Fee balance and structure</li>
+            <li>School notices and meetings</li>
+            <li>Sign in with the admission number</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="get" class="get">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Get Shulenest on every phone</h2>
+        <p>Install it like an app from the browser, or download the Android APK. No Play Store account needed.</p>
+      </div>
+      <div class="cards">
+        <div class="get-card">
+          <div class="big-ic">📲</div>
+          <h3>Install from the browser</h3>
+          <p>Open Shulenest, then "Add to Home screen". It runs full-screen like any app and works offline.</p>
+          <button class="btn btn-primary" id="install-btn-2" style="margin:0 auto;" hidden>Install now</button>
+          <a class="btn btn-ghost" id="install-fallback" href="/login" style="margin:0 auto; color:var(--brand); border-color:var(--border);">Open Shulenest</a>
+        </div>
+        <div class="get-card">
+          <div class="big-ic">🤖</div>
+          <h3>Android APK</h3>
+          <p>Prefer a real install file? Download the signed Android app and open it on the phone.</p>
+          <a class="btn btn-accent" href="/shulenest.apk" download style="margin:0 auto;">Download APK</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap" style="max-width:760px;">
+      <div class="section-head">
+        <h2>Questions schools ask</h2>
+      </div>
+      <details open>
+        <summary>Is Shulenest built for the CBC curriculum?</summary>
+        <p>Yes. Reports show competency levels — Exceeding, Meeting, Approaching and Below Expectation — per learning area, seeded from the MoE catalogue, from Pre-Primary through Senior School.</p>
+      </details>
+      <details>
+        <summary>Can parents pay school fees through Shulenest?</summary>
+        <p>Yes. Fees are itemised by vote head, and parents pay by M-Pesa against their child's admission number. The office sees a live register with balances, and report forms carry the fee balance and next term's fee.</p>
+      </details>
+      <details>
+        <summary>Does it work without reliable internet?</summary>
+        <p>Yes. Score entry and registers are saved on the device when the connection drops and sync automatically once it returns — so a teacher can mark a class in a room with no signal.</p>
+      </details>
+      <details>
+        <summary>Can we message all parents at once?</summary>
+        <p>Yes. Send a bulk SMS or WhatsApp notice to the whole school, one class, or only families with a fee balance, with a preview of who it reaches before sending.</p>
+      </details>
+      <details>
+        <summary>Is our data private from other schools?</summary>
+        <p>Every school's records are isolated. A parent sees only their own children; staff see only their own school; and uploaded files are served through private, expiring links, never a public folder.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <div class="wrap">
+      <h2>Move your school off paper this term</h2>
+      <p>Set up your grades, admit your learners, and send your first report cards — in an afternoon.</p>
+      <div class="cta-row" style="justify-content:center;">
+        <a class="btn btn-primary" href="/login">Get started free</a>
+        <a class="btn btn-ghost" href="/shulenest.apk" download>Download APK</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap foot-grid">
+    <div>
+      <a class="brand" href="/" style="color:var(--fg);"><img src="/icon.svg" alt="" width="24" height="24" style="vertical-align:middle;" /> Shulenest</a>
+      <p style="max-width:32ch; margin:0.6rem 0 0;">A CBC school management system for Kenyan schools. Every school its own nest.</p>
+    </div>
+    <div>
+      <strong style="color:var(--fg);">Product</strong>
+      <a href="#features">Features</a>
+      <a href="#who">Who it's for</a>
+      <a href="#get">Download</a>
+      <a href="/login">Log in</a>
+    </div>
+    <div>
+      <strong style="color:var(--fg);">School</strong>
+      <a href="/login">Parent sign-in</a>
+      <a href="#faq">FAQ</a>
+      <a href="mailto:hello@shulenest.com">hello@shulenest.com</a>
+    </div>
+  </div>
+  <div class="wrap" style="margin-top:1.5rem;">© <span id="yr">2026</span> Shulenest · Nairobi, Kenya</div>
+</footer>
+
+<script>
+  // PWA install: capture the prompt and reveal the install buttons.
+  let deferredPrompt = null;
+  const installButtons = [document.getElementById('install-btn'), document.getElementById('install-btn-2')];
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    installButtons.forEach(function (b) { if (b) b.hidden = false; });
+    var fb = document.getElementById('install-fallback');
+    if (fb) fb.hidden = true;
+  });
+  installButtons.forEach(function (b) {
+    if (!b) return;
+    b.addEventListener('click', async function () {
+      if (!deferredPrompt) { window.location.href = '/login'; return; }
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installButtons.forEach(function (x) { if (x) x.hidden = true; });
+    });
+  });
+  document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

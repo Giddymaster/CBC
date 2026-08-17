@@ -1,0 +1,19 @@
+# Shulenest — https://shulenest.com
+# The marketing pages are open to crawlers; the app itself is behind login
+# and has nothing useful to index.
+
+User-agent: *
+Allow: /$
+Allow: /landing.html
+Disallow: /admin
+Disallow: /teacher
+Disallow: /parent
+Disallow: /staff
+Disallow: /operator
+Disallow: /login
+Disallow: /api/
+Disallow: /media/
+Disallow: /django-admin/
+
+# AI answer-engines: a plain-language summary lives at /llms.txt
+Sitemap: https://shulenest.com/sitemap.xml

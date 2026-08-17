@@ -1,0 +1,59 @@
+# Shulenest
+
+> Shulenest is a CBC (Competency-Based Curriculum) school management system for
+> Kenyan schools. It runs the whole school day in one place — assessments and
+> reports, fees, attendance, timetables and parent messaging — and works on any
+> phone, including offline.
+
+Shulenest is web-based (works in any browser) and installs as an app on Android
+and other phones. It is designed specifically for Kenya's CBC, from Pre-Primary
+(PP1) through Senior School (Grade 12), with learning areas seeded from the
+Ministry of Education catalogue.
+
+## What it does
+
+- **CBC assessments and reports**: teachers enter marks by class, learning area
+  and assessment; competency levels (Exceeding, Meeting, Approaching, Below
+  Expectation) are derived automatically. Class broadsheets, Excel exports, and
+  printable report forms on the school's own letterhead.
+- **School fees**: itemised fee structures by vote head (Tuition, Transport,
+  Lunch, etc.), a live register with per-learner balances, partial and irregular
+  payments, and M-Pesa payment against a learner's admission number. Report
+  forms carry the fee balance and next term's fee.
+- **Attendance**: the class teacher marks a daily register; the head teacher and
+  deputy see a monthly calendar. Present, absent, or health leave per learner.
+- **Timetables**: automatic, conflict-free timetable generation across the
+  school with teachers assigned to the periods they teach.
+- **Bulk messaging**: SMS and WhatsApp notices to parents — the whole school,
+  one class or stream, or only families with a fee balance — with a recipient
+  preview and per-family merge fields before sending.
+- **Parent portal**: parents sign in with their child's admission number or UPI
+  and see the child's profile, assessments, fee balance and school notices.
+- **Offline-first**: score entry and registers save on the device without a
+  connection and sync automatically when it returns.
+- **Staff and administration**: staff register, streams and learning areas per
+  grade, a task/duty hub, and a document filing cabinet for the school.
+
+## Who uses it
+
+- Teachers — score entry, schemes of work, lesson plans, their timetable,
+  their class register.
+- Office and bursar — admissions, fees and receipts, bulk parent messages,
+  the school profile and documents.
+- Head teacher and deputy — whole-school performance analysis, scheme approval,
+  duty assignment, fees and attendance across grades.
+- Parents — their own child's records and the school's notices.
+
+## Privacy
+
+Each school's data is fully isolated from every other school on the platform.
+A parent can see only their own children. Uploaded files (photos, documents,
+report cards) are served through private, expiring signed links, never a public
+directory.
+
+## Access
+
+- Web app and login: https://shulenest.com/login
+- Android APK: https://shulenest.com/shulenest.apk
+- Country: Kenya. Curriculum: CBC (Competency-Based Curriculum).
+- Contact: hello@shulenest.com
