@@ -53,7 +53,7 @@ const LOGIN_ROLES = {
     userLabel: "Child's admission number",
     passLabel: 'UPI number',
     codeRequired: true,
-    hint: "First time? Username is your child's admission number, password is their UPI — both on the report form. You'll set your own password next.",
+    hint: "First time? Enter your school code, then your child's admission number and UPI — all three are on the report form. Your account is created and you'll set your own password next.",
   },
   staff: {
     heading: 'Staff sign-in',

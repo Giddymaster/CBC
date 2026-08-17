@@ -80,6 +80,74 @@ def resolve_login(identifier, school_code=None):
     return guardian_username(learner) or identifier if learner else identifier
 
 
+def self_service_parent(school_code, admission, upi):
+    """Sign a parent in from the report form, with no login pre-created.
+
+    A school cannot hand-make nine hundred parent accounts, so the parent makes
+    their own: the three things printed on the child's report form — the school
+    code, the admission number and the UPI — stand in for a first credential.
+    When they match a real learner, the guardian's account is created (or found)
+    with the UPI as its password and a forced change, and a token is issued.
+
+    Possession of the report form is the authorisation here, and the password
+    change on first sign-in closes the window — the UPI stops working the moment
+    the parent chooses their own. Returns the User, or None when nothing matches
+    (an unknown value must fail exactly like a wrong password).
+    """
+    import secrets
+
+    from apps.schools.models import School
+    from apps.students.models import Guardian, Learner
+
+    code = (school_code or "").strip()
+    admission = (admission or "").strip()
+    upi = (upi or "").strip()
+    if not (code and admission and upi):
+        return None
+
+    school = School.objects.filter(code__iexact=code).first()
+    if school is None:
+        return None
+    learner = Learner.objects.filter(
+        school=school, admission_number__iexact=admission
+    ).first()
+    if learner is None:
+        return None
+    # The UPI is the key. A learner with no UPI cannot be self-claimed this way.
+    if not learner.upi or learner.upi.strip().lower() != upi.lower():
+        return None
+
+    guardian = (
+        learner.guardians.filter(is_primary_contact=True).first()
+        or learner.guardians.first()
+    )
+    if guardian is None:
+        return None
+    if guardian.user_id:
+        # The account exists and normal auth already failed — the parent has
+        # set their own password and this is not it. The UPI must not reopen it.
+        return None
+
+    username = learner.admission_number.strip().lower()
+    if User.objects.filter(username__iexact=username).exists():
+        username = f"{username}-{secrets.token_hex(2)}"
+    parts = guardian.full_name.split(" ")
+    user = User.objects.create_user(
+        username=username,
+        password=learner.upi.strip(),
+        first_name=parts[0],
+        last_name=" ".join(parts[1:]),
+        role="PARENT",
+        school=school,
+        phone=guardian.phone,
+        email=guardian.email or "",
+    )
+    user.must_change_password = True
+    user.save(update_fields=["must_change_password"])
+    Guardian.objects.filter(pk=guardian.pk).update(user=user)
+    return user
+
+
 class ParentFriendlyAuthTokenSerializer(AuthTokenSerializer):
     def validate(self, attrs):
         request = self.context.get("request")
@@ -87,8 +155,19 @@ class ParentFriendlyAuthTokenSerializer(AuthTokenSerializer):
         if request is not None:
             school_code = (request.data.get("school_code") or "").strip()
 
-        attrs["username"] = resolve_login(attrs.get("username"), school_code)
-        data = super().validate(attrs)
+        raw_identifier = attrs.get("username")
+        attrs["username"] = resolve_login(raw_identifier, school_code)
+        try:
+            data = super().validate(attrs)
+        except serializers.ValidationError:
+            # No account matched — try self-service, where the report form's
+            # admission number + UPI + school code create the login on the spot.
+            user = self_service_parent(
+                school_code, raw_identifier, attrs.get("password")
+            )
+            if user is None:
+                raise
+            return {**attrs, "user": user}
 
         # When a code is given, the account must actually belong to that school.
         # This is what makes the system sure which tenant a login is for — a

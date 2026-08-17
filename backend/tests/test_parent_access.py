@@ -167,6 +167,66 @@ class SchoolCodeScopingTests(APITestCase):
         self.assertEqual(res.status_code, 400)
 
 
+class SelfServiceParentTests(APITestCase):
+    """A parent signs in straight from the report form — school code, admission
+    number and UPI — with no login created by the office first."""
+
+    def setUp(self):
+        self.school = make_school("Alpha", code="MOE-1")
+        self.learner = make_learner(
+            self.school, admission_number="ADM0649", upi="UPI607113")
+        self.guardian = make_guardian(self.school, learners=[self.learner])
+
+    def _login(self, code="MOE-1", adm="ADM0649", upi="UPI607113"):
+        return self.client.post(
+            "/api/auth/token/",
+            {"username": adm, "password": upi, "school_code": code},
+            format="json",
+        )
+
+    def test_first_login_creates_the_account_from_the_report_form(self):
+        from apps.accounts.models import User
+
+        self.assertFalse(User.objects.filter(role="PARENT").exists())
+        res = self._login()
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data["role"], "PARENT")
+        self.assertTrue(res.data["must_change_password"])
+        self.guardian.refresh_from_db()
+        self.assertIsNotNone(self.guardian.user)
+
+    def test_the_second_login_uses_the_same_account(self):
+        from apps.accounts.models import User
+
+        self._login()
+        self._login()
+        self.assertEqual(User.objects.filter(role="PARENT").count(), 1)
+
+    def test_a_wrong_upi_creates_nothing_and_is_refused(self):
+        from apps.accounts.models import User
+
+        res = self._login(upi="WRONG")
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(User.objects.filter(role="PARENT").exists())
+
+    def test_the_wrong_school_code_matches_no_learner(self):
+        other = make_school("Beta", code="MOE-2")
+        make_learner(other, admission_number="ADM0649", upi="DIFFERENT")
+        res = self._login(code="MOE-2")  # ADM0649 exists there but UPI differs
+        self.assertEqual(res.status_code, 400)
+
+    def test_after_the_parent_sets_a_password_the_upi_no_longer_works(self):
+        self._login()  # provisions, must_change_password
+        self.guardian.refresh_from_db()
+        user = self.guardian.user
+        user.set_password("my-own-password")
+        user.must_change_password = False
+        user.save()
+        # The UPI must not reopen the account once a real password is chosen.
+        res = self._login()
+        self.assertEqual(res.status_code, 400)
+
+
 class ParentPortalContentTests(APITestCase):
     def setUp(self):
         self.school = make_school()
