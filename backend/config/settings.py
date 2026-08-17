@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-DEBUG = os.getenv("DEBUG", "true").lower() == "true"
+# Defaults to FALSE: a deploy that forgets to set DEBUG must fail safe (no
+# stack traces, no insecure SECRET_KEY), not run wide open. Local development
+# sets DEBUG=true in its .env.
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-insecure-key")
@@ -146,6 +149,9 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+        # A handover password works for nothing but changing itself until it
+        # has been changed — enforced server-side, not just in the browser.
+        "apps.accounts.permissions.PasswordChangeEnforced",
         # A lapsed subscription makes a school read-only. Reads are never
         # blocked; see apps/platform/entitlement.py.
         "apps.platform.entitlement.SubscriptionEntitlement",
@@ -157,6 +163,11 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPagination",
     "PAGE_SIZE": 50,
+    # Only scoped views throttle (the login door); everything else is
+    # authenticated traffic from the school's own staff.
+    "DEFAULT_THROTTLE_RATES": {
+        "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),
+    },
 }
 
 CORS_ALLOWED_ORIGINS = [
@@ -178,9 +189,16 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
     CSRF_TRUSTED_ORIGINS = [
         o for o in CORS_ALLOWED_ORIGINS if o.startswith("https://")
     ]
+
+# A hard ceiling on request bodies, so an upload cannot exhaust the box before
+# a field validator ever runs. Per-field limits live in apps/common/uploads.py.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 30 * 1024 * 1024   # 30 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 30 * 1024 * 1024
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_BROKER_URL = REDIS_URL
@@ -209,3 +227,6 @@ DARAJA_SHORTCODE = os.getenv("DARAJA_SHORTCODE", "174379")
 DARAJA_PASSKEY = os.getenv("DARAJA_PASSKEY", "")
 DARAJA_BASE_URL = os.getenv("DARAJA_BASE_URL", "https://sandbox.safaricom.co.ke")
 DARAJA_CALLBACK_URL = os.getenv("DARAJA_CALLBACK_URL", "https://example.com/api/payments/stk-callback/")
+# The unguessable segment in the callback URL Safaricom is told to call. Blank
+# closes both webhooks — an unconfigured money endpoint must never credit.
+DARAJA_WEBHOOK_SECRET = os.getenv("DARAJA_WEBHOOK_SECRET", "")

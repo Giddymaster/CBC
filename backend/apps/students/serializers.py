@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.common.media import SignedFileField
+
 from .models import ClassGroup, Guardian, Learner, LearnerField, Pathway
 
 
@@ -59,6 +61,7 @@ class GuardianContactSerializer(serializers.ModelSerializer):
 
 class LearnerSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
+    photo = SignedFileField(read_only=True)
     pathway_display = serializers.CharField(source="pathway.get_code_display", read_only=True, default=None)
     guardians_detail = GuardianContactSerializer(source="guardians", many=True, read_only=True)
     admitted_by_name = serializers.CharField(

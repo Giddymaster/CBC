@@ -15,7 +15,11 @@ def generate_class_report_cards(school_id: int, grade: int, stream: str, term: i
     from .pdf import render_report_card_pdf
     from .reports import build_report_card
 
-    out_dir = Path(settings.MEDIA_ROOT) / "report_cards" / str(year) / f"T{term}"
+    # The school id is part of the path. Admission numbers are only unique
+    # within a school, so without it two schools both running "ADM001" would
+    # overwrite each other's report card — one family downloading another's.
+    rel_dir = f"report_cards/{school_id}/{year}/T{term}"
+    out_dir = Path(settings.MEDIA_ROOT) / rel_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     generated = []
@@ -27,5 +31,5 @@ def generate_class_report_cards(school_id: int, grade: int, stream: str, term: i
         pdf_bytes = render_report_card_pdf(data)
         filename = f"{learner.admission_number}.pdf"
         (out_dir / filename).write_bytes(pdf_bytes)
-        generated.append(f"report_cards/{year}/T{term}/{filename}")
+        generated.append(f"{rel_dir}/{filename}")
     return generated

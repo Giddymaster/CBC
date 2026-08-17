@@ -14,7 +14,8 @@ from rest_framework.views import APIView
 
 from apps.assessments.models import LearningArea
 from apps.common.audit import record as audit
-from apps.common.views import SchoolScopedViewSet
+from apps.common.media import SignedFileField
+from apps.common.views import SchoolScopedViewSet, StaffReadMixin
 from apps.timetable.models import LessonRequirement
 
 from .models import StaffField, SupportStaff, Teacher, TeacherAttendance
@@ -88,6 +89,7 @@ class StaffFieldViewSet(SchoolScopedViewSet):
 
 
 class SupportStaffSerializer(serializers.ModelSerializer):
+    photo = SignedFileField(required=False, allow_null=True)
     category_label = serializers.CharField(source="get_category_display", read_only=True)
     gender_label = serializers.SerializerMethodField()
 
@@ -116,7 +118,9 @@ class SupportStaffSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class SupportStaffViewSet(SchoolScopedViewSet):
+class SupportStaffViewSet(StaffReadMixin, SchoolScopedViewSet):
+    # Full non-teaching records — phone, and the private `extra` fields. Staff
+    # only; a parent has no business in the payroll book.
     queryset = SupportStaff.objects.select_related("user", "supervisor").all()
     serializer_class = SupportStaffSerializer
     filterset_fields = ["category", "employment_type", "active"]

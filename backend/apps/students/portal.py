@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.assessments.reports import build_report_card
+from apps.common.media import signed_media_url
 from apps.communication.models import Announcement
 from apps.payments.models import Invoice
 
@@ -66,10 +67,7 @@ class ParentSummaryView(APIView):
                             learner.pathway.get_code_display()
                             if learner.pathway else None
                         ),
-                        "photo": (
-                            request.build_absolute_uri(learner.photo.url)
-                            if learner.photo else None
-                        ),
+                        "photo": signed_media_url(request, learner.photo),
                         "class_teacher": _class_teacher_of(learner),
                     },
                     "report_card": report,

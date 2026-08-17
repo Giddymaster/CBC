@@ -8,8 +8,9 @@ Creates/updates superuser 'admin' (password 'admin') and teacher 'mwalimu'
 from datetime import date, time
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.assessments.models import Assessment, LearningArea, Score
@@ -54,7 +55,25 @@ STUDENTS_PER_GRADE = 20
 class Command(BaseCommand):
     help = "Seed demo data: one school, teacher, 5 learners, CAT1 scores, term fees"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--force-production",
+            action="store_true",
+            help="Run even when DEBUG is false (creates weak demo passwords).",
+        )
+
     def handle(self, *args, **options):
+        # This command creates accounts whose passwords equal their usernames
+        # (admin/admin, mwalimu/mwalimu). That is fine for a laptop and a
+        # catastrophe on a live box, so it refuses to run outside DEBUG unless
+        # a deliberate override is passed.
+        if not settings.DEBUG and not options.get("force_production"):
+            raise CommandError(
+                "seed_demo creates weak demo passwords and must not run in "
+                "production. Set DEBUG=true, or pass --force-production if you "
+                "really mean it."
+            )
+
         school, _ = School.objects.get_or_create(
             code="12345678",
             defaults={

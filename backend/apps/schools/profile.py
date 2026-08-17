@@ -14,6 +14,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.images import downscale_photo
+from apps.common.media import signed_media_url
+from apps.common.uploads import validate_image
 from apps.common.views import SchoolScopedViewSet
 
 from .models import DEFAULT_VOTE_HEADS, SchoolDocument
@@ -90,9 +92,15 @@ class MySchoolProfileView(APIView):
         # from the serialised fields. Sent empty, it clears — a school that has
         # rebranded should not be stuck with the old crest.
         if "logo" in request.FILES:
+            validate_image(request.FILES["logo"])
             # Not square-cropped: a school crest is rarely square and a centre
             # crop would cut the name off a wide one.
-            school.logo = downscale_photo(request.FILES["logo"], max_edge=600, square=False)
+            try:
+                school.logo = downscale_photo(
+                    request.FILES["logo"], max_edge=600, square=False
+                )
+            except ValueError as exc:
+                raise ValidationError({"logo": [str(exc)]}) from exc
             school.save(update_fields=["logo"])
         elif request.data.get("logo") in ("", "null", None) and "logo" in request.data:
             school.logo = None
@@ -156,9 +164,7 @@ def school_letterhead(school, request=None):
     logo = logo_path = None
     if school.logo:
         try:
-            logo = (
-                request.build_absolute_uri(school.logo.url) if request else school.logo.url
-            )
+            logo = signed_media_url(request, school.logo)
             # The PDF renderer draws from disk, not over HTTP.
             logo_path = school.logo.path
         except (ValueError, NotImplementedError):

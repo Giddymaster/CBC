@@ -63,6 +63,8 @@ services:
       DARAJA_PASSKEY: ${DARAJA_PASSKEY:-}
       DARAJA_BASE_URL: ${DARAJA_BASE_URL:-https://sandbox.safaricom.co.ke}
       DARAJA_CALLBACK_URL: ${DARAJA_CALLBACK_URL:-}
+      DARAJA_WEBHOOK_SECRET: ${DARAJA_WEBHOOK_SECRET:-}
+      LOGIN_THROTTLE_RATE: ${LOGIN_THROTTLE_RATE:-10/min}
     volumes:
       - media:/app/media
     depends_on:

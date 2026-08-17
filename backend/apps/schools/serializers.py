@@ -1,5 +1,8 @@
 from rest_framework import serializers
 
+from apps.common.media import signed_media_url
+from apps.common.uploads import validate_document
+
 from .models import School, SchoolDocument
 
 
@@ -35,19 +38,14 @@ class SchoolProfileSerializer(serializers.ModelSerializer):
         ]
 
     def get_logo_url(self, school):
-        if not school.logo:
-            return None
-        request = self.context.get("request")
-        try:
-            return request.build_absolute_uri(school.logo.url) if request else school.logo.url
-        except ValueError:
-            return None
+        return signed_media_url(self.context.get("request"), school.logo)
 
     def get_fee_columns(self, school):
         return school.fee_columns()
 
 
 class SchoolDocumentSerializer(serializers.ModelSerializer):
+    file = serializers.FileField(validators=[validate_document])
     file_url = serializers.SerializerMethodField()
     uploaded_by_name = serializers.SerializerMethodField()
     category_label = serializers.CharField(source="get_category_display", read_only=True)
@@ -58,17 +56,7 @@ class SchoolDocumentSerializer(serializers.ModelSerializer):
         read_only_fields = ["school", "uploaded_by"]
 
     def get_file_url(self, document):
-        if not document.file:
-            return None
-        request = self.context.get("request")
-        try:
-            return (
-                request.build_absolute_uri(document.file.url)
-                if request
-                else document.file.url
-            )
-        except ValueError:
-            return None
+        return signed_media_url(self.context.get("request"), document.file)
 
     def get_uploaded_by_name(self, document):
         user = document.uploaded_by

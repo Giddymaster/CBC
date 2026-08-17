@@ -1,6 +1,8 @@
 import logging
+import secrets
 from decimal import Decimal
 
+from django.conf import settings
 from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -92,6 +94,27 @@ class InvoiceViewSet(SchoolScopedViewSet):
             return qs.filter(learner__in=guardian.learners.all())
         return qs.none()
 
+    def _require_office(self):
+        # Reads are role-scoped in get_queryset; writing an invoice — above all
+        # its amount_due — is the cashier's alone. Without this a parent could
+        # PATCH their own bill to zero or DELETE the debt outright.
+        if not can_handle_fees(self.request.user):
+            raise PermissionDenied(
+                "Invoices are raised and adjusted by the school office or bursar."
+            )
+
+    def perform_create(self, serializer):
+        self._require_office()
+        serializer.save(school=self.request.user.school)
+
+    def perform_update(self, serializer):
+        self._require_office()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_office()
+        instance.delete()
+
 
 class PaymentViewSet(SchoolScopedViewSet):
     """The instalment ledger. Recording or reversing a payment re-totals its
@@ -159,6 +182,10 @@ class FeeStructureGridView(APIView):
     def get(self, request):
         from apps.schools.moe import ALL_GRADES, GRADE_LABELS
 
+        # The fee note is the register's price list — same audience as the
+        # register, not the whole school.
+        if not can_view_fees(request.user):
+            raise PermissionDenied("The fee structure is visible to the office and school leadership.")
         school = request.user.school
         try:
             term = int(request.query_params.get("term"))
@@ -413,6 +440,11 @@ class StkPushView(APIView):
     """Trigger an M-Pesa STK Push for an invoice (defaults to the balance)."""
 
     def post(self, request):
+        # An STK push rings a phone with a PIN prompt under the school's
+        # shortcode. Left open, any signed-in parent could aim repeated prompts
+        # at any number — so it is the cashier's tool, like recording a payment.
+        if not can_handle_fees(request.user):
+            raise PermissionDenied("Payment prompts are sent by the office or the bursar.")
         serializer = StkPushSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -445,15 +477,35 @@ class StkPushView(APIView):
         return Response(result, status=status.HTTP_202_ACCEPTED)
 
 
+def _webhook_authentic(request):
+    """A payment webhook has no login to check, so the callback URL carries an
+    unguessable secret that only Safaricom (whom the school told it to) knows.
+
+    Safaricom lets a business register any callback URL, so the secret rides in
+    the path Daraja calls: /api/payments/stk-callback/<secret>/. A request that
+    does not carry it is an outsider forging a payment, and is refused.
+
+    If no secret is configured the endpoint is closed rather than open — an
+    unconfigured money endpoint must never credit an invoice.
+    """
+    secret = settings.DARAJA_WEBHOOK_SECRET
+    if not secret:
+        return False
+    provided = request.resolver_match.kwargs.get("secret", "") if request.resolver_match else ""
+    return secrets.compare_digest(str(provided), str(secret))
+
+
 class StkCallbackView(APIView):
-    """Daraja STK result webhook. Unauthenticated by necessity; validated by
-    matching CheckoutRequestID to a request we actually made, and idempotent
-    on the M-Pesa receipt number."""
+    """Daraja STK result webhook. Authenticated by the secret in its URL, then
+    by matching CheckoutRequestID to a push we actually sent; idempotent on the
+    M-Pesa receipt number."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, secret=None):
+        if not _webhook_authentic(request):
+            return Response({"ResultCode": 1, "ResultDesc": "Rejected"}, status=403)
         callback = request.data.get("Body", {}).get("stkCallback", {})
         checkout_id = callback.get("CheckoutRequestID")
         stk_request = StkPushRequest.objects.filter(checkout_request_id=checkout_id).first()
@@ -471,12 +523,14 @@ class StkCallbackView(APIView):
                 item.get("Name"): item.get("Value")
                 for item in callback.get("CallbackMetadata", {}).get("Item", [])
             }
+            # Credit what we asked for, not what the caller claims: the push was
+            # raised for a fixed amount, so a forged over-amount cannot stick.
             record_transaction(
                 school=stk_request.school,
                 source="STK",
                 receipt=items.get("MpesaReceiptNumber", f"UNKNOWN-{checkout_id}"),
                 phone=str(items.get("PhoneNumber", stk_request.phone)),
-                amount=items.get("Amount", stk_request.amount),
+                amount=stk_request.amount,
                 invoice=stk_request.invoice,
                 raw=callback,
             )
@@ -485,18 +539,23 @@ class StkCallbackView(APIView):
 
 class C2BConfirmationView(APIView):
     """Daraja C2B confirmation webhook (parent paid the paybill directly,
-    account reference = admission number). Idempotent on TransID."""
+    account reference = admission number). Authenticated by URL secret,
+    idempotent on TransID."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, secret=None):
+        if not _webhook_authentic(request):
+            return Response({"ResultCode": 1, "ResultDesc": "Rejected"}, status=403)
         data = request.data
+        # Only credit a school whose shortcode actually matches. The old
+        # "first school" fallback dropped an unmatched payment into an arbitrary
+        # tenant's books.
         shortcode = str(data.get("BusinessShortCode", ""))
-        school = School.objects.first() if not shortcode else (
-            School.objects.filter(code=shortcode).first() or School.objects.first()
-        )
+        school = School.objects.filter(code=shortcode).first() if shortcode else None
         if school is None:
+            logger.warning("C2B confirmation for unknown shortcode %r", shortcode)
             return Response({"ResultCode": 0, "ResultDesc": "Accepted"})
 
         record_transaction(

@@ -12,6 +12,8 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.media import SignedFileField
+from apps.common.uploads import validate_document
 from apps.schools.moe import structure_summary
 
 from .ingest import extract_text, index_document
@@ -33,6 +35,15 @@ class SourceSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+def _require_platform(user):
+    """The Source table is global — one MoE authority weighting shared by every
+    tenant's retrieval and AI-generated schemes. Only the platform operator (a
+    school-less superuser) may change it; a single school admin must not be able
+    to demote or delete a source every other school depends on."""
+    if not (user.is_superuser and getattr(user, "school_id", None) is None):
+        raise PermissionDenied("The shared curriculum sources are managed by the platform operator.")
+
+
 class SourceViewSet(viewsets.ModelViewSet):
     queryset = Source.objects.all()
     serializer_class = SourceSerializer
@@ -40,19 +51,20 @@ class SourceViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "publisher"]
 
     def perform_create(self, serializer):
-        _require_admin(self.request.user)
+        _require_platform(self.request.user)
         serializer.save()
 
     def perform_update(self, serializer):
-        _require_admin(self.request.user)
+        _require_platform(self.request.user)
         serializer.save()
 
     def perform_destroy(self, instance):
-        _require_admin(self.request.user)
+        _require_platform(self.request.user)
         instance.delete()
 
 
 class DocumentSerializer(serializers.ModelSerializer):
+    file = SignedFileField(required=False, allow_null=True, validators=[validate_document])
     source_name = serializers.CharField(source="source.name", read_only=True)
     authority = serializers.CharField(source="source.authority", read_only=True)
     authority_label = serializers.CharField(

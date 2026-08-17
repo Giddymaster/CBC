@@ -16,9 +16,43 @@ from .serializers import AttendanceRecordSerializer, BulkAttendanceSerializer
 
 
 class AttendanceViewSet(IdempotencyMixin, SchoolScopedViewSet):
+    """The daily register. The bulk endpoint below enforces class-teacher-only
+    marking; this per-row viewset must not become the way around it, so writes
+    are staff-only and a learner must belong to the caller's school. Reading is
+    staff-only too — a parent has no business over the whole school's register.
+    """
+
     queryset = AttendanceRecord.objects.select_related("learner").all()
     serializer_class = AttendanceRecordSerializer
     filterset_fields = ["learner", "date", "status"]
+
+    def _require_staff(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER", "SUPPORT")):
+            raise PermissionDenied("The attendance register is staff-only.")
+
+    def get_queryset(self):
+        self._require_staff()
+        return super().get_queryset()
+
+    def _check_learner(self, serializer):
+        learner = serializer.validated_data.get("learner")
+        if learner is not None and learner.school_id != self.request.user.school_id:
+            raise PermissionDenied("That learner is not at your school.")
+
+    def perform_create(self, serializer):
+        self._require_staff()
+        self._check_learner(serializer)
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_staff()
+        self._check_learner(serializer)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_staff()
+        instance.delete()
 
 
 class AttendanceMonthView(APIView):

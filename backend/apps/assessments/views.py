@@ -16,6 +16,7 @@ from apps.common.views import (
     IdempotencyMixin,
     SchoolScopedViewSet,
 )
+from apps.students.access import visible_learner
 from apps.students.models import Learner
 
 from .models import Assessment, LearningArea, Score
@@ -116,11 +117,43 @@ class AssessmentViewSet(SchoolScopedViewSet):
 
 class ScoreViewSet(IdempotencyMixin, SchoolScopedViewSet):
     """Score entry is offline-tolerant: send an Idempotency-Key header and
-    retries from flaky connections will not double-write."""
+    retries from flaky connections will not double-write.
+
+    Only staff write marks. Without this guard a parent could POST a score for
+    their own child, or PATCH any score in the school — grades are the one
+    record a family has the strongest motive to forge."""
 
     queryset = Score.objects.select_related("assessment", "learner").all()
     serializer_class = ScoreSerializer
     filterset_fields = ["assessment", "learner", "competency_level"]
+
+    def _require_staff(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER")):
+            raise PermissionDenied("Marks are entered by teaching staff.")
+
+    def _check_same_school(self, serializer):
+        # A score stamped with my school must not point at another school's
+        # learner or assessment (both are writable PKs on the serializer).
+        school = self.request.user.school
+        for field in ("learner", "assessment"):
+            obj = serializer.validated_data.get(field)
+            if obj is not None and obj.school_id != school.id:
+                raise PermissionDenied("That learner or assessment is not at your school.")
+
+    def perform_create(self, serializer):
+        self._require_staff()
+        self._check_same_school(serializer)
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_staff()
+        self._check_same_school(serializer)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_staff()
+        instance.delete()
 
 
 class BulkScoreSerializer(drf_serializers.Serializer):
@@ -225,26 +258,22 @@ class ReportCardView(APIView):
     assessment kind, ready for PDF rendering or the parent portal."""
 
     def get(self, request, learner_id):
-        learner = get_object_or_404(
-            Learner.objects.filter(school=request.user.school).select_related("pathway", "school"),
-            pk=learner_id,
-        )
+        learner = visible_learner(request.user, learner_id)
         term = request.query_params.get("term")
         year = request.query_params.get("year")
-        return Response(build_report_card(learner, term=term, year=year))
+        return Response(build_report_card(learner, term=term, year=year, request=request))
 
 
 class ReportCardPdfView(APIView):
     """Download one learner's report card as PDF (rendered on the fly)."""
 
     def get(self, request, learner_id):
-        learner = get_object_or_404(
-            Learner.objects.filter(school=request.user.school).select_related("pathway", "school"),
-            pk=learner_id,
-        )
+        learner = visible_learner(request.user, learner_id)
         term = request.query_params.get("term")
         year = request.query_params.get("year")
-        pdf_bytes = render_report_card_pdf(build_report_card(learner, term=term, year=year))
+        pdf_bytes = render_report_card_pdf(
+            build_report_card(learner, term=term, year=year, request=request)
+        )
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = (
             f'inline; filename="report_{learner.admission_number}.pdf"'

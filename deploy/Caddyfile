@@ -7,16 +7,30 @@
 {$SITE_ADDRESS} {
 	encode gzip zstd
 
-	# The Django app: API, admin, and Django's own static (served by WhiteNoise).
-	@backend path /api/* /admin/* /static/*
+	# A few belt-and-braces headers on every response. Caddy sets nothing by
+	# default, and the SPA is served here, not by Django, so Django's own
+	# SECURE_* settings never touch these pages.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# The Django app: API, Django's admin (moved off /admin — that path is the
+	# school's own panel), and Django's static (served by WhiteNoise).
+	@backend path /api/* /django-admin/* /static/*
 	handle @backend {
 		reverse_proxy web:8000
 	}
 
-	# Learner photos and generated report cards, straight off the shared volume.
+	# Uploaded files: photos, crests, filed documents, schemes. Proxied to
+	# Django rather than served off the volume, because these are a school's
+	# private papers — Django checks the signature on each link before it
+	# streams the file. See apps/common/media.py.
 	handle /media/* {
-		root * /srv
-		file_server
+		reverse_proxy web:8000
 	}
 
 	# Everything else is the single-page app. try_files sends client-side routes

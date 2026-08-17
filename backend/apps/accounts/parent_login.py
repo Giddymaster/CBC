@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.throttling import ScopedRateThrottle
 
 User = get_user_model()
 
@@ -59,6 +60,10 @@ class LoginView(ObtainAuthToken):
     """POST /api/auth/token/ — username, or a child's admission number / UPI."""
 
     serializer_class = ParentFriendlyAuthTokenSerializer
+    # The one door worth brute-forcing. The rate is per client IP and generous
+    # enough for a shared staffroom computer, hopeless for a password list.
+    throttle_scope = "login"
+    throttle_classes = [ScopedRateThrottle]
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)

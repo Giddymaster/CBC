@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.assessments.models import Assessment
+from apps.common.media import signed_media_url
 from apps.communication.models import Announcement
 from apps.students.models import ClassGroup
 from apps.timetable.models import Lesson, LessonRequirement
@@ -116,9 +117,7 @@ class TeacherSummaryView(APIView):
                 "year": s.year,
                 "status": s.status,
                 "source": s.source,
-                "document": (
-                    request.build_absolute_uri(s.document.url) if s.document else None
-                ),
+                "document": signed_media_url(request, s.document),
                 # The plan itself, so the teacher can proofread and edit it
                 # here rather than fetching each scheme separately.
                 "content": s.content or {},

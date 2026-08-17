@@ -139,6 +139,23 @@ class ParentMessageViewSet(SchoolScopedViewSet):
             )
         serializer.save(school=user.school, sender=user)
 
+    def perform_update(self, serializer):
+        # A message is a record of who said what: editing the learner or
+        # guardian it hangs off would re-file it into a thread the sender may
+        # not use. Only the body of one's own message may change.
+        message = serializer.instance
+        if message.sender_id != self.request.user.id and self.request.user.role != "ADMIN":
+            raise PermissionDenied("You can only edit your own messages.")
+        serializer.save(
+            learner=message.learner, guardian=message.guardian, staff=message.staff
+        )
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.sender_id != user.id and user.role != "ADMIN":
+            raise PermissionDenied("You can only delete your own messages.")
+        instance.delete()
+
 
 class ParentThreadsView(APIView):
     """GET /api/parent/threads/ — a parent's conversations, one per child+staff."""

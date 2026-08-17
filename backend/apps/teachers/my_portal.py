@@ -14,6 +14,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.images import downscale_photo
+from apps.common.media import SignedFileField, signed_media_url
+from apps.common.uploads import validate_document, validate_image
 from apps.common.views import SchoolScopedViewSet
 from apps.payments.access import can_handle_fees, can_view_fees
 
@@ -38,7 +40,7 @@ def _person(user, request=None):
             else (profile.title or profile.get_category_display())
         )
         if profile.photo:
-            photo = request.build_absolute_uri(profile.photo.url) if request else profile.photo.url
+            photo = signed_media_url(request, profile.photo)
     name = user.get_full_name() or user.username
     return {
         "id": user.id,
@@ -64,6 +66,7 @@ def _staff_profile(user):
 
 
 class StaffReportSerializer(serializers.ModelSerializer):
+    document = SignedFileField(required=False, allow_null=True, validators=[validate_document])
     author_name = serializers.CharField(source="author.get_full_name", read_only=True)
     reviewed_by_name = serializers.CharField(
         source="reviewed_by.get_full_name", read_only=True, default=None
@@ -257,9 +260,13 @@ class MyPhotoView(APIView):
         photo = request.FILES.get("photo")
         if photo is None:
             return Response({"detail": "Attach a photo."}, status=status.HTTP_400_BAD_REQUEST)
-        profile.photo = downscale_photo(photo)
+        validate_image(photo)
+        try:
+            profile.photo = downscale_photo(photo)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         profile.save(update_fields=["photo", "updated_at"])
-        return Response({"photo": request.build_absolute_uri(profile.photo.url)})
+        return Response({"photo": signed_media_url(request, profile.photo)})
 
     def delete(self, request):
         _, profile = _staff_profile(request.user)
@@ -388,9 +395,7 @@ class MyPortalView(APIView):
                     "phone": user.phone,
                     "email": user.email,
                     "school": school.name if school else "",
-                    "photo": (
-                        request.build_absolute_uri(profile.photo.url) if profile.photo else None
-                    ),
+                    "photo": signed_media_url(request, profile.photo),
                     "joined": profile.created_at.date().isoformat(),
                 },
                 "supervisor": _person(profile.supervisor, request),

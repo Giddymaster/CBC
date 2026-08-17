@@ -21,7 +21,9 @@ from rest_framework.views import APIView
 
 from apps.common.audit import record as audit
 from apps.common.images import downscale_photo
-from apps.common.views import SchoolScopedViewSet
+from apps.common.media import signed_media_url
+from apps.common.uploads import validate_image
+from apps.common.views import SchoolScopedViewSet, StaffReadMixin
 
 from .models import AdmissionRight, Guardian, Learner, can_admit
 from .serializers import LearnerSerializer
@@ -200,9 +202,13 @@ class LearnerPhotoView(APIView):
         photo = request.FILES.get("photo")
         if photo is None:
             return Response({"detail": "Attach a photo."}, status=status.HTTP_400_BAD_REQUEST)
-        learner.photo = downscale_photo(photo)
+        validate_image(photo)
+        try:
+            learner.photo = downscale_photo(photo)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         learner.save(update_fields=["photo", "updated_at"])
-        return Response({"photo": request.build_absolute_uri(learner.photo.url)})
+        return Response({"photo": signed_media_url(request, learner.photo)})
 
     def delete(self, request, learner_id):
         learner = self._learner(request, learner_id)
@@ -228,8 +234,9 @@ class AdmissionRightSerializer(serializers.ModelSerializer):
         return obj.is_current()
 
 
-class AdmissionRightViewSet(SchoolScopedViewSet):
-    """Admin-only: who, besides the admin, may admit learners."""
+class AdmissionRightViewSet(StaffReadMixin, SchoolScopedViewSet):
+    """Admin-only: who, besides the admin, may admit learners. Not a table a
+    parent should be able to read."""
 
     queryset = AdmissionRight.objects.select_related("user", "granted_by").all()
     serializer_class = AdmissionRightSerializer

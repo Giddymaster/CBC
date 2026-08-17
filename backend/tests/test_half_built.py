@@ -217,9 +217,12 @@ class PhotoDownscaleTests(APITestCase):
         image = Image.open(result)
         self.assertEqual(image.width, image.height)
 
-    def test_a_file_that_is_not_an_image_passes_through(self):
+    def test_a_file_that_is_not_an_image_is_rejected(self):
+        # A file Pillow cannot decode must never be stored: an .svg or .html
+        # kept under a photo field and served same-origin is stored XSS.
         junk = SimpleUploadedFile("x.png", b"x" * 80_000, content_type="image/png")
-        self.assertIs(downscale_photo(junk), junk)
+        with self.assertRaises(ValueError):
+            downscale_photo(junk)
 
     def test_none_is_handled(self):
         self.assertIsNone(downscale_photo(None))

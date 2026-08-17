@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.common.audit import record as audit
+from apps.common.media import signed_media_url
 from apps.common.views import AdminWriteMixin, SchoolScopedViewSet, is_staff_member
 
 from .models import ClassGroup, Guardian, Learner, LearnerField, Pathway
@@ -130,6 +131,19 @@ class LearnerViewSet(SchoolScopedViewSet):
     ]
     search_fields = ["first_name", "middle_name", "last_name", "admission_number", "upi"]
 
+    def get_queryset(self):
+        # A parent may reach their own children (the profile action needs it),
+        # but must not page the whole school's roll — that list is the id
+        # source for every other per-learner endpoint.
+        qs = super().get_queryset()
+        user = self.request.user
+        if is_staff_member(user):
+            return qs
+        guardian = getattr(user, "guardian_profile", None)
+        if guardian is not None:
+            return qs.filter(pk__in=guardian.learners.values("pk"))
+        return qs.none()
+
     def _require_admin(self):
         user = self.request.user
         if not (user.is_superuser or user.role == "ADMIN"):
@@ -200,9 +214,7 @@ class LearnerViewSet(SchoolScopedViewSet):
         return Response(
             {
                 "report_card": report,
-                "photo": (
-                    request.build_absolute_uri(learner.photo.url) if learner.photo else None
-                ),
+                "photo": signed_media_url(request, learner.photo),
                 # The admission record: identity, home, health and next of kin.
                 # Health and address detail is the school's duty-of-care data,
                 # so it is staff-only — a parent gets the rest.

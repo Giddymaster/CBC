@@ -1,5 +1,3 @@
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
@@ -28,6 +26,7 @@ from apps.attendance.views import (
     AttendanceViewSet,
 )
 from apps.common.audit_views import AuditEntryViewSet, AuditSummaryView
+from apps.common.media import serve_media
 from apps.communication.parent_messages import (
     LearnerContactsView,
     ParentMessageViewSet,
@@ -219,7 +218,10 @@ router.register("payments/invoices", InvoiceViewSet)
 router.register("payments/payments", PaymentViewSet)
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Django's own admin lives off the beaten path: /admin belongs to the
+    # school's SPA, and the default location is the first door every scanner
+    # rattles.
+    path("django-admin/", admin.site.urls),
     path("api/auth/token/", LoginView.as_view()),
     path("api/parent-logins/", CreateParentLoginView.as_view()),
     path("api/me/", MeView.as_view()),
@@ -297,12 +299,13 @@ urlpatterns = [
     path("api/payments/generate-invoices/", GenerateInvoicesView.as_view()),
     path("api/payments/register.xlsx", FeeRegisterXlsxView.as_view()),
     path("api/payments/stk-push/", StkPushView.as_view()),
-    path("api/payments/stk-callback/", StkCallbackView.as_view()),
-    path("api/payments/c2b-confirmation/", C2BConfirmationView.as_view()),
+    # The webhook secret rides in the path Safaricom calls; see _webhook_authentic.
+    path("api/payments/stk-callback/<str:secret>/", StkCallbackView.as_view()),
+    path("api/payments/c2b-confirmation/<str:secret>/", C2BConfirmationView.as_view()),
     path("api/interop/kemis/learners.csv", kemis_learners_csv),
     path("api/interop/kemis/enrollment/", kemis_enrollment),
     path("api/", include(router.urls)),
+    # Uploaded files, gated by signed link — same path in dev and production,
+    # so a missing signature shows up on a laptop, not on a parent's phone.
+    path("media/<path:path>", serve_media),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

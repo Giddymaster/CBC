@@ -65,6 +65,21 @@ def is_staff_member(user):
     )
 
 
+class StaffReadMixin:
+    """Registers that a parent has no business paging through.
+
+    A learner list, a staff directory, the who-may-admit table — all
+    school-scoped, but "school-scoped" still includes the parents. This narrows
+    reads to staff, so a parent cannot enumerate the school. Layer it before
+    SchoolScopedViewSet (or AdminWriteMixin) so its get_queryset runs first.
+    """
+
+    def get_queryset(self):
+        if not is_staff_member(self.request.user):
+            return super().get_queryset().none()
+        return super().get_queryset()
+
+
 class AdminWriteMixin:
     """Anyone signed in may read; only the school admin may write.
 
@@ -99,7 +114,11 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if user.is_superuser:
+        # Only a school-LESS superuser (the platform operator) sees across
+        # tenants. A superuser who also holds a school is a school admin who
+        # happens to carry the flag — they are scoped to their own school, or
+        # the flag becomes a cross-tenant read of every learner and mark.
+        if user.is_superuser and user.school_id is None:
             return qs
         if user.school_id is None:
             return qs.none()

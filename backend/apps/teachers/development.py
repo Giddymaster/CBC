@@ -187,9 +187,17 @@ class PeerReviewViewSet(SchoolScopedViewSet):
     filterset_fields = ["scheme", "verdict"]
 
     def get_queryset(self):
-        return PeerReview.objects.select_related(
+        # MUST stay scoped: .all() here would hand every school's private
+        # review comments to any authenticated user. Filter by the caller's
+        # school, then add the select_related for the list view.
+        user = self.request.user
+        if user.is_superuser and getattr(user, "school_id", None) is None:
+            qs = PeerReview.objects.all()
+        else:
+            qs = PeerReview.objects.filter(school=user.school)
+        return qs.select_related(
             "reviewer", "scheme__learning_area", "scheme__teacher__user"
-        ).all()
+        )
 
     def perform_create(self, serializer):
         user = self.request.user

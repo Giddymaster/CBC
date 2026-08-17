@@ -7,19 +7,20 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from apps.common.views import SchoolScopedViewSet
+from apps.common.views import SchoolScopedViewSet, StaffReadMixin
 
 from .models import LessonPlan, SchemeOfWork, Teacher
 from .serializers import LessonPlanSerializer, SchemeOfWorkSerializer, TeacherSerializer
 from .services.ai_scheme import generate_scheme
 
 
-class TeacherViewSet(SchoolScopedViewSet):
+class TeacherViewSet(StaffReadMixin, SchoolScopedViewSet):
     """Read-only for staff; only the admin may change a teacher record.
 
     Rank and supervisor live here, and rank decides how much of the school a
     login can see — so letting a teacher PATCH their own row would be a
-    promotion anyone could grant themselves.
+    promotion anyone could grant themselves. StaffReadMixin keeps the TSC
+    number and the private `extra` fields off a parent's screen.
     """
 
     queryset = Teacher.objects.select_related("user").all()
@@ -281,6 +282,40 @@ class SchemeOfWorkViewSet(SchoolScopedViewSet):
 
 
 class LessonPlanViewSet(SchoolScopedViewSet):
-    queryset = LessonPlan.objects.all()
+    """A lesson plan belongs to the teacher who owns its scheme. Without a
+    guard here any signed-in user could create, edit or delete another
+    teacher's plan of record; the scheme-scoped endpoint enforces ownership,
+    and this flat viewset must match it."""
+
+    queryset = LessonPlan.objects.select_related("scheme__teacher").all()
     serializer_class = LessonPlanSerializer
     filterset_fields = ["scheme", "week"]
+
+    def _own_teacher(self):
+        return getattr(self.request.user, "teacher_profile", None)
+
+    def _is_admin(self):
+        user = self.request.user
+        return user.is_superuser or user.role == "ADMIN"
+
+    def _require_owner(self, scheme):
+        if self._is_admin():
+            return
+        teacher = self._own_teacher()
+        if teacher is None or scheme.teacher_id != teacher.id:
+            raise PermissionDenied("You can only change your own lesson plans.")
+
+    def perform_create(self, serializer):
+        scheme = serializer.validated_data.get("scheme")
+        if scheme is None or scheme.school_id != self.request.user.school_id:
+            raise PermissionDenied("That scheme is not at your school.")
+        self._require_owner(scheme)
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._require_owner(serializer.instance.scheme)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_owner(instance.scheme)
+        instance.delete()

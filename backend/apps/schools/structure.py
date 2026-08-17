@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.attendance.models import AttendanceRecord
+from apps.common.media import signed_media_url
 from apps.students.models import ClassGroup, Learner
 from apps.teachers.models import TeacherAttendance
 from apps.timetable.models import Lesson, LessonRequirement
@@ -199,7 +200,7 @@ class GradeDetailView(APIView):
                 "gender": l.gender,
                 "stream": l.stream,
                 "upi": l.upi,
-                "photo": request.build_absolute_uri(l.photo.url) if l.photo else None,
+                "photo": signed_media_url(request, l.photo),
                 "today": attendance_today.get(l.id),  # P/A/L/E or null (not marked)
             }
             for l in learners

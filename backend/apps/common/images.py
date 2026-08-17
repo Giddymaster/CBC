@@ -34,9 +34,14 @@ def downscale_photo(uploaded, *, max_edge=MAX_EDGE, square=True):
     try:
         from PIL import Image, ImageOps
     except ImportError:
-        return uploaded
+        # Cannot verify it is really an image, so cannot safely keep it. A
+        # stored file the browser might execute is worse than a failed upload.
+        raise ValueError("Image processing is unavailable; upload rejected.")
 
     try:
+        uploaded.seek(0)
+        image = Image.open(uploaded)
+        image.verify()  # is this actually a decodable image, or an SVG/HTML?
         uploaded.seek(0)
         image = Image.open(uploaded)
         # Phones record orientation in EXIF rather than rotating the pixels.
@@ -68,11 +73,11 @@ def downscale_photo(uploaded, *, max_edge=MAX_EDGE, square=True):
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
         buffer.seek(0)
-    except Exception:
-        # A file Pillow cannot read is one the ImageField will reject anyway,
-        # with a better message than anything we could raise here.
-        uploaded.seek(0)
-        return uploaded
+    except Exception as exc:
+        # A file Pillow cannot decode is not an image. It must NOT be stored:
+        # an .svg or .html kept under a photo field and served same-origin is
+        # stored XSS. Reject rather than fall back to the original bytes.
+        raise ValueError("That file is not a valid image.") from exc
 
     name = getattr(uploaded, "name", "photo")
     stem = name.rsplit(".", 1)[0] or "photo"
