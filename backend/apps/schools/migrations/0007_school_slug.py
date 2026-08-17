@@ -31,16 +31,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # 1. Add the column without the unique constraint, so existing rows can
-        #    all hold the empty default for a moment.
+        # 1. Add the column with NO index. A SlugField defaults to
+        #    db_index=True, which on Postgres also creates a "<col>_like" index;
+        #    step 3 would then try to create that same _like index again and fail
+        #    with DuplicateTable. db_index=False keeps step 1 index-free so the
+        #    unique index (and its _like companion) are created exactly once.
         migrations.AddField(
             model_name="school",
             name="slug",
-            field=models.SlugField(blank=True, default="", max_length=60),
+            field=models.SlugField(blank=True, db_index=False, default="", max_length=60),
         ),
         # 2. Give every existing school a unique slug from its name.
         migrations.RunPython(backfill_slugs, noop),
-        # 3. Now enforce uniqueness.
+        # 3. Now enforce uniqueness (creates the unique index + its _like index).
         migrations.AlterField(
             model_name="school",
             name="slug",
