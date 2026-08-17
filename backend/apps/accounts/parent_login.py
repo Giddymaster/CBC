@@ -18,42 +18,92 @@ from rest_framework.throttling import ScopedRateThrottle
 User = get_user_model()
 
 
-def resolve_login(identifier):
+def resolve_login(identifier, school_code=None):
     """Map what was typed to a real username, if it is a child's number.
 
-    Returns the identifier unchanged when it is not one — an unknown value
-    then fails authentication normally, which keeps the "invalid credentials"
-    answer identical whether or not the number exists.
+    A school code scopes the lookup, and it matters: admission numbers are only
+    unique *within* a school, so once the platform holds many schools, two of
+    them can share "ADM0126". Without the code the query would resolve to
+    whichever school's learner it found first — the wrong family, and a silent
+    lockout for the other. With the code it is one indexed lookup against
+    (school, admission_number), which is both correct and fast.
+
+    Returns the identifier unchanged when it resolves to nothing — an unknown
+    value then fails authentication normally, so "invalid credentials" reads the
+    same whether or not the number exists.
     """
+    from apps.schools.models import School
     from apps.students.models import Learner
 
     text = (identifier or "").strip()
     if not text:
         return identifier
-    # A real account wins — returned in its stored casing, since Django
-    # authenticates on an exact username and parents type on phone keyboards.
+
+    def guardian_username(learner):
+        guardian = (
+            learner.guardians.filter(user__isnull=False, is_primary_contact=True).first()
+            or learner.guardians.filter(user__isnull=False).first()
+        )
+        return guardian.user.username if guardian else None
+
+    if school_code:
+        school = School.objects.filter(code__iexact=school_code.strip()).first()
+        if school is None:
+            # A code was given but names no school — nothing can resolve under
+            # it, so fail closed rather than silently searching every tenant.
+            return identifier
+        # Inside a named school, a child's number is tried FIRST — that is what a
+        # parent types — so it cannot be shadowed by a same-looking username in
+        # another school. Then a staff username within this school.
+        learner = (
+            Learner.objects.filter(school=school, admission_number__iexact=text).first()
+            or Learner.objects.filter(school=school, upi__iexact=text).first()
+        )
+        if learner is not None:
+            resolved = guardian_username(learner)
+            if resolved:
+                return resolved
+        account = User.objects.filter(username__iexact=text, school=school).first()
+        return account.username if account is not None else identifier
+
+    # No code given: a real username wins (staff/admin usernames are globally
+    # unique), then a global admission/UPI fallback for a parent who typed no
+    # code. This path is ambiguous across schools, which is exactly why the code
+    # exists — the form requires it for parents.
     account = User.objects.filter(username__iexact=text).first()
     if account is not None:
         return account.username
-
     learner = (
         Learner.objects.filter(admission_number__iexact=text).first()
         or Learner.objects.filter(upi__iexact=text).first()
     )
-    if learner is None:
-        return identifier
-
-    guardian = (
-        learner.guardians.filter(user__isnull=False, is_primary_contact=True).first()
-        or learner.guardians.filter(user__isnull=False).first()
-    )
-    return guardian.user.username if guardian else identifier
+    return guardian_username(learner) or identifier if learner else identifier
 
 
 class ParentFriendlyAuthTokenSerializer(AuthTokenSerializer):
     def validate(self, attrs):
-        attrs["username"] = resolve_login(attrs.get("username"))
-        return super().validate(attrs)
+        request = self.context.get("request")
+        school_code = ""
+        if request is not None:
+            school_code = (request.data.get("school_code") or "").strip()
+
+        attrs["username"] = resolve_login(attrs.get("username"), school_code)
+        data = super().validate(attrs)
+
+        # When a code is given, the account must actually belong to that school.
+        # This is what makes the system sure which tenant a login is for — a
+        # right password on the wrong school code is still refused. A blank code
+        # (operators, or a staff username that is already globally unique) skips
+        # the check.
+        if school_code:
+            user = data["user"]
+            school = getattr(user, "school", None)
+            if school is None or (school.code or "").lower() != school_code.lower():
+                raise serializers.ValidationError(
+                    "This account is not registered under that school code.",
+                    code="authorization",
+                )
+        return data
 
 
 class LoginView(ObtainAuthToken):

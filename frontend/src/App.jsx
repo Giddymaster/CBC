@@ -52,6 +52,7 @@ const LOGIN_ROLES = {
     heading: 'Parent sign-in',
     userLabel: "Child's admission number",
     passLabel: 'UPI number',
+    codeRequired: true,
     hint: "First time? Username is your child's admission number, password is their UPI — both on the report form. You'll set your own password next.",
   },
   staff: {
@@ -71,23 +72,30 @@ const LOGIN_ROLES = {
 function Login({ onLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [schoolCode, setSchoolCode] = useState(
+    () => new URLSearchParams(window.location.search).get('school') || '',
+  )
   const [error, setError] = useState('')
   const asRole = new URLSearchParams(window.location.search).get('as')
   const role = LOGIN_ROLES[asRole] || {
     heading: 'Sign in',
     userLabel: 'Username or admission number',
     passLabel: 'Password',
-    hint: "Parents: sign in with your child's admission number and UPI.",
+    hint: "Parents: enter your school code, then your child's admission number and UPI.",
   }
 
   async function submit(e) {
     e.preventDefault()
     setError('')
+    if (role.codeRequired && !schoolCode.trim()) {
+      setError('Enter your school code — the office can tell you it.')
+      return
+    }
     try {
       const res = await fetch('/api/auth/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, school_code: schoolCode.trim() }),
       })
       if (!res.ok) throw new Error('Invalid credentials')
       const data = await res.json()
@@ -111,6 +119,12 @@ function Login({ onLogin }) {
           ))}
         </div>
       )}
+      {/* The school code names the tenant, so an admission number resolves to
+          the right school and a login can never land on the wrong one. Required
+          for parents; optional for staff, whose usernames are unique. */}
+      <input placeholder={role.codeRequired ? 'School code' : 'School code (optional)'}
+        value={schoolCode} autoComplete="off"
+        onChange={(e) => setSchoolCode(e.target.value)} />
       <input placeholder={role.userLabel} value={username}
         autoComplete="username"
         onChange={(e) => setUsername(e.target.value)} />

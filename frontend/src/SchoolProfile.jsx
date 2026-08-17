@@ -29,20 +29,27 @@ function Field({ label, value, onChange, placeholder, disabled, type = 'text' })
 
 function Facts({ profile }) {
   const rows = [
-    ['MoE code', profile.code],
+    ['School code (for sign-in)', profile.code],
     ['KEMIS code', profile.kemis_code],
     ['County', [profile.county, profile.subcounty, profile.ward].filter(Boolean).join(' · ')],
     ['Paybill prefix', profile.paybill_account_prefix],
   ].filter(([, v]) => v)
   return (
-    <div className="sp-facts">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <small>{label}</small>
-          <b>{value}</b>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="sp-facts">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <small>{label}</small>
+            <b>{value}</b>
+          </div>
+        ))}
+      </div>
+      <p className="muted" style={{ fontSize: '0.82rem', marginTop: '0.5rem' }}>
+        Parents, teachers and staff enter the <b>school code</b> above when they
+        sign in, so the system knows which school they belong to. Share it with
+        your parents alongside the admission number.
+      </p>
+    </>
   )
 }
 

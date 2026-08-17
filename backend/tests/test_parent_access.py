@@ -75,11 +75,11 @@ class CreateParentLoginTests(APITestCase):
         self.assertEqual(self.guardian.user.role, "PARENT")
         self.assertTrue(self.guardian.user.must_change_password)
 
-        # Login with admission number + UPI works straight away.
+        # Login with school code + admission number + UPI works straight away.
         self.client.force_authenticate(None)
         signin = self.client.post(
             "/api/auth/token/",
-            {"username": "ADM0126", "password": "UPI777"},
+            {"username": "ADM0126", "password": "UPI777", "school_code": self.school.code},
             format="json",
         )
         self.assertEqual(signin.status_code, 200, signin.data)
@@ -107,6 +107,64 @@ class CreateParentLoginTests(APITestCase):
         res = self.client.post("/api/parent-logins/", {"learner": self.learner.id},
                                format="json")
         self.assertEqual(res.status_code, 403)
+
+
+class SchoolCodeScopingTests(APITestCase):
+    """The school code is what tells the platform which tenant a login is for
+    once many schools share admission numbers."""
+
+    def setUp(self):
+        # Two schools, both using "ADM001" — the whole point.
+        self.school_a = make_school("Alpha", code="SCH-A")
+        self.school_b = make_school("Beta", code="SCH-B")
+        self.learner_a = make_learner(
+            self.school_a, admission_number="ADM001", upi="UPI-A")
+        self.learner_b = make_learner(
+            self.school_b, admission_number="ADM001", upi="UPI-B")
+        self._issue(self.school_a, self.learner_a)
+        self._issue(self.school_b, self.learner_b)
+
+    def _issue(self, school, learner):
+        make_guardian(school, learners=[learner])
+        admin = make_user(school, "ADMIN")
+        self.client.force_authenticate(admin)
+        self.client.post("/api/parent-logins/", {"learner": learner.id}, format="json")
+        self.client.force_authenticate(None)
+
+    def test_the_code_routes_the_same_admission_number_to_the_right_school(self):
+        a = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "UPI-A", "school_code": "SCH-A"},
+            format="json",
+        )
+        self.assertEqual(a.status_code, 200, a.data)
+        # School A's parent is signed in — not School B's, though both are ADM001.
+        self.assertEqual(a.data["role"], "PARENT")
+
+        b = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "UPI-B", "school_code": "SCH-B"},
+            format="json",
+        )
+        self.assertEqual(b.status_code, 200, b.data)
+        self.assertNotEqual(a.data["username"], b.data["username"])
+
+    def test_the_right_password_on_the_wrong_code_is_refused(self):
+        # School A's UPI, but claiming School B — must fail, not cross tenants.
+        res = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "UPI-A", "school_code": "SCH-B"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_an_unknown_school_code_signs_no_one_in(self):
+        res = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "UPI-A", "school_code": "NOPE"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 400)
 
 
 class ParentPortalContentTests(APITestCase):

@@ -253,6 +253,12 @@ class Learner(SchoolScopedModel):
                 fields=["school", "admission_number"], name="unique_admission_per_school"
             )
         ]
+        # Parent login resolves a UPI to a learner within a school; index it so
+        # that lookup is a seek, not a scan, once the platform holds many schools.
+        # (admission_number is already covered by the unique constraint's index.)
+        indexes = [
+            models.Index(fields=["school", "upi"], name="learner_school_upi_idx"),
+        ]
 
     @property
     def full_name(self):
