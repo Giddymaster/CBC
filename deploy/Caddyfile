@@ -42,10 +42,18 @@
 		file_server
 	}
 
+	# Real downloads must 404 when absent, not fall back to index.html — else a
+	# missing APK "downloads the webpage". These paths are files or nothing.
+	@downloads path /shulenest.apk /*.pdf /*.xlsx
+	handle @downloads {
+		root * /srv/site
+		file_server
+	}
+
 	# Everything else is the single-page app. try_files serves a real file when
-	# one exists (robots.txt, sitemap.xml, llms.txt, the APK, JS/CSS assets) and
-	# otherwise falls back to index.html so client-side routes like /admin/fees
-	# resolve to the app.
+	# one exists (robots.txt, sitemap.xml, llms.txt, JS/CSS assets) and otherwise
+	# falls back to index.html so client-side routes like /admin/fees resolve to
+	# the app.
 	handle {
 		root * /srv/site
 		try_files {path} /index.html

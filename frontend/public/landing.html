@@ -223,7 +223,7 @@
       <div class="cta-row">
         <a class="btn btn-primary" href="/login">Get started free</a>
         <button class="btn btn-accent" id="install-btn" hidden>📲 Install the app</button>
-        <a class="btn btn-ghost" href="/shulenest.apk" download>⬇ Download Android APK</a>
+        <a class="btn btn-ghost" id="apk-btn" href="/shulenest.apk" download hidden>⬇ Download Android APK</a>
       </div>
       <p class="hero-note">Free to try. No card. Set up your school in an afternoon.</p>
     </div>
@@ -353,8 +353,9 @@
         <div class="get-card">
           <div class="big-ic">🤖</div>
           <h3>Android APK</h3>
-          <p>Prefer a real install file? Download the signed Android app and open it on the phone.</p>
-          <a class="btn btn-accent" href="/shulenest.apk" download style="margin:0 auto;">Download APK</a>
+          <p id="apk-copy">Prefer a real install file? Download the signed Android app and open it on the phone.</p>
+          <a class="btn btn-accent" id="apk-btn-2" href="/shulenest.apk" download style="margin:0 auto;" hidden>Download APK</a>
+          <span class="btn btn-ghost" id="apk-soon" style="margin:0 auto; color:var(--faint); border-color:var(--border); cursor:default;">Coming soon</span>
         </div>
       </div>
     </div>
@@ -424,7 +425,10 @@
 </footer>
 
 <script>
-  // PWA install: capture the prompt and reveal the install buttons.
+  // PWA install: the browser fires beforeinstallprompt only when the app is
+  // actually installable (served over HTTPS, has a manifest, not already
+  // installed). We capture it and let our own button trigger the real prompt —
+  // so "Install the app" installs the PWA, it never just opens a page.
   let deferredPrompt = null;
   const installButtons = [document.getElementById('install-btn'), document.getElementById('install-btn-2')];
   window.addEventListener('beforeinstallprompt', function (e) {
@@ -444,6 +448,25 @@
       installButtons.forEach(function (x) { if (x) x.hidden = true; });
     });
   });
+
+  // The APK button is shown ONLY when a real APK is published. Without this a
+  // missing /shulenest.apk falls back to the app's HTML and the browser
+  // "downloads the webpage" — exactly the wrong thing. A HEAD request tells us
+  // whether the file is a genuine binary before we offer it.
+  (async function () {
+    const apkButtons = [document.getElementById('apk-btn'), document.getElementById('apk-btn-2')];
+    try {
+      const res = await fetch('/shulenest.apk', { method: 'HEAD' });
+      const type = (res.headers.get('content-type') || '').toLowerCase();
+      const isApk = res.ok && !type.includes('text/html');
+      if (isApk) {
+        apkButtons.forEach(function (b) { if (b) b.hidden = false; });
+        const soon = document.getElementById('apk-soon');
+        if (soon) soon.hidden = true;
+      }
+    } catch (e) { /* offline or blocked — leave the APK button hidden */ }
+  })();
+
   document.getElementById('yr').textContent = new Date().getFullYear();
 </script>
 </body>
