@@ -25,6 +25,7 @@ import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import Fees from './Fees.jsx'
 import Messaging from './Messaging.jsx'
+import { basePathFor, goTo, slugify, usePath } from './router.js'
 import SchoolProfile from './SchoolProfile.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
@@ -384,6 +385,9 @@ const NAV_SECTIONS = [
 
 const ALL_ITEMS = NAV_SECTIONS.flatMap((s) => s.items)
 
+// /admin/<slug> ↔ tab name, e.g. /admin/school-profile ↔ "School Profile".
+const SLUG_TO_TAB = Object.fromEntries(ALL_ITEMS.map((i) => [slugify(i.name), i.name]))
+
 const TABS = {
   School: SchoolStructure,
   Staff: Staff,
@@ -424,6 +428,37 @@ export default function App() {
   const [rejected, setRejected] = useState(rejectedWrites())
   const [showQueue, setShowQueue] = useState(false)
   const [syncNote, setSyncNote] = useState('')
+  const path = usePath()
+
+  // Signed out → /login, whatever was typed. The target tab survives in the
+  // URL only until the redirect; keeping it would mean encoding state nobody
+  // asked to keep.
+  useEffect(() => {
+    if (!authed && window.location.pathname !== '/login') {
+      goTo('/login', { replace: true })
+    }
+  }, [authed])
+
+  // The address bar and the open tab say the same thing, in both directions:
+  // a pasted /admin/fees opens Fees; landing on the wrong portal's path
+  // redirects to your own.
+  useEffect(() => {
+    if (!authed || !me || me.must_change_password) return
+    const base = basePathFor(me)
+    if (!path.startsWith(base)) {
+      goTo(base === '/admin' ? `/admin/${slugify(tab)}` : base, { replace: true })
+      return
+    }
+    if (base !== '/admin') return
+    const segment = path.slice('/admin/'.length).split('/')[0]
+    const name = SLUG_TO_TAB[segment]
+    if (name && name !== tab) {
+      setTab(name)
+      setScope(null)
+    } else if (!segment) {
+      goTo(`/admin/${slugify(tab)}`, { replace: true })
+    }
+  }, [authed, me, path]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshQueue = useCallback(() => {
     setQueued(queuedCount())
@@ -555,6 +590,7 @@ export default function App() {
   const openTab = (name, nextScope = null) => {
     setTab(name)
     setScope(nextScope)
+    if (isStaffUI) goTo(`/admin/${slugify(name)}`)
   }
 
   return (
