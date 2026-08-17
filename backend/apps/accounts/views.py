@@ -16,6 +16,9 @@ class MeView(APIView):
                 "full_name": user.get_full_name(),
                 "role": user.role,
                 "school": user.school.name if user.school else None,
+                # The school's URL handle — shulenest.com/<slug>/admin/... .
+                "school_slug": user.school.slug if user.school else None,
+                "school_code": user.school.code if user.school else None,
                 "is_guardian": hasattr(user, "guardian_profile"),
                 "is_operator": is_operator(user),
                 # The client blocks on this: an admin-issued password is a

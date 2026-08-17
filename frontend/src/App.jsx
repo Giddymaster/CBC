@@ -26,7 +26,7 @@ import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import Fees from './Fees.jsx'
 import Learning from './Learning.jsx'
 import Messaging from './Messaging.jsx'
-import { basePathFor, goTo, slugify, usePath } from './router.js'
+import { basePathFor, goTo, portalFor, slugify, usePath } from './router.js'
 import SchoolProfile from './SchoolProfile.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
@@ -498,23 +498,24 @@ export default function App() {
   }, [authed])
 
   // The address bar and the open tab say the same thing, in both directions:
-  // a pasted /admin/fees opens Fees; landing on the wrong portal's path
-  // redirects to your own.
+  // a pasted /<school>/admin/fees opens Fees; landing on the wrong portal's
+  // path (or a stale schoolless one) redirects to your own /<school>/... .
   useEffect(() => {
     if (!authed || !me || me.must_change_password) return
-    const base = basePathFor(me)
+    const base = basePathFor(me)          // e.g. /demo-junior-school/admin
+    const isAdmin = portalFor(me) === 'admin'
     if (!path.startsWith(base)) {
-      goTo(base === '/admin' ? `/admin/${slugify(tab)}` : base, { replace: true })
+      goTo(isAdmin ? `${base}/${slugify(tab)}` : base, { replace: true })
       return
     }
-    if (base !== '/admin') return
-    const segment = path.slice('/admin/'.length).split('/')[0]
+    if (!isAdmin) return
+    const segment = path.slice(base.length).replace(/^\/+/, '').split('/')[0]
     const name = SLUG_TO_TAB[segment]
     if (name && name !== tab) {
       setTab(name)
       setScope(null)
     } else if (!segment) {
-      goTo(`/admin/${slugify(tab)}`, { replace: true })
+      goTo(`${base}/${slugify(tab)}`, { replace: true })
     }
   }, [authed, me, path]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -648,7 +649,7 @@ export default function App() {
   const openTab = (name, nextScope = null) => {
     setTab(name)
     setScope(nextScope)
-    if (isStaffUI) goTo(`/admin/${slugify(name)}`)
+    if (isStaffUI) goTo(`${basePathFor(me)}/${slugify(name)}`)
   }
 
   return (

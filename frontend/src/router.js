@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react'
 /**
  * Paths for a tab-based app, without a router library.
  *
- * Each portal owns a base path — /admin, /teacher, /staff, /parent,
- * /operator — and the admin shell's tabs hang off /admin as slugs
- * (/admin/fees, /admin/school-profile). The URL is a second way of saying
- * which tab is open, so the back button, a bookmark and a pasted link all
- * land where they say they will. State stays in React; the address bar is
- * kept honest by two small hooks rather than a routing framework.
+ * The school leads the path: shulenest.com/<school>/admin/fees,
+ * /<school>/teacher, /<school>/parent. The school segment is the tenant's URL
+ * handle (its slug), so the address bar names which school you are in — the
+ * data still comes from the signed-in account, the slug is the label. The
+ * platform operator has no school and lives at /operator.
+ *
+ * The URL is a second way of saying which portal and tab are open, so the back
+ * button, a bookmark and a pasted link all land where they say. State stays in
+ * React; two small hooks keep the address bar honest rather than a framework.
  */
 
 export function slugify(name) {
@@ -36,11 +39,23 @@ export function goTo(path, { replace = false } = {}) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-/** Where each kind of account lives. */
+/** The portal segment for an account: admin / teacher / staff / parent / operator. */
+export function portalFor(me) {
+  if (me.is_operator) return 'operator'
+  if (me.role === 'PARENT') return 'parent'
+  if (me.role === 'TEACHER') return 'teacher'
+  if (me.role === 'SUPPORT') return 'staff'
+  return 'admin'
+}
+
+/**
+ * Where an account lives, school first. The operator has no school, so it stays
+ * at /operator; everyone else is /<school>/<portal>. A school user without a
+ * slug (older account, mid-migration) falls back to no school segment rather
+ * than a broken /undefined/.
+ */
 export function basePathFor(me) {
-  if (me.is_operator) return '/operator'
-  if (me.role === 'PARENT') return '/parent'
-  if (me.role === 'TEACHER') return '/teacher'
-  if (me.role === 'SUPPORT') return '/staff'
-  return '/admin'
+  const portal = portalFor(me)
+  if (portal === 'operator') return '/operator'
+  return me.school_slug ? `/${me.school_slug}/${portal}` : `/${portal}`
 }

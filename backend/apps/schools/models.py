@@ -44,6 +44,9 @@ class School(TimeStampedModel):
     name = models.CharField(max_length=200)
     code = models.CharField(max_length=30, unique=True, help_text="MoE school code")
     kemis_code = models.CharField(max_length=30, blank=True)
+    # The school's handle in the URL — shulenest.com/<slug>/admin/... . Set once
+    # from the name and kept stable, so a bookmarked link survives a rename.
+    slug = models.SlugField(max_length=60, unique=True, blank=True)
 
     # The CBC levels this school offers — any combination of the three. A school
     # running primary through senior selects all three; most run one or two.
@@ -106,6 +109,24 @@ class School(TimeStampedModel):
 
     class Meta:
         ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = self._unique_slug()
+        super().save(*args, **kwargs)
+
+    def _unique_slug(self):
+        """A URL handle from the name, made unique with a numeric suffix. Falls
+        back to the code so a nameless or all-symbols school still gets one."""
+        from django.utils.text import slugify
+
+        base = slugify(self.name)[:50] or f"school-{self.code}".lower()
+        candidate = base
+        n = 2
+        while School.objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+            candidate = f"{base}-{n}"
+            n += 1
+        return candidate
 
     def __str__(self):
         return f"{self.name} ({self.code})"
