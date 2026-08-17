@@ -17,8 +17,14 @@ from apps.common.uploads import validate_document
 from apps.schools.moe import structure_summary
 
 from .ingest import extract_text, index_document
-from .models import Chunk, Document, Source
-from .retrieval import authority_spread, search, visible_documents
+from .models import Chunk, Document, LearningResource, Source
+from .retrieval import (
+    authority_spread,
+    search,
+    search_resources,
+    visible_documents,
+    visible_resources,
+)
 
 
 def _require_admin(user):
@@ -211,6 +217,149 @@ class CurriculumSearchView(APIView):
                 "authority": authority_spread(passages),
             }
         )
+
+
+def _resource_payload(resource, request):
+    """One resource as the E-learning page reads it — a signed link for an
+    uploaded book, a YouTube id and thumbnail for a video."""
+    file_url = None
+    if resource.file:
+        from apps.common.media import signed_media_url
+
+        file_url = signed_media_url(request, resource.file)
+    yt = resource.youtube_id
+    return {
+        "id": resource.id,
+        "kind": resource.kind,
+        "kind_label": resource.get_kind_display(),
+        "title": resource.title,
+        "description": resource.description,
+        "topic": resource.topic,
+        "author": resource.author,
+        "learning_area": resource.learning_area.name if resource.learning_area_id else None,
+        "learning_area_id": resource.learning_area_id,
+        "grades": resource.grades,
+        "url": resource.url,
+        "file_url": file_url,
+        "youtube_id": yt,
+        "youtube_embed": f"https://www.youtube.com/embed/{yt}" if yt else None,
+        "thumbnail": f"https://i.ytimg.com/vi/{yt}/hqdefault.jpg" if yt else None,
+        "national": resource.is_national,
+        "source": resource.source.name if resource.source_id else None,
+    }
+
+
+class LearningResourceSerializer(serializers.ModelSerializer):
+    file = SignedFileField(required=False, allow_null=True, validators=[validate_document])
+    youtube_id = serializers.CharField(read_only=True)
+    national = serializers.BooleanField(source="is_national", read_only=True)
+
+    class Meta:
+        model = LearningResource
+        fields = "__all__"
+        # `school` stays writable so a platform superuser can publish a national
+        # resource by sending null; the viewset decides who may.
+        read_only_fields = ["added_by"]
+
+    def validate(self, attrs):
+        kind = attrs.get("kind", getattr(self.instance, "kind", None))
+        url = attrs.get("url", getattr(self.instance, "url", ""))
+        has_file = attrs.get("file") or getattr(self.instance, "file", None)
+        if not url and not has_file:
+            raise serializers.ValidationError(
+                {"url": ["Give a link (e.g. a YouTube URL) or upload a file."]}
+            )
+        if kind == LearningResource.Kind.VIDEO and url and not youtube_id_of(url):
+            raise serializers.ValidationError(
+                {"url": ["That does not look like a YouTube link."]}
+            )
+        return attrs
+
+
+def youtube_id_of(url):
+    from .models import youtube_id
+
+    return youtube_id(url)
+
+
+class LearningResourceViewSet(viewsets.ModelViewSet):
+    """The e-learning library: national resources plus this school's own.
+
+    Everyone signed in may read it — this is the one part of the platform meant
+    for learners and parents to browse. Writing follows the curriculum library's
+    rule: a national resource reaches every school, so only a platform superuser
+    publishes one; a school admin curates their own school's shelf.
+    """
+
+    serializer_class = LearningResourceSerializer
+    filterset_fields = ["kind", "learning_area", "source"]
+    search_fields = ["title", "topic", "description"]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        return visible_resources(self.request.user.school)
+
+    def _scope(self, serializer):
+        user = self.request.user
+        requested = serializer.validated_data.pop("school", "unset")
+        if user.is_superuser:
+            return None if requested is None else (
+                user.school if requested == "unset" else requested
+            )
+        if requested is None:
+            raise PermissionDenied(
+                "A national resource is shared with every school — only a platform "
+                "administrator can publish one. Save it to your school instead."
+            )
+        if requested != "unset" and requested != user.school:
+            raise PermissionDenied("You can only add resources to your own school.")
+        return user.school
+
+    def perform_create(self, serializer):
+        _require_admin(self.request.user)
+        school = self._scope(serializer)
+        serializer.save(school=school, added_by=self.request.user)
+
+    def perform_update(self, serializer):
+        _require_admin(self.request.user)
+        if serializer.instance.is_national and not self.request.user.is_superuser:
+            raise PermissionDenied("National resources are managed by the platform.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        _require_admin(self.request.user)
+        if instance.is_national and not self.request.user.is_superuser:
+            raise PermissionDenied("National resources are managed by the platform.")
+        instance.delete()
+
+    def list(self, request, *args, **kwargs):
+        # A ranked, embed-ready payload rather than the raw rows, so the page can
+        # render players and book links without a second shaping pass.
+        return Response({"results": self._search(request)})
+
+    @action(detail=False)
+    def search(self, request):
+        return Response({"results": self._search(request)})
+
+    def _search(self, request):
+        query = request.query_params.get("q", "").strip()
+        grade = request.query_params.get("grade")
+        area = request.query_params.get("learning_area")
+        kind = request.query_params.get("kind")
+        try:
+            grade = int(grade) if grade not in (None, "") else None
+            area = int(area) if area not in (None, "") else None
+        except ValueError:
+            grade = area = None
+        resources = search_resources(
+            query,
+            school=request.user.school,
+            learning_area=area,
+            grade=grade,
+            kinds=[kind] if kind else None,
+            limit=int(request.query_params.get("limit", 48)),
+        )
+        return [_resource_payload(r, request) for r in resources]
 
 
 class MoeStructureView(APIView):

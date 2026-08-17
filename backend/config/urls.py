@@ -51,6 +51,7 @@ from apps.interop.views import kemis_enrollment, kemis_learners_csv
 from apps.knowledge.views import (
     CurriculumSearchView,
     DocumentViewSet,
+    LearningResourceViewSet,
     MoeStructureView,
     SourceViewSet,
 )
@@ -184,6 +185,7 @@ router.register("promotions/runs", PromotionRunViewSet)
 router.register("promotions/outcomes", PromotionOutcomeViewSet)
 router.register("curriculum/sources", SourceViewSet)
 router.register("curriculum/documents", DocumentViewSet, basename="document")
+router.register("learning-resources", LearningResourceViewSet, basename="learning-resource")
 router.register("nav-sections", NavSectionViewSet)
 router.register("facility-categories", FacilityCategoryViewSet)
 router.register("facilities", FacilityViewSet)

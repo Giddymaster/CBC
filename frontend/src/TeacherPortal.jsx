@@ -11,6 +11,7 @@ import Messaging from './Messaging.jsx'
 import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
+import Learning from './Learning.jsx'
 import SchoolProfile from './SchoolProfile.jsx'
 import SchoolStructure from './SchoolStructure.jsx'
 import MyTeam from './MyTeam.jsx'
@@ -493,6 +494,9 @@ const TEACHER_ACTIONS = [
     cta: 'Assign tasks', when: (ctx) => ctx.rankLevel >= 4 },
   { tab: 'Peer Review', icon: 'star', tone: 'purple', title: 'Peer Review',
     desc: 'Observe colleagues and read feedback on your teaching.', cta: 'Open reviews' },
+  { tab: 'E-Learning', icon: 'book', tone: 'teal', title: 'E-Learning',
+    desc: 'Video lessons, books and past papers to share with your classes.',
+    cta: 'Open library' },
   { tab: 'Admissions', icon: 'plus', tone: 'green', title: 'Admissions',
     desc: 'Admit a learner into the school.', cta: 'Admit a learner',
     when: (ctx) => ctx.canAdmit },
@@ -602,6 +606,7 @@ export default function TeacherPortal({ onQueueChange }) {
         </>
       )}
       {tab === 'Peer Review' && <PeerReview />}
+      {tab === 'E-Learning' && <Learning canCurate={ctx.rankLevel >= 4} />}
       {tab === 'Parents' && <StaffParentThreads />}
       {tab === 'Lesson Plans' && <LessonPlans summary={summary} />}
       {tab === 'Reports' && (

@@ -118,6 +118,111 @@ class Document(TimeStampedModel):
         return self.title
 
 
+def youtube_id(url):
+    """Pull the 11-character video id out of any shape of YouTube link.
+
+    Handles watch?v=, youtu.be/, /embed/, /shorts/ and a bare id. Returns "" if
+    there is nothing that looks like one, so a mistyped link fails visibly
+    rather than embedding a broken player.
+    """
+    import re
+
+    if not url:
+        return ""
+    text = url.strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", text):
+        return text
+    patterns = [
+        r"(?:v=|/embed/|/shorts/|youtu\.be/)([A-Za-z0-9_-]{11})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return ""
+
+
+class LearningResource(TimeStampedModel):
+    """Something a learner watches, reads or works through.
+
+    The curriculum `Document` grounds what the school *produces* — schemes,
+    reports — and is staff-facing. A LearningResource is the other direction:
+    material a learner or parent *consumes*, a KICD-aligned video, an approved
+    course book, a past paper, a simulation. Same two rules as Document, so the
+    two libraries behave alike: authority comes from the source, and a national
+    resource (school null) is shared by every tenant while a school's own stays
+    inside it.
+
+    Discovery runs on the same retrieval engine as the curriculum base
+    (apps.knowledge.retrieval.search_resources), so "photosynthesis grade 7"
+    surfaces the right video and book together.
+    """
+
+    class Kind(models.TextChoices):
+        VIDEO = "VIDEO", "Video lesson"
+        BOOK = "BOOK", "Book / textbook"
+        NOTES = "NOTES", "Notes / revision"
+        PAPER = "PAPER", "Past paper / quiz"
+        SIMULATION = "SIMULATION", "Simulation / interactive"
+        LINK = "LINK", "Web resource"
+
+    # Null school = a national resource every school sees.
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="learning_resources",
+        help_text="Leave blank for a national resource shared by all schools",
+    )
+    source = models.ForeignKey(
+        Source, on_delete=models.PROTECT, related_name="learning_resources",
+        null=True, blank=True,
+    )
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.VIDEO)
+    title = models.CharField(max_length=250)
+    description = models.TextField(blank=True)
+    topic = models.CharField(
+        max_length=200, blank=True, help_text="Strand / sub-strand or topic, for search"
+    )
+    learning_area = models.ForeignKey(
+        "assessments.LearningArea", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="learning_resources",
+    )
+    grades = models.JSONField(default=list, blank=True, help_text="Grades it suits, e.g. [7, 8]")
+
+    # A resource is either a link (video / web / online book) or an uploaded
+    # file (a PDF book, notes, a past paper). One of url / file is set.
+    url = models.URLField(blank=True, help_text="YouTube link, or a link to a book/resource")
+    file = models.FileField(upload_to="elearning/%Y/", null=True, blank=True)
+
+    author = models.CharField(max_length=150, blank=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="learning_resources_added",
+    )
+
+    class Meta:
+        ordering = ["learning_area__name", "title", "id"]
+
+    @property
+    def is_national(self):
+        return self.school_id is None
+
+    @property
+    def youtube_id(self):
+        return youtube_id(self.url) if self.kind == self.Kind.VIDEO else ""
+
+    def covers_grade(self, grade):
+        return not self.grades or grade in self.grades
+
+    def search_text(self):
+        parts = [self.title, self.topic, self.description]
+        if self.learning_area_id:
+            parts.append(self.learning_area.name)
+        return " ".join(p for p in parts if p)
+
+    def __str__(self):
+        return f"{self.title} ({self.get_kind_display()})"
+
+
 class Chunk(TimeStampedModel):
     """A retrievable passage. Small enough to cite, big enough to mean something."""
 

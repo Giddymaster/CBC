@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { ParentThreads } from './ParentMessages.jsx'
+import Learning from './Learning.jsx'
 import { apiGet } from './api.js'
 import { gradeLabel } from './format.js'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
 
 const PARENT_NAV = [
   { key: 'Dashboard', label: 'Dashboard', icon: 'grid' },
-  { key: 'Profile', label: 'Profile', icon: 'user' },
   { key: 'Results', label: 'Results', icon: 'clipboard' },
+  { key: 'Learn', label: 'Learn', icon: 'book' },
   { key: 'Fees', label: 'Fees', icon: 'wallet' },
   { key: 'Messages', label: 'Messages', icon: 'chat' },
 ]
@@ -265,6 +266,9 @@ export default function ParentPortal() {
             <ActionCard icon="chat" tone="blue" title="Messages"
               desc="Talk to your child's teachers."
               cta="Open messages" onOpen={() => openTab('Messages')} />
+            <ActionCard icon="book" tone="teal" title="E-Learning"
+              desc="Video lessons, books and past papers for your child's grade."
+              cta="Start learning" onOpen={() => openTab('Learn')} />
             <ActionCard icon="bell" tone="purple" title="Announcements"
               desc="Notices and events from the school."
               cta="Read notices" onOpen={() => openTab('Announcements')} />
@@ -298,6 +302,7 @@ export default function ParentPortal() {
         </>
       )}
 
+      {tab === 'Learn' && <Learning canCurate={false} />}
       {tab === 'Messages' && <ParentThreads />}
       {tab === 'Announcements' && <Announcements items={summary.announcements} />}
 

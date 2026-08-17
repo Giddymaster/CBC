@@ -21,7 +21,7 @@ from django.db.models import Q
 
 from apps.schools.moe import AUTHORITY_LABELS, authority_rank
 
-from .models import Chunk, Document
+from .models import Chunk, Document, LearningResource
 
 # Words that carry no retrieval signal in this domain.
 STOPWORDS = {
@@ -90,6 +90,74 @@ class Passage:
             "score": round(self.score, 4),
             "citation": self.as_citation(),
         }
+
+
+def visible_resources(school):
+    """National e-learning resources plus this school's own — the same tenancy
+    rule as the curriculum base, so the two libraries scope alike."""
+    qs = LearningResource.objects.select_related("source", "learning_area")
+    if school is None:
+        return qs.filter(school__isnull=True)
+    return qs.filter(Q(school__isnull=True) | Q(school=school))
+
+
+def search_resources(query, *, school, learning_area=None, grade=None, kinds=None, limit=24):
+    """Rank e-learning resources for a query on the same engine as the
+    curriculum search: tokenised term overlap, length-normalised, nudged by the
+    source's authority so a KICD video edges out an unattributed one on a tie.
+
+    An empty query returns the newest resources for the filter, so the page has
+    something to show before anyone types. Never raises on an empty library.
+    """
+    resources = visible_resources(school)
+    if learning_area is not None:
+        resources = resources.filter(
+            Q(learning_area=learning_area) | Q(learning_area__isnull=True)
+        )
+    if kinds:
+        resources = resources.filter(kind__in=kinds)
+    resources = list(resources)
+    if grade is not None:
+        resources = [r for r in resources if r.covers_grade(grade)]
+    if not resources:
+        return []
+
+    query_terms = tokenize(query)
+    if not query_terms:
+        # No query — most recent first, so the library is browsable cold.
+        return sorted(resources, key=lambda r: -r.id)[:limit]
+
+    docs = [(r, tokenize(r.search_text())) for r in resources]
+    avg_len = sum(len(t) for _, t in docs) / len(docs) or 1
+    distinct = set(query_terms)
+    doc_freq = Counter()
+    for _, terms in docs:
+        present = set(terms)
+        for term in distinct:
+            if term in present:
+                doc_freq[term] += 1
+
+    n = len(docs)
+    scored = []
+    for resource, terms in docs:
+        counts = Counter(terms)
+        length = len(terms) or 1
+        score = 0.0
+        for term in distinct:
+            tf = counts.get(term, 0)
+            if not tf:
+                continue
+            idf = math.log(1 + (n - doc_freq[term] + 0.5) / (doc_freq[term] + 0.5))
+            norm = tf * (K1 + 1) / (tf + K1 * (1 - B + B * length / avg_len))
+            score += idf * norm
+        if score <= 0:
+            continue
+        rank = resource.source.rank if resource.source_id else 0
+        score *= 1 + AUTHORITY_WEIGHT * (rank / 6)  # 6 = MoE, the top rank
+        scored.append((score, resource))
+
+    scored.sort(key=lambda pair: -pair[0])
+    return [resource for _, resource in scored[:limit]]
 
 
 def visible_documents(school):

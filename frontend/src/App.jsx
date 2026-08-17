@@ -24,6 +24,7 @@ import Curriculum from './Curriculum.jsx'
 import { AddColumnHeader, ColumnHeader, columnApi } from './columns.jsx'
 import Facilities, { ADD_CATEGORY } from './Facilities.jsx'
 import Fees from './Fees.jsx'
+import Learning from './Learning.jsx'
 import Messaging from './Messaging.jsx'
 import { basePathFor, goTo, slugify, usePath } from './router.js'
 import SchoolProfile from './SchoolProfile.jsx'
@@ -349,6 +350,7 @@ const NAV_SECTIONS = [
       { name: 'Schemes Review', ...GRADE_NAV },
       { name: 'Teaching Outcomes', label: 'Teaching Outcomes (Analysis)', ownHeading: true },
       { name: 'Curriculum', label: 'Curriculum Library (RAG)', ownHeading: true },
+      { name: 'E-Learning', label: 'E-Learning (Videos, Books)', ownHeading: true },
     ],
   },
   {
@@ -405,6 +407,7 @@ const TABS = {
   'Schemes Review': SchemesReview,
   Curriculum: Curriculum,
   'Teaching Outcomes': Analysis,
+  'E-Learning': (props) => <Learning canCurate isOperator={false} {...props} />,
   'Audit Log': Audit,
   Subscription: Subscription,
   Facilities: Facilities,

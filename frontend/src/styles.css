@@ -1433,6 +1433,68 @@ th.tt-gap, td.tt-gap {
 .sp-doc-actions { display: flex; gap: 0.6rem; align-items: center; white-space: nowrap; }
 .sp-doc-actions a { color: #2b6cb0; font-size: 0.85rem; }
 
+/* ---- E-Learning library ------------------------------------------------ */
+.lr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.lr-add-btn { white-space: nowrap; }
+.lr-filters { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.lr-search { flex: 1 1 16rem; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e0; border-radius: 8px; font: inherit; }
+.lr-filters select { padding: 0.5rem; border: 1px solid #cbd5e0; border-radius: 8px; font: inherit; }
+.lr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+.lr-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.lr-embed { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.lr-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.lr-thumb {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; padding: 0; border: 0;
+  cursor: pointer; background: #e2e8f0; display: block; overflow: hidden;
+}
+.lr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lr-play {
+  position: absolute; inset: 0; margin: auto; width: 3.2rem; height: 3.2rem;
+  display: grid; place-items: center; background: rgba(43,108,176,0.92); color: #fff;
+  border-radius: 50%; font-size: 1.3rem; padding-left: 0.2rem;
+}
+.lr-thumb:hover .lr-play { background: #2b6cb0; }
+.lr-filetop {
+  aspect-ratio: 16 / 7; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0.3rem; color: #fff;
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+.lr-filetop.k-book { background: linear-gradient(135deg, #dd6b20, #b7791f); }
+.lr-filetop.k-paper { background: linear-gradient(135deg, #38a169, #2f855a); }
+.lr-filetop.k-notes { background: linear-gradient(135deg, #3182ce, #2b6cb0); }
+.lr-filetop.k-simulation { background: linear-gradient(135deg, #805ad5, #6b46c1); }
+.lr-fileic { font-size: 2rem; }
+.lr-kindlabel { font-size: 0.78rem; font-weight: 600; opacity: 0.95; }
+.lr-meta { padding: 0.7rem 0.8rem; flex: 1; }
+.lr-title { font-weight: 700; font-size: 0.95rem; line-height: 1.3; }
+.lr-desc { color: #4a5568; font-size: 0.83rem; margin: 0.35rem 0 0.5rem; }
+.lr-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.lr-grade { background: #edf2f7; color: #4a5568; border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.72rem; font-weight: 600; }
+.lr-nat { background: #ebf8ff; color: #2b6cb0; border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.72rem; font-weight: 700; }
+.lr-src { color: #718096; font-size: 0.72rem; }
+.lr-actions { display: flex; gap: 0.5rem; padding: 0 0.8rem 0.8rem; }
+.btn-open { background: #2b6cb0; color: #fff; padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+.btn-open.ghost { background: #edf2f7; color: #2b6cb0; }
+
+/* Add-resource form */
+.lr-add { margin-top: 0.6rem; }
+.lr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; }
+.lr-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; font-weight: 600; color: #4a5568; }
+.lr-form label.lr-wide { grid-column: 1 / -1; }
+.lr-form input, .lr-form select { padding: 0.45rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 6px; font: inherit; font-weight: 400; }
+.lr-grades { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin: 0.8rem 0; }
+.lr-gpick { padding: 0.2rem 0.55rem; border: 1px solid #cbd5e0; border-radius: 999px; background: #fff; font-size: 0.78rem; cursor: pointer; }
+.lr-gpick.on { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.lr-nat-check { display: flex; gap: 0.4rem; align-items: center; font-size: 0.88rem; margin-bottom: 0.6rem; }
+.lr-form-actions { display: flex; gap: 0.6rem; align-items: center; }
+
 /* Bottom tab bar: phone only — the media block at the end turns it on. */
 .bottom-nav { display: none; }
 
