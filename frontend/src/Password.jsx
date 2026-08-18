@@ -119,6 +119,11 @@ function ContactCapture({ onDone }) {
   const [initialPhone, setInitialPhone] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  // After saving, the server has already sent a code to the new contact — so
+  // this flow must offer the box to type it into, not dump the user into the
+  // app with a code going stale in their inbox. {channel, target} of the send.
+  const [verify, setVerify] = useState(null)
+  const [code, setCode] = useState('')
 
   useEffect(() => {
     apiGet('/api/me/')
@@ -130,17 +135,64 @@ function ContactCapture({ onDone }) {
     setBusy(true)
     setMessage('')
     let failed = ''
+    let sent = null
     if (email.trim()) {
       const res = await apiWrite('/api/me/contact/', { email: email.trim() })
-      if (!res.ok) failed = Object.values(res.data || {}).flat().join(' ')
+      if (res.ok) sent = { channel: res.data.channel, target: res.data.target }
+      else failed = Object.values(res.data || {}).flat().join(' ')
     }
     if (!failed && phone.trim() && phone.trim() !== initialPhone) {
       const res = await apiWrite('/api/me/contact/', { phone: phone.trim() })
-      if (!res.ok) failed = Object.values(res.data || {}).flat().join(' ')
+      if (res.ok) sent = { channel: res.data.channel, target: res.data.target }
+      else failed = Object.values(res.data || {}).flat().join(' ')
     }
     setBusy(false)
     if (failed) { setMessage(failed); return }
-    onDone()
+    if (sent) { setVerify(sent); setCode(''); setMessage(''); return }
+    onDone() // nothing changed — nothing to verify
+  }
+
+  async function confirmCode() {
+    setBusy(true)
+    const res = await apiWrite('/api/me/verify/confirm/', { code })
+    setBusy(false)
+    if (res.ok) onDone()
+    else setMessage('That code is wrong or has expired.')
+  }
+
+  if (verify) {
+    return (
+      <div className="forced-gate">
+        <div className="card" style={{ maxWidth: '40rem', margin: '3rem auto' }}>
+          <h3>Enter the code we just sent</h3>
+          <p className="muted">
+            {verify.channel === 'SMS'
+              ? `A 6-digit code was texted to ${verify.target}.`
+              : `A 6-digit code was emailed to ${verify.target} — you can also just tap the link in that email.`}
+          </p>
+          <div className="adm-grid" style={{ maxWidth: '34rem' }}>
+            <label className="adm-field">
+              <span className="adm-label">6-digit code</span>
+              <input inputMode="numeric" maxLength={6} value={code} autoFocus
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+            </label>
+            <div className="adm-wide">
+              <button className="primary" onClick={confirmCode}
+                disabled={busy || code.length !== 6}>
+                {busy ? 'Checking…' : 'Verify'}
+              </button>
+              <button onClick={onDone} disabled={busy} style={{ marginLeft: '0.5rem' }}>
+                I'll do it later
+              </button>
+              {message && <span className="muted"> {message}</span>}
+            </div>
+            <p className="muted adm-wide" style={{ fontSize: '0.82rem' }}>
+              You can always verify from the Security section of your portal.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

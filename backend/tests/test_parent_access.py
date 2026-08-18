@@ -158,6 +158,23 @@ class SchoolCodeScopingTests(APITestCase):
         )
         self.assertEqual(res.status_code, 400)
 
+    def test_wrong_code_and_wrong_password_read_identically(self):
+        """No oracle: a distinct "wrong school code" answer would only appear
+        after the password verified, letting an attacker confirm stolen
+        passwords by reading which error came back."""
+        wrong_code = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "UPI-A", "school_code": "SCH-B"},
+            format="json",
+        )
+        wrong_password = self.client.post(
+            "/api/auth/token/",
+            {"username": "ADM001", "password": "NOT-IT", "school_code": "SCH-B"},
+            format="json",
+        )
+        self.assertEqual(wrong_code.status_code, wrong_password.status_code)
+        self.assertEqual(wrong_code.data, wrong_password.data)
+
     def test_an_unknown_school_code_signs_no_one_in(self):
         res = self.client.post(
             "/api/auth/token/",

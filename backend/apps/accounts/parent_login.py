@@ -181,12 +181,17 @@ class ParentFriendlyAuthTokenSerializer(AuthTokenSerializer):
         # right password on the wrong school code is still refused. A blank code
         # (operators, or a staff username that is already globally unique) skips
         # the check.
+        #
+        # The refusal is WORD-FOR-WORD the same as a wrong password. A distinct
+        # "wrong school code" message would be an oracle: it only appears after
+        # the password verified, so an attacker could confirm stolen passwords
+        # by trying them under any code and reading which error came back.
         if school_code:
             user = data["user"]
             school = getattr(user, "school", None)
             if school is None or (school.code or "").lower() != school_code.lower():
                 raise serializers.ValidationError(
-                    "This account is not registered under that school code.",
+                    {"non_field_errors": ["Unable to log in with provided credentials."]},
                     code="authorization",
                 )
         return data
