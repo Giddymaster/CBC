@@ -87,8 +87,36 @@ def _set_password(user, new_password):
     Token.objects.filter(user=user).delete()
 
 
+class PasswordResetOptionsView(APIView):
+    """POST /api/password-reset/options/ {identifier} — where a reset can go.
+
+    Returns the account's contacts masked (****0111, j***@gmail.com) so the
+    form can offer a choice, or send straight to the only one. An unknown
+    identifier returns an empty list — the page shows the same neutral message
+    it always did, and the endpoint is throttled, so this stays a poor
+    enumeration tool while making the real flow honest about where the code
+    went.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "verify"
+    throttle_classes = [ScopedRateThrottle]
+
+    def post(self, request):
+        user, _, _ = _resolve(request.data.get("identifier") or "")
+        options = []
+        if user is not None:
+            if user.phone:
+                options.append({"channel": "SMS", "target": _mask(user.phone)})
+            if user.email:
+                options.append({"channel": "EMAIL", "target": _mask(user.email)})
+        return Response({"options": options})
+
+
 class PasswordResetRequestView(APIView):
-    """POST /api/password-reset/request/ {identifier} — email, phone or username."""
+    """POST /api/password-reset/request/ {identifier, channel?} — email, phone
+    or username; the optional channel picks which contact when there are two."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -97,7 +125,14 @@ class PasswordResetRequestView(APIView):
 
     def post(self, request):
         identifier = request.data.get("identifier") or ""
+        wanted = (request.data.get("channel") or "").upper()
         user, channel, target = _resolve(identifier)
+        if user is not None:
+            # A chosen channel overrides the guess from the identifier's shape.
+            if wanted == "SMS" and user.phone:
+                channel, target = Verification.Channel.SMS, user.phone
+            elif wanted == "EMAIL" and user.email:
+                channel, target = Verification.Channel.EMAIL, user.email
         if user is not None and target:
             request_verification(
                 channel=channel,
@@ -110,7 +145,7 @@ class PasswordResetRequestView(APIView):
         return Response(
             {
                 "detail": "If that account exists, we've sent a way to reset it.",
-                "channel": _channel_hint(identifier),
+                "channel": wanted or _channel_hint(identifier),
             }
         )
 
@@ -143,15 +178,17 @@ class PasswordResetConfirmView(APIView):
             _set_password(record.user, new_password)
             return Response({"detail": "Password set. Sign in with your new password."})
 
-        # SMS code path.
-        _, _, target = _resolve(request.data.get("identifier") or "")
+        # Code path (texted, or read out of the email). The record is found by
+        # the account the identifier resolves to, not the typed target — the
+        # user may have typed a username while the code went to their phone.
+        user, _, _ = _resolve(request.data.get("identifier") or "")
         record = (
             Verification.objects.filter(
                 purpose=Verification.Purpose.PASSWORD_RESET,
-                target=target,
+                user=user,
                 consumed_at__isnull=True,
             ).order_by("-created_at").first()
-            if target
+            if user is not None
             else None
         )
         result = confirm_code(record, request.data.get("code"))

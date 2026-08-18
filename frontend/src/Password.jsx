@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { apiWrite, setToken } from './api.js'
+import { useEffect, useState } from 'react'
+import { apiGet, apiWrite, setToken } from './api.js'
 
 function problems(data) {
   if (!data) return 'Could not change the password.'
@@ -108,8 +108,84 @@ export function ChangePasswordForm({ onDone, forced }) {
   )
 }
 
+/** After the password is set: capture where a reset or sign-in code can reach
+ * this person. Optional, but this is the one moment every account passes
+ * through — a parent who skips it has no email on file when they later tap
+ * "Forgot password". Changing a contact clears its verified flag server-side
+ * and sends a verification straight away. */
+function ContactCapture({ onDone }) {
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [initialPhone, setInitialPhone] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    apiGet('/api/me/')
+      .then((me) => { setPhone(me.phone || ''); setInitialPhone(me.phone || ''); setEmail(me.email || '') })
+      .catch(() => {})
+  }, [])
+
+  async function save() {
+    setBusy(true)
+    setMessage('')
+    let failed = ''
+    if (email.trim()) {
+      const res = await apiWrite('/api/me/contact/', { email: email.trim() })
+      if (!res.ok) failed = Object.values(res.data || {}).flat().join(' ')
+    }
+    if (!failed && phone.trim() && phone.trim() !== initialPhone) {
+      const res = await apiWrite('/api/me/contact/', { phone: phone.trim() })
+      if (!res.ok) failed = Object.values(res.data || {}).flat().join(' ')
+    }
+    setBusy(false)
+    if (failed) { setMessage(failed); return }
+    onDone()
+  }
+
+  return (
+    <div className="forced-gate">
+      <div className="card" style={{ maxWidth: '40rem', margin: '3rem auto' }}>
+        <h3>How can we reach you?</h3>
+        <p className="muted">
+          If you ever forget your password, the reset code goes to these. Add an
+          email (optional) and check your phone number is right — we'll send a
+          quick verification to anything new.
+        </p>
+        <div className="adm-grid" style={{ maxWidth: '34rem' }}>
+          <label className="adm-field">
+            <span className="adm-label">Email (optional)</span>
+            <input type="email" placeholder="name@example.com" value={email}
+              autoComplete="email"
+              onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="adm-field">
+            <span className="adm-label">Phone number</span>
+            <input inputMode="tel" placeholder="07XX XXX XXX" value={phone}
+              autoComplete="tel"
+              onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <div className="adm-wide">
+            <button className="primary" onClick={save} disabled={busy}>
+              {busy ? 'Saving…' : 'Save and continue'}
+            </button>
+            <button onClick={onDone} disabled={busy} style={{ marginLeft: '0.5rem' }}>
+              Skip for now
+            </button>
+            {message && <span className="muted"> {message}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Shown instead of the app until an admin-issued password is replaced. */
 export function ForcedPasswordChange({ name, onDone }) {
+  const [passwordDone, setPasswordDone] = useState(false)
+
+  if (passwordDone) return <ContactCapture onDone={onDone} />
+
   return (
     <div className="forced-gate">
       <div className="card" style={{ maxWidth: '40rem', margin: '3rem auto' }}>
@@ -119,7 +195,7 @@ export function ForcedPasswordChange({ name, onDone }) {
           the school admin, so somebody else knows it. Replace it before going on —
           nobody else will be able to sign in as you afterwards.
         </p>
-        <ChangePasswordForm forced onDone={onDone} />
+        <ChangePasswordForm forced onDone={() => setPasswordDone(true)} />
       </div>
     </div>
   )

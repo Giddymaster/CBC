@@ -165,6 +165,43 @@ class PasswordResetTests(APITestCase):
                                  format="json")
         self.assertEqual(again.status_code, 400)
 
+    def test_options_lists_both_contacts_masked(self):
+        res = self.client.post(
+            "/api/password-reset/options/", {"identifier": "office"}, format="json"
+        )
+        self.assertEqual(res.status_code, 200)
+        channels = {o["channel"]: o["target"] for o in res.data["options"]}
+        self.assertEqual(set(channels), {"SMS", "EMAIL"})
+        self.assertEqual(channels["SMS"], "****1222")
+        self.assertNotIn("office@school.ac.ke", channels["EMAIL"])
+
+    def test_options_for_an_unknown_identifier_is_just_empty(self):
+        res = self.client.post(
+            "/api/password-reset/options/", {"identifier": "nobody"}, format="json"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["options"], [])
+
+    def test_a_chosen_channel_directs_where_the_code_goes(self):
+        # Username in the box, SMS chosen from the radio — the code must go to
+        # the phone even though a username's default resolution prefers email.
+        self.client.post(
+            "/api/password-reset/request/",
+            {"identifier": "office", "channel": "SMS"}, format="json",
+        )
+        rec = self._live("254700111222")
+        self.assertIsNotNone(rec)
+        # And the confirm finds the record by the account, not the typed text.
+        done = self.client.post(
+            "/api/password-reset/confirm/",
+            {"identifier": "office", "code": self._code(rec),
+             "new_password": "chose-sms-pw-9"},
+            format="json",
+        )
+        self.assertEqual(done.status_code, 200, done.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("chose-sms-pw-9"))
+
     def test_peek_tells_the_link_page_what_it_is_without_spending_it(self):
         self.client.post("/api/password-reset/request/",
                          {"identifier": "office@school.ac.ke"}, format="json")

@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from apps.accounts.parent_login import CreateParentLoginView, LoginView
 from apps.accounts.password_reset import (
     PasswordResetConfirmView,
+    PasswordResetOptionsView,
     PasswordResetRequestView,
     VerificationPeekView,
 )
@@ -240,6 +241,7 @@ urlpatterns = [
     path("api/parent-logins/", CreateParentLoginView.as_view()),
     path("api/me/", MeView.as_view()),
     path("api/me/password/", ChangePasswordView.as_view()),
+    path("api/password-reset/options/", PasswordResetOptionsView.as_view()),
     path("api/password-reset/request/", PasswordResetRequestView.as_view()),
     path("api/password-reset/confirm/", PasswordResetConfirmView.as_view()),
     path("api/me/contact/", MyContactView.as_view()),
