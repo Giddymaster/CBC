@@ -68,6 +68,64 @@ def start_contact_verification(user, school=None):
         logging.getLogger(__name__).exception("contact verification send failed")
 
 
+class MyContactView(APIView):
+    """POST /api/me/contact/ {email} or {phone} — set my own contact details.
+
+    This is what makes password reset and 2FA reachable at all: a parent
+    account created from the report form carries only what the guardian record
+    had (often just a phone, sometimes nothing), so "we emailed you a link" was
+    silently impossible for accounts with no email. Changing a contact clears
+    its verified flag — it is a new claim — and a verification is sent to the
+    new address immediately, so the code box can open right away.
+    """
+
+    throttle_scope = "verify"
+    throttle_classes = [ScopedRateThrottle]
+
+    def post(self, request):
+        user = request.user
+        email = (request.data.get("email") or "").strip()
+        phone = (request.data.get("phone") or "").strip()
+        if not email and not phone:
+            return Response({"detail": "Send an email or a phone number."}, status=400)
+
+        if email:
+            if "@" not in email or "." not in email.split("@")[-1]:
+                return Response({"email": ["That does not look like an email address."]}, status=400)
+            user.email = email
+            user.email_verified = False
+            user.save(update_fields=["email", "email_verified"])
+            record = request_verification(
+                channel=Verification.Channel.EMAIL,
+                purpose=Verification.Purpose.EMAIL_VERIFY,
+                target=email,
+                user=user,
+                school=user.school,
+            )
+            return Response({"saved": "email", "sent": True,
+                             "target": mask(record.target), "channel": "EMAIL"})
+
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if digits.startswith("0"):
+            digits = "254" + digits[1:]
+        elif digits.startswith(("7", "1")) and len(digits) == 9:
+            digits = "254" + digits
+        if len(digits) < 12:
+            return Response({"phone": ["Use the format 07XX XXX XXX or 2547XXXXXXXX."]}, status=400)
+        user.phone = digits
+        user.phone_verified = False
+        user.save(update_fields=["phone", "phone_verified"])
+        record = request_verification(
+            channel=Verification.Channel.SMS,
+            purpose=Verification.Purpose.PHONE_VERIFY,
+            target=digits,
+            user=user,
+            school=user.school,
+        )
+        return Response({"saved": "phone", "sent": True,
+                         "target": mask(record.target), "channel": "SMS"})
+
+
 class MyVerifyRequestView(APIView):
     """POST /api/me/verify/request/ {channel: SMS|EMAIL} — a code to my own
     contact on file. Under /api/me/ so it works even during a forced password

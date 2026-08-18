@@ -15,6 +15,8 @@ export default function Security() {
   const [pending, setPending] = useState(null) // 'SMS' | 'EMAIL' while a code is out
   const [code, setCode] = useState('')
   const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState(null) // 'email' | 'phone' while typing one
+  const [draft, setDraft] = useState('')
 
   const load = useCallback(() => {
     apiGet('/api/me/').then(setMe).catch(() => setMe(null))
@@ -52,6 +54,26 @@ export default function Security() {
     }
   }
 
+  async function saveContact() {
+    setMessage('')
+    const body = editing === 'email' ? { email: draft.trim() } : { phone: draft.trim() }
+    const res = await apiWrite('/api/me/contact/', body)
+    if (res.ok) {
+      setEditing(null)
+      setDraft('')
+      setPending(res.data.channel)
+      setCode('')
+      setMessage(
+        res.data.channel === 'SMS'
+          ? `Saved — code sent to ${res.data.target}.`
+          : `Saved — sent to ${res.data.target}. Tap the link in the email, or enter the code here.`,
+      )
+      load()
+    } else {
+      setMessage(Object.values(res.data || {}).flat().join(' ') || 'Could not save that.')
+    }
+  }
+
   async function toggle2fa() {
     setMessage('')
     const res = await apiWrite('/api/me/2fa/', { enabled: !me.two_factor_enabled })
@@ -59,25 +81,51 @@ export default function Security() {
     else setMessage(res.data?.detail || 'Could not change the setting.')
   }
 
-  const row = (label, value, verified, channel) => (
-    <div className="sec-row">
-      <div className="sec-contact">
-        <small>{label}</small>
-        <b>{value || <span className="muted">none on file</span>}</b>
+  const row = (label, field, value, verified, channel) => {
+    if (editing === field) {
+      return (
+        <div className="sec-row">
+          <input
+            placeholder={field === 'email' ? 'name@example.com' : '07XX XXX XXX'}
+            value={draft} autoFocus
+            inputMode={field === 'phone' ? 'tel' : 'email'}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && saveContact()}
+            style={{ padding: '0.45rem', flex: 1, minWidth: '11rem' }}
+          />
+          <button className="primary" onClick={saveContact} disabled={!draft.trim()}>Save</button>
+          <button onClick={() => { setEditing(null); setDraft('') }}>Cancel</button>
+        </div>
+      )
+    }
+    return (
+      <div className="sec-row">
+        <div className="sec-contact">
+          <small>{label}</small>
+          <b>{value || <span className="muted">none on file</span>}</b>
+        </div>
+        <div className="sec-actions">
+          {value && verified && <span className="sec-ok">Verified ✓</span>}
+          {value && !verified && (
+            <button onClick={() => sendCode(channel)}>Send code</button>
+          )}
+          <button onClick={() => { setEditing(field); setDraft(value || ''); setMessage('') }}>
+            {value ? 'Change' : 'Add'}
+          </button>
+        </div>
       </div>
-      {value && (verified ? (
-        <span className="sec-ok">Verified ✓</span>
-      ) : (
-        <button onClick={() => sendCode(channel)}>Send code</button>
-      ))}
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="card">
       <h3>Security</h3>
-      {row('Phone', me.phone, me.phone_verified, 'SMS')}
-      {row('Email', me.email, me.email_verified, 'EMAIL')}
+      <p className="muted" style={{ fontSize: '0.82rem', margin: '0 0 0.3rem' }}>
+        Password resets and sign-in codes go to these — keep at least one
+        current and verified.
+      </p>
+      {row('Phone', 'phone', me.phone, me.phone_verified, 'SMS')}
+      {row('Email', 'email', me.email, me.email_verified, 'EMAIL')}
 
       {pending && (
         <div className="sec-row">

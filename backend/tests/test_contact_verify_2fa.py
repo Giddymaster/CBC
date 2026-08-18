@@ -55,6 +55,76 @@ class ContactVerifyTests(APITestCase):
         self.assertEqual(res.status_code, 400)
 
 
+class MyContactTests(APITestCase):
+    """Adding your own email/phone — what makes reset and 2FA reachable."""
+
+    def setUp(self):
+        self.school = make_school()
+        self.user = make_user(self.school, "PARENT")
+        self.user.email = ""
+        self.user.phone = ""
+        self.user.save()
+        self.client.force_authenticate(self.user)
+
+    def test_adding_an_email_saves_it_and_starts_verification(self):
+        res = self.client.post(
+            "/api/me/contact/", {"email": "mama@gmail.com"}, format="json"
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data["channel"], "EMAIL")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "mama@gmail.com")
+        self.assertFalse(self.user.email_verified)
+        self.assertTrue(
+            Verification.objects.filter(user=self.user, purpose="EMAIL_VERIFY").exists()
+        )
+
+    def test_a_phone_is_normalised_and_verification_texted(self):
+        res = self.client.post("/api/me/contact/", {"phone": "0722 000 111"}, format="json")
+        self.assertEqual(res.status_code, 200, res.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.phone, "254722000111")
+        code = _code_from_sms("254722000111")
+        done = self.client.post("/api/me/verify/confirm/", {"code": code}, format="json")
+        self.assertEqual(done.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.phone_verified)
+
+    def test_changing_a_verified_email_clears_the_flag(self):
+        self.user.email = "old@x.com"
+        self.user.email_verified = True
+        self.user.save()
+        self.client.post("/api/me/contact/", {"email": "new@x.com"}, format="json")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "new@x.com")
+        self.assertFalse(self.user.email_verified)
+
+    def test_junk_is_rejected(self):
+        self.assertEqual(
+            self.client.post("/api/me/contact/", {"email": "not-an-email"}, format="json").status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.post("/api/me/contact/", {"phone": "123"}, format="json").status_code,
+            400,
+        )
+
+    def test_reset_reaches_the_newly_added_email(self):
+        """The reported bug end to end: no email on file → add one → a reset
+        actually goes out to it."""
+        self.client.post("/api/me/contact/", {"email": "mama@gmail.com"}, format="json")
+        self.client.logout()
+        self.client.force_authenticate(None)
+        self.client.post(
+            "/api/password-reset/request/", {"identifier": "mama@gmail.com"}, format="json"
+        )
+        self.assertTrue(
+            Verification.objects.filter(
+                user=self.user, purpose="PASSWORD_RESET", target="mama@gmail.com"
+            ).exists()
+        )
+
+
 class TwoFactorToggleTests(APITestCase):
     def setUp(self):
         self.school = make_school()

@@ -10,6 +10,7 @@ from apps.accounts.password_reset import (
 )
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.verify_views import (
+    MyContactView,
     MyVerifyConfirmView,
     MyVerifyRequestView,
     TwoFactorView,
@@ -241,6 +242,7 @@ urlpatterns = [
     path("api/me/password/", ChangePasswordView.as_view()),
     path("api/password-reset/request/", PasswordResetRequestView.as_view()),
     path("api/password-reset/confirm/", PasswordResetConfirmView.as_view()),
+    path("api/me/contact/", MyContactView.as_view()),
     path("api/me/verify/request/", MyVerifyRequestView.as_view()),
     path("api/me/verify/confirm/", MyVerifyConfirmView.as_view()),
     path("api/me/2fa/", TwoFactorView.as_view()),
