@@ -9,6 +9,12 @@ from apps.accounts.password_reset import (
     VerificationPeekView,
 )
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
+from apps.accounts.verify_views import (
+    MyVerifyConfirmView,
+    MyVerifyRequestView,
+    TwoFactorView,
+    VerifyLinkConfirmView,
+)
 from apps.accounts.views import MeView
 from apps.assessments.broadsheet import (
     BroadsheetView,
@@ -235,6 +241,10 @@ urlpatterns = [
     path("api/me/password/", ChangePasswordView.as_view()),
     path("api/password-reset/request/", PasswordResetRequestView.as_view()),
     path("api/password-reset/confirm/", PasswordResetConfirmView.as_view()),
+    path("api/me/verify/request/", MyVerifyRequestView.as_view()),
+    path("api/me/verify/confirm/", MyVerifyConfirmView.as_view()),
+    path("api/me/2fa/", TwoFactorView.as_view()),
+    path("api/verify/confirm-link/", VerifyLinkConfirmView.as_view()),
     path("api/verify/<str:token>/", VerificationPeekView.as_view()),
     path(
         "api/school/staff/<int:user_id>/reset-password/",

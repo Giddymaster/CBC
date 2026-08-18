@@ -424,6 +424,18 @@ form.login input { padding: 0.6rem; border: 1px solid #cbd5e0; border-radius: 6p
 }
 .login .linkish:hover { text-decoration: underline; }
 
+/* Security card: contact rows + the 2FA switch */
+.sec-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.8rem; padding: 0.55rem 0; border-bottom: 1px solid #edf2f7;
+  flex-wrap: wrap;
+}
+.sec-row:last-of-type { border-bottom: none; }
+.sec-contact small { display: block; color: #718096; font-size: 0.72rem; text-transform: uppercase; }
+.sec-contact b { font-size: 0.92rem; }
+.sec-ok { color: #2f855a; font-weight: 700; font-size: 0.85rem; }
+.sec-2fa { margin-top: 0.3rem; }
+
 /* Password box with its show/hide eye */
 .pw-wrap { position: relative; display: flex; }
 .pw-wrap input { width: 100%; padding-right: 2.6rem; }

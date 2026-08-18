@@ -85,6 +85,10 @@ function Login({ onLogin }) {
   const [forgot, setForgot] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  // 2FA: null until the server asks; then {channel, target} while we wait for
+  // the one-time code.
+  const [challenge, setChallenge] = useState(null)
+  const [code, setCode] = useState('')
   const [schoolCode, setSchoolCode] = useState(
     () => new URLSearchParams(window.location.search).get('school') || '',
   )
@@ -113,10 +117,19 @@ function Login({ onLogin }) {
       const res = await fetch('/api/auth/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, school_code: schoolCode.trim() }),
+        body: JSON.stringify({
+          username, password, school_code: schoolCode.trim(),
+          ...(challenge && code ? { code: code.trim() } : {}),
+        }),
       })
-      if (!res.ok) throw new Error('Invalid credentials')
+      if (!res.ok) throw new Error(challenge ? 'That code is wrong or has expired' : 'Invalid credentials')
       const data = await res.json()
+      // Right password + 2FA on → the server sent a code and wants it back.
+      if (data.two_factor_required) {
+        setChallenge({ channel: data.channel, target: data.target })
+        setCode('')
+        return
+      }
       setToken(data.token)
       onLogin()
     } catch (err) {
@@ -125,6 +138,30 @@ function Login({ onLogin }) {
   }
 
   if (forgot) return <ForgotPassword onBack={() => setForgot(false)} />
+
+  if (challenge) {
+    return (
+      <form className="login" onSubmit={submit}>
+        <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
+        <h2>Enter your sign-in code</h2>
+        <p className="muted">
+          We sent a 6-digit code to {challenge.target}
+          {challenge.channel === 'SMS' ? ' by SMS' : ' by email'}.
+        </p>
+        <input placeholder="6-digit code" value={code} inputMode="numeric"
+          maxLength={6} autoFocus
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+        <button className="primary" type="submit" disabled={code.length !== 6}>
+          Verify and sign in
+        </button>
+        <button type="button" className="linkish"
+          onClick={() => { setChallenge(null); setCode(''); setError('') }}>
+          Back
+        </button>
+        {error && <div className="error">{error}</div>}
+      </form>
+    )
+  }
 
   return (
     <form className="login" onSubmit={submit}>

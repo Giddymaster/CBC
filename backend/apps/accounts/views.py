@@ -24,5 +24,12 @@ class MeView(APIView):
                 # The client blocks on this: an admin-issued password is a
                 # handover credential, not the holder's own.
                 "must_change_password": user.must_change_password,
+                # The Security panel: what contacts exist, which are proven,
+                # and whether sign-in asks for a second factor.
+                "phone": user.phone,
+                "email": user.email,
+                "phone_verified": user.phone_verified,
+                "email_verified": user.email_verified,
+                "two_factor_enabled": user.two_factor_enabled,
             }
         )

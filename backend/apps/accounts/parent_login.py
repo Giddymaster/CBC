@@ -145,6 +145,13 @@ def self_service_parent(school_code, admission, upi):
     user.must_change_password = True
     user.save(update_fields=["must_change_password"])
     Guardian.objects.filter(pk=guardian.pk).update(user=user)
+
+    # New account, unproven contacts: start verification for whichever the
+    # guardian record carries, so the verified flags (and later 2FA) can mean
+    # something. Best-effort — signing in must not fail on a notice.
+    from apps.accounts.verify_views import start_contact_verification
+
+    start_contact_verification(user, school=school)
     return user
 
 
@@ -195,19 +202,61 @@ class LoginView(ObtainAuthToken):
     throttle_classes = [ScopedRateThrottle]
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+        from rest_framework.authtoken.models import Token
+        from rest_framework.response import Response
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        # Two-factor: a correct password buys a one-time code, not a token.
+        # The token is issued only once that code comes back.
+        if user.two_factor_enabled:
+            from apps.accounts.models import Verification
+            from apps.accounts.verification import (
+                VerifyResult,
+                confirm_code,
+                request_verification,
+            )
+            from apps.accounts.verify_views import latest_login_code, mask
+
+            code = (request.data.get("code") or "").strip()
+            if not code:
+                # Prefer the phone (codes read faster off SMS); fall back to email.
+                if user.phone and user.phone_verified:
+                    channel, target = Verification.Channel.SMS, user.phone
+                elif user.email:
+                    channel, target = Verification.Channel.EMAIL, user.email
+                else:
+                    channel, target = Verification.Channel.SMS, user.phone
+                request_verification(
+                    channel=channel,
+                    purpose=Verification.Purpose.LOGIN_2FA,
+                    target=target,
+                    user=user,
+                    school=user.school,
+                )
+                return Response({
+                    "two_factor_required": True,
+                    "channel": channel,
+                    "target": mask(target),
+                    "detail": "Enter the code we just sent to finish signing in.",
+                })
+            if confirm_code(latest_login_code(user), code) != VerifyResult.OK:
+                return Response(
+                    {"detail": "That code is wrong or has expired."}, status=400
+                )
+
+        token, _ = Token.objects.get_or_create(user=user)
         # Tell the client who it just signed in as, so a parent who typed an
         # admission number sees whose account they are on.
-        token_key = response.data.get("token")
-        if token_key:
-            from rest_framework.authtoken.models import Token
-
-            user = Token.objects.select_related("user").get(key=token_key).user
-            response.data["username"] = user.username
-            response.data["name"] = user.get_full_name() or user.username
-            response.data["role"] = user.role
-            response.data["must_change_password"] = user.must_change_password
-        return response
+        return Response({
+            "token": token.key,
+            "username": user.username,
+            "name": user.get_full_name() or user.username,
+            "role": user.role,
+            "must_change_password": user.must_change_password,
+        })
 
 
 class ParentAccountSerializer(serializers.Serializer):
@@ -289,6 +338,10 @@ class CreateParentLoginView(ObtainAuthToken):
         account.must_change_password = True
         account.save(update_fields=["must_change_password"])
         Guardian.objects.filter(pk=guardian.pk).update(user=account)
+
+        from apps.accounts.verify_views import start_contact_verification
+
+        start_contact_verification(account, school=user.school)
 
         return Response({
             "username": username,

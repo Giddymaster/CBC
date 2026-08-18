@@ -127,11 +127,22 @@ export function ResetByLink({ token, onDone }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [contactDone, setContactDone] = useState(false)
 
   useEffect(() => {
     fetch(`/api/verify/${token}/`)
       .then((r) => r.json())
-      .then(setInfo)
+      .then(async (data) => {
+        // A contact-verification link needs no form — tapping it IS the proof,
+        // so confirm it immediately and just show the outcome.
+        if (data.valid && (data.purpose === 'EMAIL_VERIFY' || data.purpose === 'PHONE_VERIFY')) {
+          const res = await post('/api/verify/confirm-link/', { token })
+          setContactDone(res.ok)
+          setInfo(res.ok ? data : { valid: false })
+          return
+        }
+        setInfo(data)
+      })
       .catch(() => setInfo({ valid: false }))
   }, [token])
 
@@ -146,6 +157,20 @@ export function ResetByLink({ token, onDone }) {
   }
 
   if (info === null) return <div className="login"><p className="muted">Checking your link…</p></div>
+
+  if (contactDone) {
+    return (
+      <div className="login">
+        <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
+        <h2>{info.purpose === 'EMAIL_VERIFY' ? 'Email verified' : 'Phone verified'} ✓</h2>
+        <p className="muted">
+          {info.target} is confirmed for your account. You can close this page
+          or go to sign in.
+        </p>
+        <button className="primary" onClick={onDone}>Go to sign in</button>
+      </div>
+    )
+  }
 
   if (!info.valid) {
     return (

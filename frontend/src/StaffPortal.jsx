@@ -6,6 +6,7 @@ import Fees from './Fees.jsx'
 import Messaging from './Messaging.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
+import Security from './Security.jsx'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
 
 const STATUS_BADGE = {
@@ -175,6 +176,8 @@ export function MyRolePanel({ data, onRefresh }) {
         </p>
         <ChangePasswordForm />
       </div>
+
+      <Security />
 
       <div className="card">
         <h3>My responsibilities</h3>

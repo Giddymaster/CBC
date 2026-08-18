@@ -31,6 +31,9 @@ class User(AbstractUser):
     password_changed_at = models.DateTimeField(null=True, blank=True)
     phone_verified = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
+    # Opt-in second factor: with this set, a correct password only earns a
+    # one-time code sent to a verified contact; the token comes after the code.
+    two_factor_enabled = models.BooleanField(default=False)
 
 
 class Verification(TimeStampedModel):

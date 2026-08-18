@@ -155,6 +155,9 @@ class SupportStaffViewSet(StaffReadMixin, SchoolScopedViewSet):
             account.save(update_fields=["must_change_password"])
         staff.user = account
         staff.save(update_fields=["user", "updated_at"])
+        from apps.accounts.verify_views import start_contact_verification
+
+        start_contact_verification(account, school=request.user.school)
         return Response(
             {"username": username, "generated_password": password, "name": staff.full_name},
             status=status.HTTP_201_CREATED,
@@ -277,6 +280,11 @@ class AddTeacherView(APIView):
             # An admin-picked password is a handover credential, not theirs.
             account.must_change_password = True
             account.save(update_fields=["must_change_password"])
+        # Start verifying whichever contact the account has (email link is
+        # free; SMS otherwise) so the verified flags and 2FA can mean something.
+        from apps.accounts.verify_views import start_contact_verification
+
+        start_contact_verification(account, school=user.school)
         audit(
             actor=user,
             school=user.school,

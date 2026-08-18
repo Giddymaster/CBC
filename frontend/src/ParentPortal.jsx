@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ParentThreads } from './ParentMessages.jsx'
 import Learning from './Learning.jsx'
+import Security from './Security.jsx'
 import { apiGet } from './api.js'
 import { gradeLabel } from './format.js'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
@@ -280,6 +281,7 @@ export default function ParentPortal() {
         <>
           <ChildPicker children={children} selected={child.id} onSelect={setChildId} />
           <ProfileCard child={child} />
+          <Security />
         </>
       )}
 
