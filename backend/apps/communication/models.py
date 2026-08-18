@@ -54,6 +54,13 @@ class SmsMessage(SchoolScopedModel):
         FAILED = "FAILED", "Failed"
         STUBBED = "STUBBED", "Logged (no gateway configured)"
 
+    # Platform-level SMS (a verification code, a reset) belongs to no school, so
+    # the log row may carry none — it overrides the non-null school on
+    # SchoolScopedModel just here.
+    school = models.ForeignKey(
+        "schools.School", on_delete=models.CASCADE, related_name="smsmessages",
+        null=True, blank=True,
+    )
     recipient = models.CharField(max_length=15, help_text="MSISDN, e.g. 2547XXXXXXXX")
     body = models.TextField()
     channel = models.CharField(max_length=8, choices=Channel.choices, default=Channel.SMS)

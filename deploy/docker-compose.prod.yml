@@ -65,6 +65,11 @@ services:
       DARAJA_CALLBACK_URL: ${DARAJA_CALLBACK_URL:-}
       DARAJA_WEBHOOK_SECRET: ${DARAJA_WEBHOOK_SECRET:-}
       LOGIN_THROTTLE_RATE: ${LOGIN_THROTTLE_RATE:-10/min}
+      VERIFY_THROTTLE_RATE: ${VERIFY_THROTTLE_RATE:-8/min}
+      APP_BASE_URL: ${APP_BASE_URL:-https://shulenest.com}
+      EMAIL_API_PROVIDER: ${EMAIL_API_PROVIDER:-resend}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-ShuleNest <noreply@shulenest.com>}
     volumes:
       - media:/app/media
     depends_on:

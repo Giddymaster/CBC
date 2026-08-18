@@ -418,6 +418,11 @@ form.login input { padding: 0.6rem; border: 1px solid #cbd5e0; border-radius: 6p
   border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #4a5568; background: #fff;
 }
 .login-tab.active { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.login .linkish {
+  background: none; border: none; color: #2b6cb0; cursor: pointer;
+  font-size: 0.85rem; padding: 0.2rem; align-self: flex-start;
+}
+.login .linkish:hover { text-decoration: underline; }
 
 /* Password box with its show/hide eye */
 .pw-wrap { position: relative; display: flex; }

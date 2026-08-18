@@ -3,6 +3,11 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.accounts.parent_login import CreateParentLoginView, LoginView
+from apps.accounts.password_reset import (
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    VerificationPeekView,
+)
 from apps.accounts.passwords import AdminResetPasswordView, ChangePasswordView
 from apps.accounts.views import MeView
 from apps.assessments.broadsheet import (
@@ -228,6 +233,9 @@ urlpatterns = [
     path("api/parent-logins/", CreateParentLoginView.as_view()),
     path("api/me/", MeView.as_view()),
     path("api/me/password/", ChangePasswordView.as_view()),
+    path("api/password-reset/request/", PasswordResetRequestView.as_view()),
+    path("api/password-reset/confirm/", PasswordResetConfirmView.as_view()),
+    path("api/verify/<str:token>/", VerificationPeekView.as_view()),
     path(
         "api/school/staff/<int:user_id>/reset-password/",
         AdminResetPasswordView.as_view(),

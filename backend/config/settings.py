@@ -167,6 +167,9 @@ REST_FRAMEWORK = {
     # authenticated traffic from the school's own staff.
     "DEFAULT_THROTTLE_RATES": {
         "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),
+        # Requesting or confirming a code — kept low so nobody can text-bomb a
+        # number or grind reset codes.
+        "verify": os.getenv("VERIFY_THROTTLE_RATE", "8/min"),
     },
 }
 
@@ -199,6 +202,19 @@ if not DEBUG:
 # a field validator ever runs. Per-field limits live in apps/common/uploads.py.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 30 * 1024 * 1024   # 30 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 30 * 1024 * 1024
+
+# Where the app is reached, for building verification links in emails.
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5173").rstrip("/")
+
+# Transactional email. Empty EMAIL_API_KEY => console/log stub, like the SMS
+# and M-Pesa stubs, so the whole flow is testable with no account.
+EMAIL_API_PROVIDER = os.getenv("EMAIL_API_PROVIDER", "resend")  # resend | sendgrid
+EMAIL_API_KEY = os.getenv("EMAIL_API_KEY", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "ShuleNest <noreply@shulenest.com>")
+
+# Verification codes and links.
+OTP_TTL_MINUTES = int(os.getenv("OTP_TTL_MINUTES", "10"))
+OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_BROKER_URL = REDIS_URL

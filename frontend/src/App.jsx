@@ -32,6 +32,7 @@ import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
 import ParentPortal from './ParentPortal.jsx'
 import { ForcedPasswordChange, PasswordInput } from './Password.jsx'
+import { ForgotPassword, ResetByLink } from './PasswordReset.jsx'
 import Operator from './Operator.jsx'
 import Subscription, { PlatformAnnouncements } from './Subscription.jsx'
 import Promotions from './Promotions.jsx'
@@ -81,6 +82,7 @@ const LOGIN_ROLES = {
 }
 
 function Login({ onLogin }) {
+  const [forgot, setForgot] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [schoolCode, setSchoolCode] = useState(
@@ -122,6 +124,8 @@ function Login({ onLogin }) {
     }
   }
 
+  if (forgot) return <ForgotPassword onBack={() => setForgot(false)} />
+
   return (
     <form className="login" onSubmit={submit}>
       <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
@@ -155,6 +159,9 @@ function Login({ onLogin }) {
         autoComplete="current-password"
       />
       <button className="primary" type="submit">Sign in</button>
+      <button type="button" className="linkish" onClick={() => setForgot(true)}>
+        Forgot password?
+      </button>
       <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
         {role.hint}
       </p>
@@ -507,12 +514,14 @@ export default function App() {
   const [syncNote, setSyncNote] = useState('')
   const path = usePath()
 
-  // Signed out → the sign-in page. /operator/login is the platform owner's own
-  // door (no school code), kept off the public login menu, so it is allowed to
-  // stand alongside /login rather than being bounced to it.
+  // Signed out → the sign-in page. Three paths are allowed to stand rather than
+  // being bounced to /login: /login itself, the operator's own /operator/login,
+  // and /verify/<token>, which is the password-reset link a signed-out user
+  // opens from their email.
   useEffect(() => {
     const p = window.location.pathname
-    if (!authed && p !== '/login' && p !== '/operator/login') {
+    const allowed = p === '/login' || p === '/operator/login' || p.startsWith('/verify/')
+    if (!authed && !allowed) {
       goTo('/login', { replace: true })
     }
   }, [authed])
@@ -621,6 +630,11 @@ export default function App() {
       })
   }, [authed])
 
+  // The email reset link lands here while signed out. Works before any login.
+  const resetToken = path.startsWith('/verify/') ? path.slice('/verify/'.length) : null
+  if (!authed && resetToken) {
+    return <ResetByLink token={resetToken} onDone={() => goTo('/login', { replace: true })} />
+  }
   if (!authed) return <Login onLogin={() => setAuthed(true)} />
   if (!me) return <p className="muted" style={{ padding: '2rem' }}>Loading…</p>
   // An admin-issued password is a handover credential. Nothing else in
