@@ -44,40 +44,34 @@ import SupportPortal from './StaffPortal.jsx'
 import TeacherPortal from './TeacherPortal.jsx'
 import Timetable from './Timetable.jsx'
 
-// The landing page links here as /login?as=parent|staff|admin. The role only
-// tailors the labels and the hint — everyone authenticates through the same
-// endpoint, and the app routes each account to its own portal after sign-in, so
-// "redirect correctly" needs no role in the URL beyond this cue.
+// The landing page links here as /login?as=parent|staff|admin. The role was
+// chosen there, so this page carries no role switcher and no explainer — just
+// the fields, labelled for who is signing in. Everyone authenticates through
+// the same endpoint and the app routes each account to its own portal after.
+// The school code is required for every school-bound login; only the operator
+// (its own door at /operator/login, off the public menu) has none, because an
+// operator belongs to no single school.
 const LOGIN_ROLES = {
   parent: {
     heading: 'Parent sign-in',
     userLabel: "Child's admission number",
     passLabel: 'UPI number',
-    codeRequired: true,
-    hint: "First time? Enter your school code, then your child's admission number and UPI — all three are on the report form. Your account is created and you'll set your own password next.",
   },
   staff: {
     heading: 'Staff sign-in',
     userLabel: 'Username',
     passLabel: 'Password',
-    hint: 'Teachers and support staff: use the username and password the office gave you.',
   },
   admin: {
     heading: 'Administrator sign-in',
     userLabel: 'Username',
     passLabel: 'Password',
-    hint: 'School office and administrators.',
   },
-  // The platform owner — the one who enrols schools. Deliberately absent from
-  // the public login menu, reached only at /operator/login, and never asked for
-  // a school code because an operator belongs to no single school.
   operator: {
     heading: 'Operator sign-in',
     userLabel: 'Username',
     passLabel: 'Password',
     hideCode: true,
-    hideTabs: true,
-    hint: 'Platform operator — school onboarding and billing.',
   },
 }
 
@@ -103,13 +97,12 @@ function Login({ onLogin }) {
     heading: 'Sign in',
     userLabel: 'Username or admission number',
     passLabel: 'Password',
-    hint: "Parents: enter your school code, then your child's admission number and UPI.",
   }
 
   async function submit(e) {
     e.preventDefault()
     setError('')
-    if (role.codeRequired && !schoolCode.trim()) {
+    if (!role.hideCode && !schoolCode.trim()) {
       setError('Enter your school code — the office can tell you it.')
       return
     }
@@ -167,24 +160,12 @@ function Login({ onLogin }) {
     <form className="login" onSubmit={submit}>
       <img src="/logo.svg" alt="ShuleNest" className="login-logo" />
       <h2>{role.heading}</h2>
-      {asRole && !role.hideTabs && (
-        <div className="login-tabs">
-          {['parent', 'staff', 'admin'].map((r) => (
-            <a key={r} href={`/login?as=${r}`}
-              className={`login-tab${asRole === r ? ' active' : ''}`}>
-              {r === 'parent' ? 'Parent' : r === 'staff' ? 'Staff' : 'Admin'}
-            </a>
-          ))}
-        </div>
-      )}
       {/* The school code names the tenant, so an admission number resolves to
           the right school and a login can never land on the wrong one. Required
-          for parents; optional for staff, whose usernames are unique. The
-          operator belongs to no school, so it never sees this field. */}
+          for every school-bound login; only the operator has no school. */}
       {!role.hideCode && (
-        <input placeholder={role.codeRequired ? 'School code' : 'School code (optional)'}
-          value={schoolCode} autoComplete="off"
-          onChange={(e) => setSchoolCode(e.target.value)} />
+        <input placeholder="School code" value={schoolCode} autoComplete="off"
+          required onChange={(e) => setSchoolCode(e.target.value)} />
       )}
       <input placeholder={role.userLabel} value={username}
         autoComplete="username"
@@ -199,9 +180,6 @@ function Login({ onLogin }) {
       <button type="button" className="linkish" onClick={() => setForgot(true)}>
         Forgot password?
       </button>
-      <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
-        {role.hint}
-      </p>
       {error && <div className="error">{error}</div>}
     </form>
   )
