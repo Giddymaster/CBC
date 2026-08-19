@@ -211,6 +211,8 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5173").rstrip("/")
 EMAIL_API_PROVIDER = os.getenv("EMAIL_API_PROVIDER", "resend")  # resend | sendgrid
 EMAIL_API_KEY = os.getenv("EMAIL_API_KEY", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "ShuleNest <noreply@shulenest.com>")
+# Where "request extension" pings land if no operator account has an email set.
+OPS_EMAIL = os.getenv("OPS_EMAIL", "")
 
 # Verification codes and links.
 OTP_TTL_MINUTES = int(os.getenv("OTP_TTL_MINUTES", "10"))

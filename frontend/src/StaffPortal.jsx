@@ -7,6 +7,7 @@ import Messaging from './Messaging.jsx'
 import MyTeam from './MyTeam.jsx'
 import { ChangePasswordForm } from './Password.jsx'
 import Security from './Security.jsx'
+import SubscriptionBanner from './SubscriptionBanner.jsx'
 import { ActionCard, ActionGrid, BackBar, BottomNav, PortalHero } from './portalUi.jsx'
 
 const STATUS_BADGE = {
@@ -449,6 +450,7 @@ export default function SupportPortal() {
 
   return (
     <div className="portal-shell">
+      <SubscriptionBanner />
       {tab !== 'Dashboard' && (
         <BackBar
           title={actions.find((a) => a.tab === tab)?.title || tab}

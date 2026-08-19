@@ -89,6 +89,10 @@ class Subscription(TimeStampedModel):
         related_name="subscriptions_created",
     )
     notes = models.TextField(blank=True)
+    # The day the last expiry/renewal reminder went out. The reminder command
+    # sends at most once per subscription per day by comparing this to today, so
+    # running it hourly (or twice) never double-emails.
+    last_reminder_on = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ["school__name"]

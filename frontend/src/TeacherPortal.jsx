@@ -12,6 +12,7 @@ import { gradeLabel, subjectColor } from './format.js'
 import LessonPlans from './LessonPlans.jsx'
 import TeacherSchemes from './Schemes.jsx'
 import Learning from './Learning.jsx'
+import SubscriptionBanner from './SubscriptionBanner.jsx'
 import SchoolProfile from './SchoolProfile.jsx'
 import SchoolStructure from './SchoolStructure.jsx'
 import MyTeam from './MyTeam.jsx'
@@ -552,6 +553,7 @@ export default function TeacherPortal({ onQueueChange }) {
 
   return (
     <div className="portal-shell">
+      <SubscriptionBanner />
       {tab !== 'Dashboard' && (
         <BackBar
           title={actions.find((a) => a.tab === tab)?.title || tab}

@@ -485,6 +485,65 @@ class MySchoolSubscriptionView(APIView):
         )
 
 
+class SchoolStandingView(APIView):
+    """GET /api/my-school/standing/ — the subscription state and days left, for
+    the reminder banner. Readable by any staff member (the banner shows across
+    the staff portals), unlike the admin-only invoice view above."""
+
+    def get(self, request):
+        user = request.user
+        if not (user.is_superuser or user.role in ("ADMIN", "TEACHER", "SUPPORT")):
+            return Response({"state": None})
+        sub = getattr(getattr(user, "school", None), "subscription", None)
+        if sub is None:
+            return Response({"state": None})
+        return Response(
+            {
+                "state": sub.effective_state(),
+                "days_left": sub.days_left(),
+                "can_write": sub.can_write(),
+                # Who may act on the "request extension" button — leadership.
+                "can_request": bool(
+                    user.is_superuser
+                    or user.role == "ADMIN"
+                    or getattr(getattr(user, "teacher_profile", None), "rank", "")
+                    in ("HEAD", "DEPUTY")
+                ),
+            }
+        )
+
+
+class RequestExtensionView(APIView):
+    """POST /api/my-school/request-extension/ — a school's leadership pings the
+    operator to renew or extend. Audited so it shows in the trail, and emailed
+    to the operator(s) so it actually reaches someone."""
+
+    def post(self, request):
+        user = request.user
+        is_leader = (
+            user.is_superuser
+            or user.role == "ADMIN"
+            or getattr(getattr(user, "teacher_profile", None), "rank", "")
+            in ("HEAD", "DEPUTY")
+        )
+        if not is_leader or user.school_id is None:
+            raise PermissionDenied("Only the head teacher, deputy or admin may request this.")
+
+        from .reminders import notify_operator_extension_request
+
+        note = (request.data.get("note") or "").strip()[:500]
+        audit(
+            actor=user,
+            school=user.school,
+            action="RENEWAL_REQUESTED",
+            target=getattr(user.school, "subscription", None),
+            label=f"{user.school.name} — extension requested",
+            detail={"note": note} if note else {},
+        )
+        notify_operator_extension_request(school=user.school, requested_by=user, note=note)
+        return Response({"detail": "Request sent to ShuleNest. They'll be in touch."})
+
+
 class PlatformAnnouncementFeedView(APIView):
     """GET /api/platform-announcements/ — notices addressed to this admin,
     with unread count. POST marks them all seen."""

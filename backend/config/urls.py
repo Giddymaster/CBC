@@ -97,6 +97,8 @@ from apps.platform.views import (
     OperatorSchoolView,
     PlatformAnnouncementFeedView,
     ProvisionView,
+    RequestExtensionView,
+    SchoolStandingView,
     SubscriptionViewSet,
 )
 from apps.platform.views import (
@@ -268,6 +270,8 @@ urlpatterns = [
         OperatorAdminResetView.as_view(),
     ),
     path("api/my-school/subscription/", MySchoolSubscriptionView.as_view()),
+    path("api/my-school/standing/", SchoolStandingView.as_view()),
+    path("api/my-school/request-extension/", RequestExtensionView.as_view()),
     path("api/platform-announcements/", PlatformAnnouncementFeedView.as_view()),
     path("api/communication/status/", MessagingStatusView.as_view()),
     path("api/my-school/profile/", MySchoolProfileView.as_view()),

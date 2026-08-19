@@ -27,6 +27,7 @@ import Fees from './Fees.jsx'
 import Learning from './Learning.jsx'
 import Messaging from './Messaging.jsx'
 import { basePathFor, goTo, portalFor, slugify, usePath } from './router.js'
+import SubscriptionBanner from './SubscriptionBanner.jsx'
 import SchoolProfile from './SchoolProfile.jsx'
 import { ALL_GRADES, gradeLabel, gradeParam } from './format.js'
 import Notifications from './Notifications.jsx'
@@ -807,6 +808,7 @@ export default function App() {
       )}
 
       {isStaffUI && <PlatformAnnouncements />}
+      {isStaffUI && <SubscriptionBanner />}
 
       <div className="breadcrumbs">
         {isStaffUI ? (

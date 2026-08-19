@@ -22,8 +22,10 @@ from .access import is_operator
 # security action, not a feature, and the login endpoint is not under DRF perms.
 # Reachable even on a cancelled school, so the app can learn its own fate and
 # a user can still change a compromised password.
-EXEMPT_PATHS = ("/api/me/password/",)
-ALWAYS_ALLOWED = ("/api/me/",)  # so the frontend can render a "deactivated" screen
+# Asking to renew is the very way out of read-only, so it can never be gated
+# behind write access.
+EXEMPT_PATHS = ("/api/me/password/", "/api/my-school/request-extension/")
+ALWAYS_ALLOWED = ("/api/me/", "/api/my-school/standing/")  # deactivated screen + banner
 
 LAPSED_MESSAGE = (
     "This school's subscription has lapsed, so the system is in read-only mode. "

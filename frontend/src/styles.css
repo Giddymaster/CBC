@@ -867,6 +867,20 @@ select.needs-attention { border-color: #dd6b20; background: #fffaf0; }
   gap: 1rem;
   font-size: 0.88rem;
 }
+
+/* Subscription reminder bar — amber counting down, red once read-only. */
+.sub-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; padding: 0.6rem 1.25rem; font-size: 0.88rem;
+}
+.sub-banner-amber { background: #fffaf0; border-bottom: 2px solid #dd6b20; color: #744210; }
+.sub-banner-red { background: #fff5f5; border-bottom: 2px solid #e53e3e; color: #742a2a; }
+.sub-banner button {
+  flex: none; padding: 0.3rem 0.8rem; border: 1px solid currentColor;
+  background: transparent; color: inherit; border-radius: 6px; font-weight: 600; cursor: pointer;
+}
+.sub-banner button:hover:not(:disabled) { background: rgba(0, 0, 0, 0.05); }
+.sub-banner-ok { font-weight: 700; }
 .platform-item { margin: 0.15rem 0; }
 .platform-banner button {
   flex: none;
