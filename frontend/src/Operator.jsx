@@ -493,20 +493,28 @@ function SchoolAdminsCard({ schoolId, admins, onChanged }) {
   )
 }
 
-function SchoolDetail({ sub, onBack, onChange }) {
+function SchoolDetail({ sub: initialSub, onBack, onChange }) {
+  // The subscription is kept in local state so cancel/reactivate/extend can
+  // refresh the badge and buttons here without leaving the panel.
+  const [sub, setSub] = useState(initialSub)
   const [detail, setDetail] = useState(null)
   const [invoices, setInvoices] = useState([])
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({ period_label: '', period_end: '', due_on: '' })
 
+  const refreshSub = useCallback(() => {
+    apiGet(`/api/platform/subscriptions/${initialSub.id}/`).then(setSub).catch(() => {})
+    onChange?.()
+  }, [initialSub.id, onChange])
+
   const loadDetail = useCallback(() => {
-    apiGet(`/api/platform/schools/${sub.school}/`).then(setDetail).catch(() => setDetail(null))
-  }, [sub.school])
+    apiGet(`/api/platform/schools/${initialSub.school}/`).then(setDetail).catch(() => setDetail(null))
+  }, [initialSub.school])
   const load = useCallback(() => {
-    apiGet(`/api/platform/invoices/?subscription=${sub.id}`)
+    apiGet(`/api/platform/invoices/?subscription=${initialSub.id}`)
       .then((d) => setInvoices(d.results || d))
       .catch(() => setInvoices([]))
-  }, [sub.id])
+  }, [initialSub.id])
   useEffect(() => { load(); loadDetail() }, [load, loadDetail])
 
   async function raiseInvoice(e) {
@@ -524,13 +532,31 @@ function SchoolDetail({ sub, onBack, onChange }) {
     const reference = window.prompt('Payment reference (M-Pesa code, bank ref)?') || ''
     const res = await apiWrite(`/api/platform/invoices/${inv.id}/mark-paid/`, { reference })
     setMessage(res.ok ? 'Marked paid. Access extended.' : 'Failed.')
-    if (res.ok) { load(); onChange?.() }
+    if (res.ok) { load(); refreshSub() }
   }
 
   async function cancel() {
-    if (!window.confirm(`Cancel ${sub.school_name}? They keep read access.`)) return
-    await apiWrite(`/api/platform/subscriptions/${sub.id}/cancel/`, {})
-    onChange?.(); onBack()
+    if (!window.confirm(
+      `Deactivate ${sub.school_name}? Nobody at the school will be able to sign `
+      + `in until you reactivate. Their data is kept.`,
+    )) return
+    const res = await apiWrite(`/api/platform/subscriptions/${sub.id}/cancel/`, {})
+    setMessage(res.ok ? 'School deactivated — its logins are now blocked.' : 'Failed.')
+    if (res.ok) refreshSub()
+  }
+
+  async function reactivate() {
+    const res = await apiWrite(`/api/platform/subscriptions/${sub.id}/reactivate/`, {})
+    setMessage(res.ok ? 'Reactivated — the school can sign in and work again.' : 'Failed.')
+    if (res.ok) refreshSub()
+  }
+
+  const [through, setThrough] = useState('')
+  async function extend() {
+    if (!through) { setMessage('Pick a date to extend access through.'); return }
+    const res = await apiWrite(`/api/platform/subscriptions/${sub.id}/extend/`, { through })
+    setMessage(res.ok ? `Access granted through ${through}.` : 'Failed.')
+    if (res.ok) { setThrough(''); refreshSub() }
   }
 
   return (
@@ -540,23 +566,46 @@ function SchoolDetail({ sub, onBack, onChange }) {
         <h3>{sub.school_name} <span className={`badge ${STATE_BADGE[sub.state]}`}>{STATE_LABEL[sub.state]}</span></h3>
         <p className="muted">
           {sub.plan_name} · {sub.learners} active learners ·{' '}
+          {sub.state === 'CANCELLED'
+            ? 'deactivated — logins blocked'
+            : sub.can_write ? 'can edit' : 'read-only — cannot edit'}
+          {' · '}
           {sub.paid_through ? `paid through ${sub.paid_through}` : 'no term paid yet'}
           {sub.trial_ends_on && sub.state === 'TRIAL' && ` · trial ends ${sub.trial_ends_on}`}
         </p>
         {message && <p className="muted">{message}</p>}
-        <form onSubmit={raiseInvoice} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input placeholder="Term 2 2026" value={form.period_label}
-            onChange={(e) => setForm({ ...form, period_label: e.target.value })}
-            style={{ padding: '0.4rem' }} />
-          <label className="muted">Access through
-            <input type="date" value={form.period_end}
-              onChange={(e) => setForm({ ...form, period_end: e.target.value })} /></label>
-          <label className="muted">Due
-            <input type="date" value={form.due_on}
-              onChange={(e) => setForm({ ...form, due_on: e.target.value })} /></label>
-          <button className="primary" type="submit">Raise invoice</button>
-          <button type="button" onClick={cancel}>Cancel school</button>
-        </form>
+
+        {sub.state === 'CANCELLED' ? (
+          <p style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="primary" onClick={reactivate}>Reactivate school</button>
+          </p>
+        ) : (
+          <>
+            <form onSubmit={raiseInvoice} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input placeholder="Term 2 2026" value={form.period_label}
+                onChange={(e) => setForm({ ...form, period_label: e.target.value })}
+                style={{ padding: '0.4rem' }} />
+              <label className="muted">Access through
+                <input type="date" value={form.period_end}
+                  onChange={(e) => setForm({ ...form, period_end: e.target.value })} /></label>
+              <label className="muted">Due
+                <input type="date" value={form.due_on}
+                  onChange={(e) => setForm({ ...form, due_on: e.target.value })} /></label>
+              <button className="primary" type="submit">Raise invoice</button>
+            </form>
+            <p className="muted" style={{ fontSize: '0.8rem' }}>
+              An invoice only extends access once it is marked paid. To grant
+              access directly (a comp or a trial extension), use Extend below.
+            </p>
+            <p style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <label className="muted">Extend access through
+                <input type="date" value={through}
+                  onChange={(e) => setThrough(e.target.value)} /></label>
+              <button type="button" onClick={extend}>Extend</button>
+              <button type="button" onClick={cancel}>Deactivate school</button>
+            </p>
+          </>
+        )}
       </div>
 
       {detail && (

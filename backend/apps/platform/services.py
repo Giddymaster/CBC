@@ -238,7 +238,7 @@ def mark_invoice_paid(*, invoice, operator, reference="", paid_on=None):
 
 
 def set_subscription_status(*, subscription, status, operator):
-    """Operator override: cancel a school, or reactivate a cancelled one."""
+    """Operator override: set the base status (used for cancelling)."""
     subscription.status = status
     subscription.save(update_fields=["status", "updated_at"])
     audit(
@@ -247,5 +247,53 @@ def set_subscription_status(*, subscription, status, operator):
         action="SUBSCRIPTION_STATUS",
         target=subscription,
         label=f"{subscription.school.name} → {status}",
+    )
+    return subscription
+
+
+def reactivate_subscription(*, subscription, operator):
+    """Bring a cancelled school back to a state it can actually work in.
+
+    Un-cancelling alone is not enough: with no paid term in the future the
+    school would fall straight back to read-only, so "reactivated" would still
+    mean "cannot edit". This restores usable access — kept ACTIVE if a paid term
+    still runs, otherwise a fresh trial so the office can work while billing is
+    sorted out.
+    """
+    today = timezone.localdate()
+    if subscription.paid_through and subscription.paid_through >= today:
+        subscription.status = Subscription.Status.ACTIVE
+    else:
+        subscription.status = Subscription.Status.TRIAL
+        subscription.trial_ends_on = today + timezone.timedelta(
+            days=subscription.plan.trial_days
+        )
+    subscription.save(update_fields=["status", "trial_ends_on", "updated_at"])
+    audit(
+        actor=operator,
+        school=subscription.school,
+        action="SUBSCRIPTION_STATUS",
+        target=subscription,
+        label=f"{subscription.school.name} reactivated → {subscription.effective_state()}",
+    )
+    return subscription
+
+
+def extend_access(*, subscription, through, operator):
+    """Grant access up to a date without raising an invoice — a comp, a grace
+    extension, or a longer trial. Sets the paid horizon and lifts read-only or a
+    cancellation, because access granted must actually take effect."""
+    subscription.paid_through = through
+    if subscription.status == Subscription.Status.CANCELLED:
+        subscription.status = Subscription.Status.ACTIVE
+    elif subscription.status == Subscription.Status.TRIAL:
+        subscription.status = Subscription.Status.ACTIVE
+    subscription.save(update_fields=["paid_through", "status", "updated_at"])
+    audit(
+        actor=operator,
+        school=subscription.school,
+        action="SUBSCRIPTION_EXTENDED",
+        target=subscription,
+        label=f"{subscription.school.name} — access through {through}",
     )
     return subscription

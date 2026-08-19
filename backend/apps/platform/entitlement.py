@@ -20,12 +20,19 @@ from .access import is_operator
 
 # Writes a lapsed school must still be able to make. Rotating a password is a
 # security action, not a feature, and the login endpoint is not under DRF perms.
+# Reachable even on a cancelled school, so the app can learn its own fate and
+# a user can still change a compromised password.
 EXEMPT_PATHS = ("/api/me/password/",)
+ALWAYS_ALLOWED = ("/api/me/",)  # so the frontend can render a "deactivated" screen
 
 LAPSED_MESSAGE = (
     "This school's subscription has lapsed, so the system is in read-only mode. "
     "Your data is safe and fully visible — settle the outstanding invoice to "
     "resume editing. Contact the school administrator."
+)
+CANCELLED_MESSAGE = (
+    "This school's ShuleNest access has been deactivated. "
+    "Please contact the school administration."
 )
 
 
@@ -33,9 +40,6 @@ class SubscriptionEntitlement(BasePermission):
     message = LAPSED_MESSAGE
 
     def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:
-            return True
-
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             return True  # authentication is IsAuthenticated's job, not ours
@@ -43,13 +47,23 @@ class SubscriptionEntitlement(BasePermission):
             return True  # the operator is above the tenant gate
         if getattr(user, "school_id", None) is None:
             return True
-        if request.path in EXEMPT_PATHS:
+        if request.path in EXEMPT_PATHS or request.path in ALWAYS_ALLOWED:
             return True
 
         try:
             subscription = getattr(user.school, "subscription", None)
             if subscription is None:
                 return True  # fail open — a provisioned school always has one
-            return subscription.can_write()
+            state = subscription.effective_state()
         except Exception:
             return True  # never let an entitlement bug freeze a real school
+
+        # Cancelled is off-boarding: no access at all (login is already blocked;
+        # this catches a token issued before the cancellation). Everything else
+        # keeps the soft rule — reads always, writes only when entitled.
+        if state == subscription.CANCELLED_STATE:
+            self.message = CANCELLED_MESSAGE
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return subscription.can_write()

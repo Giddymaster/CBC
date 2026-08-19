@@ -214,6 +214,19 @@ class LoginView(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
+        # A cancelled school is off-boarded: its people cannot sign in at all —
+        # not merely read-only like an unpaid one. Correct credentials, but the
+        # door is shut until the operator reactivates. (Operators have no school
+        # and are never gated.)
+        school = getattr(user, "school", None)
+        subscription = getattr(school, "subscription", None) if school else None
+        if subscription is not None and subscription.effective_state() == "CANCELLED":
+            return Response(
+                {"detail": "This school's ShuleNest access has been deactivated. "
+                           "Please contact the school administration."},
+                status=403,
+            )
+
         # Two-factor: a correct password buys a one-time code, not a token.
         # The token is issued only once that code comes back.
         if user.two_factor_enabled:

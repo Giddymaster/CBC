@@ -574,3 +574,106 @@ class SchoolManagementTests(APITestCase):
         self.assertEqual(
             self.client.post(f"{self.url}admin/", {}, format="json").status_code, 403
         )
+
+
+class CancellationLifecycleTests(APITestCase):
+    """Cancel really off-boards; reactivate/extend really restore access."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        self.operator = make_operator()
+        self.plan = make_plan(trial_days=30)
+        self.school = make_school("Lifecycle High", code="LC-1")
+        self.today = timezone.localdate()
+        # A paid, active school and its admin who can sign in.
+        self.sub = subscribe(
+            self.school, self.plan, status=Subscription.Status.ACTIVE,
+            paid_through=self.today + timedelta(days=60),
+        )
+        self.admin = make_user(self.school, "ADMIN", username="lc-admin")
+        self.admin.set_password("lc-password-9")
+        self.admin.save()
+
+    def _cancel(self):
+        self.client.force_authenticate(self.operator)
+        return self.client.post(f"/api/platform/subscriptions/{self.sub.id}/cancel/", {})
+
+    def test_cancel_blocks_the_admins_login_entirely(self):
+        # Signs in fine before…
+        before = self.client.post(
+            "/api/auth/token/",
+            {"username": "lc-admin", "password": "lc-password-9", "school_code": "LC-1"},
+            format="json",
+        )
+        self.assertEqual(before.status_code, 200, before.data)
+
+        self._cancel()
+        self.client.force_authenticate(None)
+        after = self.client.post(
+            "/api/auth/token/",
+            {"username": "lc-admin", "password": "lc-password-9", "school_code": "LC-1"},
+            format="json",
+        )
+        self.assertEqual(after.status_code, 403)
+        self.assertIn("deactivated", after.data["detail"].lower())
+
+    def test_a_lingering_token_on_a_cancelled_school_is_shut_out(self):
+        self._cancel()
+        # Re-fetch so the request sees fresh relations, as a real token auth
+        # does each request (force_authenticate would otherwise reuse the cached
+        # pre-cancel subscription on the in-memory user object).
+        fresh = User.objects.get(pk=self.admin.pk)
+        self.client.force_authenticate(fresh)
+        # Reads of tenant data are refused now (not merely writes)…
+        self.assertEqual(self.client.get("/api/learners/").status_code, 403)
+        # …but /api/me/ still answers, so the app can show a clean message.
+        self.assertEqual(self.client.get("/api/me/").status_code, 200)
+
+    def test_reactivate_restores_working_access_not_just_read_only(self):
+        # A cancelled school whose paid term has already lapsed.
+        from datetime import timedelta
+
+        self.sub.paid_through = self.today - timedelta(days=5)
+        self.sub.save()
+        self._cancel()
+        res = self.client.post(
+            f"/api/platform/subscriptions/{self.sub.id}/reactivate/", {}
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.sub.refresh_from_db()
+        # Not left read-only — a fresh trial makes it usable immediately.
+        self.assertTrue(self.sub.can_write())
+        self.assertEqual(self.sub.effective_state(), "TRIAL")
+
+    def test_reactivate_keeps_active_when_a_paid_term_still_runs(self):
+        self._cancel()
+        self.client.post(f"/api/platform/subscriptions/{self.sub.id}/reactivate/", {})
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.effective_state(), "ACTIVE")
+
+    def test_extend_grants_access_through_a_date_without_an_invoice(self):
+        from datetime import timedelta
+
+        self.client.force_authenticate(self.operator)
+        target = (self.today + timedelta(days=120)).isoformat()
+        res = self.client.post(
+            f"/api/platform/subscriptions/{self.sub.id}/extend/",
+            {"through": target}, format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.paid_through.isoformat(), target)
+        self.assertEqual(self.sub.invoices.count(), 0)  # no invoice raised
+
+    def test_extend_lifts_a_cancellation(self):
+        from datetime import timedelta
+
+        self._cancel()
+        target = (self.today + timedelta(days=90)).isoformat()
+        self.client.post(
+            f"/api/platform/subscriptions/{self.sub.id}/extend/",
+            {"through": target}, format="json",
+        )
+        self.sub.refresh_from_db()
+        self.assertTrue(self.sub.can_write())

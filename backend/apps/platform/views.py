@@ -31,9 +31,11 @@ from .models import (
 )
 from .services import (
     active_learner_count,
+    extend_access,
     issue_invoice,
     mark_invoice_paid,
     provision_school,
+    reactivate_subscription,
     replace_school_admin,
     reset_admin_password,
     set_subscription_status,
@@ -152,10 +154,20 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["post"])
     def reactivate(self, request, pk=None):
         sub = self.get_object()
-        # Back to active if a term is still paid, else trial's over → they owe.
-        set_subscription_status(
-            subscription=sub, status=Subscription.Status.ACTIVE, operator=request.user
-        )
+        reactivate_subscription(subscription=sub, operator=request.user)
+        return Response(SubscriptionSerializer(sub).data)
+
+    @action(detail=True, methods=["post"])
+    def extend(self, request, pk=None):
+        """Grant access through a date without an invoice (comp / grace / trial)."""
+        from datetime import date
+
+        sub = self.get_object()
+        try:
+            through = date.fromisoformat((request.data.get("through") or "").strip())
+        except ValueError:
+            raise ValidationError({"through": "A valid date (YYYY-MM-DD) is required."})
+        extend_access(subscription=sub, through=through, operator=request.user)
         return Response(SubscriptionSerializer(sub).data)
 
     @action(detail=True, methods=["post"])
