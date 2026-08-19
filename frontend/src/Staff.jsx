@@ -757,7 +757,7 @@ export default function Staff({ view }) {
                     <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
                 </select>
-                <input placeholder="Phone 2547XXXXXXXX" value={teacherForm.phone}
+                <input placeholder="Phone 07XX XXX XXX" value={teacherForm.phone}
                   onChange={setTeacherField('phone')} style={{ padding: '0.4rem' }} />
                 <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   Gender
@@ -821,7 +821,7 @@ export default function Staff({ view }) {
                 </select>
                 <input placeholder="Rank/title e.g. Head Cook" value={form.title}
                   onChange={setField('title')} style={{ padding: '0.4rem' }} />
-                <input placeholder="Phone 2547XXXXXXXX" value={form.phone}
+                <input placeholder="Phone 07XX XXX XXX" value={form.phone}
                   onChange={setField('phone')} style={{ padding: '0.4rem' }} />
                 <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   Gender

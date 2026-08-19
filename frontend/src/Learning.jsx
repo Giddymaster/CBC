@@ -230,10 +230,6 @@ export default function Learning({ canCurate = false, isOperator = false }) {
       <div className="card lr-head">
         <div>
           <h3>E-Learning library</h3>
-          <p className="muted">
-            Video lessons, books, past papers and revision notes — search by
-            topic, or filter by subject and grade.
-          </p>
         </div>
         {canCurate && (
           <AddResource areas={areas} onAdded={load} isOperator={isOperator} />

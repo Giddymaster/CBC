@@ -171,9 +171,6 @@ export function MyRolePanel({ data, onRefresh }) {
 
       <div className="card">
         <h3>My password</h3>
-        <p className="muted">
-          Change it whenever you like. Other devices will need to sign in again.
-        </p>
         <ChangePasswordForm />
       </div>
 

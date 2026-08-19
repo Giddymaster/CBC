@@ -213,10 +213,6 @@ function Documents({ categories, canEdit }) {
   return (
     <div className="card">
       <h3>School documents</h3>
-      <p className="muted">
-        Registration certificates, policies, MoE circulars, board minutes — filed
-        where the office can find them from any device.
-      </p>
 
       {canEdit && (
         <div className="sp-upload">
@@ -426,7 +422,7 @@ export default function SchoolProfile() {
             placeholder="07XX XXX XXX"
             onChange={(v) => setDraft({ ...draft, contact_phone: v })} />
           <Field label="Second phone" value={draft.alt_phone} disabled={!canEdit}
-            placeholder="Optional"
+            placeholder="07XX XXX XXX (optional)"
             onChange={(v) => setDraft({ ...draft, alt_phone: v })} />
           <Field label="Email" type="email" value={draft.contact_email} disabled={!canEdit}
             placeholder="office@school.ac.ke"
